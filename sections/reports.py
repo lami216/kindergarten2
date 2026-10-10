@@ -321,8 +321,8 @@ def render(conn):
         total_monthly_cash_outflow = monthly_salaries_paid + monthly_expenses_paid
         net_monthly_margin = monthly_student_income - total_monthly_cash_outflow
 
-        st.markdown("### 📑 تقرير الإدارة العليا الشامل (أداء الروضة والمالية والسيولة)")
-        st.markdown("تقرير إداري تحليلي متكامل مخصص لاجتماعات مجلس الإدارة ومراجعة السيولة والعمليات التشغيلية.")
+        st.markdown("### 📑    تقرير أداء الروضة")
+        st.markdown("تقرير إداري  مراجعة السيولة والعمليات التشغيلية.")
 
         # Top Executive Metrics
         e1, e2, e3, e4 = st.columns(4)
