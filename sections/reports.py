@@ -196,7 +196,7 @@ def _render_printable_report_pdf(
     </style>
     </head>
     <body>
-        <button class="print-btn" onclick="window.print()">🖨️ اضغط هنا للطباعة أو الحفظ كـ PDF (أفقي)</button>
+        <button class="print-btn" onclick="window.print()">🖨️ اضغط هنا للطباعة أو الحفظ كـ PDF</button>
 
         <div class="print-header">
             <div class="header-brand">
