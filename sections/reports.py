@@ -1,7 +1,7 @@
 """
 sections/reports.py — التقارير والتصدير
 
-Filtered report views with direct browser printing (PDF) and Excel exports,
+Filtered report views with direct browser printing (landscape PDF) and Excel exports,
 allowing customizable column selection.
 """
 
@@ -27,7 +27,7 @@ def _render_printable_report_pdf(
     meta_info: dict,
     df: pd.DataFrame,
 ):
-    """Renders a print-ready iframe with a 'Print/Save to PDF' button and letterhead."""
+    """Renders a print-ready iframe with a 'Print/Save to PDF' button and letterhead in landscape mode."""
     
     headers_html = "".join([f"<th>{col}</th>" for col in df.columns])
     
@@ -138,14 +138,14 @@ def _render_printable_report_pdf(
             .print-btn {{ display: none; }}
             body {{ padding: 0; }}
             @page {{
-                size: A4 portrait;
+                size: A4 landscape; /* Set to horizontal/landscape layout */
                 margin: 10mm;
             }}
         }}
     </style>
     </head>
     <body>
-        <button class="print-btn" onclick="window.print()">🖨️ اضغط هنا للطباعة أو الحفظ كـ PDF</button>
+        <button class="print-btn" onclick="window.print()">🖨️ اضغط هنا للطباعة أو الحفظ كـ PDF (أفقي)</button>
 
         <div class="print-header">
             <div class="header-brand">
@@ -392,7 +392,6 @@ def render(conn):
         st.subheader("⚙️ تخصيص الأعمدة المعروضة")
         
         all_columns = list(result.columns)
-        # Default select all columns except maybe sequence 'م' or keep all selectable
         selected_columns = st.multiselect(
             "اختر الحقول/العمود المراد إظهارها في التقرير والطباعة:",
             options=all_columns,
@@ -421,12 +420,12 @@ def render(conn):
             )
 
         with c2:
-            if st.button("🖨️ معاينة وتوليد طباعة التقرير (PDF)", use_container_width=True):
+            if st.button("🖨️ معاينة وتوليد طباعة التقرير (أفقي PDF)", use_container_width=True):
                 st.session_state['show_report_print_preview'] = True
 
         if st.session_state.get('show_report_print_preview', False):
             st.markdown("---")
-            st.markdown("#### معاينة الطباعة الرسمية:")
+            st.markdown("#### معاينة الطباعة الرسمية (أفقي):")
             _render_printable_report_pdf(report_title_str, meta_info, display_df)
     else:
         ui.empty_state("لا توجد بيانات مطابقة للفلاتر المحددة.")
