@@ -2,7 +2,7 @@
 sections/reports.py — التقارير والتصدير
 
 Filtered report views with direct browser printing (landscape PDF) and Excel exports,
-allowing customizable column selection.
+allowing customizable column selection and summary metrics.
 """
 
 import io
@@ -15,7 +15,7 @@ import helpers as H
 
 
 def _to_excel(df: pd.DataFrame) -> bytes:
-    """Helper to convert DataFrame to Excel binary stream."""
+    """Helper to convert DataFrame to Excel binary stream[cite: 3]."""
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         df.to_excel(writer, index=False, sheet_name='التقرير')
@@ -26,8 +26,9 @@ def _render_printable_report_pdf(
     report_title: str,
     meta_info: dict,
     df: pd.DataFrame,
+    summary_metrics: dict,
 ):
-    """Renders a print-ready iframe with a 'Print/Save to PDF' button and letterhead in landscape mode."""
+    """Renders a print-ready iframe with a landscape PDF layout, letterhead, and summary footer[cite: 3]."""
     
     headers_html = "".join([f"<th>{col}</th>" for col in df.columns])
     
@@ -40,6 +41,17 @@ def _render_printable_report_pdf(
     logo_img_tag = f'<img src="data:image/png;base64,{logo_b64}" />' if logo_b64 else ""
 
     meta_html = "".join([f"<div><strong>{k}:</strong> {v}</div>" for k, v in meta_info.items()])
+
+    # Generate summary metrics cards html for print footer
+    summary_html = ""
+    if summary_metrics:
+        summary_items = "".join([f'<div class="summary-card"><span>{k}</span><strong>{v}</strong></div>' for k, v in summary_metrics.items()])
+        summary_html = f"""
+        <div class="summary-section">
+            <div class="summary-title">📊 ملخص إحصائي للتقرير</div>
+            <div class="summary-grid">{summary_items}</div>
+        </div>
+        """
 
     html_content = f"""
     <!DOCTYPE html>
@@ -102,6 +114,7 @@ def _render_printable_report_pdf(
             border-collapse: collapse;
             font-size: 12px;
             margin-top: 5px;
+            margin-bottom: 15px;
         }}
         th, td {{
             border: 1px solid #CBD5E1;
@@ -116,6 +129,45 @@ def _render_printable_report_pdf(
         }}
         tr:nth-child(even) {{
             background-color: #F8FAFC;
+        }}
+        .summary-section {{
+            margin-top: 20px;
+            border: 1px solid #163D22;
+            border-radius: 8px;
+            padding: 10px;
+            background: #FAF9F5;
+        }}
+        .summary-title {{
+            font-size: 13px;
+            font-weight: 800;
+            color: #163D22;
+            margin-bottom: 8px;
+            text-align: center;
+        }}
+        .summary-grid {{
+            display: flex;
+            justify-content: space-around;
+            gap: 10px;
+            flex-wrap: wrap;
+        }}
+        .summary-card {{
+            background: #fff;
+            border: 1px solid #D7A431;
+            border-radius: 6px;
+            padding: 6px 14px;
+            text-align: center;
+            min-width: 140px;
+        }}
+        .summary-card span {{
+            display: block;
+            font-size: 11px;
+            color: #7C8A7E;
+        }}
+        .summary-card strong {{
+            display: block;
+            font-size: 14px;
+            color: #163D22;
+            margin-top: 2px;
         }}
         .print-btn {{
             display: block;
@@ -138,7 +190,7 @@ def _render_printable_report_pdf(
             .print-btn {{ display: none; }}
             body {{ padding: 0; }}
             @page {{
-                size: A4 landscape; /* Set to horizontal/landscape layout */
+                size: A4 landscape;
                 margin: 10mm;
             }}
         }}
@@ -173,16 +225,18 @@ def _render_printable_report_pdf(
                 {rows_html}
             </tbody>
         </table>
+
+        {summary_html}
     </body>
     </html>
     """
     
-    height = 650 if len(df) > 10 else 450
+    height = 720 if len(df) > 10 else 520
     components.html(html_content, height=height, scrolling=True)
 
 
 def render(conn):
-    ui.section_header("📈", "التقارير والتصدير", "استخراج بيانات مفلترة وتصديرها وإدارتها")
+    ui.section_header("📈", "التقارير والتصدير", "استخراج بيانات مفلترة وتصديرها وإدارتها")[cite: 3]
 
     report_type = st.radio(
         "اختر نوع التقرير",
@@ -201,6 +255,7 @@ def render(conn):
     result = pd.DataFrame()
     meta_info = {}
     report_title_str = ""
+    summary_metrics = {}
 
     # --------------------------------------------------------------------------
     # 1. CLASS ROSTER & ATTENDANCE SHEET REPORT
@@ -213,7 +268,7 @@ def render(conn):
         """)
 
         if classes_df.empty:
-            ui.empty_state("لا توجد صفوف معرفة في النظام.")
+            ui.empty_state("لا توجد صفوف معرفة في النظام.")[cite: 3]
             return
 
         c1, c2, c3 = st.columns(3)
@@ -254,6 +309,14 @@ def render(conn):
 
             meta_info = {"الصف": selected_class_name, "السنة الدراسية": selected_year}
             report_title_str = f"كشف أسماء الطلاب {'والحضور' if include_attendance_cols else ''} — {selected_class_name}"
+            
+            male_count = len(result[result['الجنس'] == 'ذكر']) if 'الجنس' in result.columns else 0
+            female_count = len(result[result['الجنس'] == 'أنثى']) if 'الجنس' in result.columns else 0
+            summary_metrics = {
+                "إجمالي عدد الطلاب": f"{len(result)} طالب/ة",
+                "عدد الذكور": f"{male_count}",
+                "عدد الإناث": f"{female_count}"
+            }
 
     # --------------------------------------------------------------------------
     # 2. FINANCIAL CASH RECEIPTS REPORT
@@ -288,9 +351,13 @@ def render(conn):
 
         if not result.empty:
             result.insert(0, "م", range(1, len(result) + 1))
-            st.metric("💰 إجمالي المبلغ المقبوض", H.format_money(result['المبلغ'].sum()))
+            total_collected = result['المبلغ'].sum()
             meta_info = {"الفترة": f"{date_from or 'البداية'} إلى {date_to or 'النهاية'}", "مقابل": reason_filter}
             report_title_str = "سجل المقبوضات المالية"
+            summary_metrics = {
+                "إجمالي المقبوضات": H.format_money(total_collected),
+                "عدد السندات": f"{len(result)} سند"
+            }
 
     # --------------------------------------------------------------------------
     # 3. STUDENTS & GUARDIANS REGISTRY
@@ -308,6 +375,9 @@ def render(conn):
             result.insert(0, "م", range(1, len(result) + 1))
             meta_info = {"النوع": "قائمة الطلاب وأولياء الأمور الشاملة"}
             report_title_str = "قائمة الطلاب وأولياء الأمور"
+            summary_metrics = {
+                "إجمالي الطلاب": f"{len(result)} طالب/ة"
+            }
 
     # --------------------------------------------------------------------------
     # 4. REGISTRATION LIST
@@ -336,6 +406,11 @@ def render(conn):
             result.insert(0, "م", range(1, len(result) + 1))
             meta_info = {"السنة الدراسية": year_filter}
             report_title_str = "قائمة التسجيلات"
+            active_count = len(result[result['الحالة'] == 'مسجل']) if 'الحالة' in result.columns else len(result)
+            summary_metrics = {
+                "إجمالي التسجيلات": f"{len(result)} تسجيل",
+                "الطلاب المنتظمين": f"{active_count}"
+            }
 
     # --------------------------------------------------------------------------
     # 5. OUTSTANDING BALANCES / DEBTORS REPORT
@@ -378,11 +453,15 @@ def render(conn):
 
         if not result.empty:
             result.insert(0, "م", range(1, len(result) + 1))
-            k1, k2 = st.columns(2)
-            k1.metric("عدد الطلاب المتبقي عليهم مبالغ", len(result))
-            k2.metric("إجمالي الديون المتبقية", H.format_money(result["المتبقي عليه (شيكل)"].sum()))
+            total_debt = result["المتبقي عليه (شيكل)"].sum()
+            total_paid = result["المدفوع (شيكل)"].sum()
             meta_info = {"السنة الدراسية": selected_year}
             report_title_str = "كشف الديون والذمم المتبقية"
+            summary_metrics = {
+                "إجمالي الذمم المتبقية": H.format_money(total_debt),
+                "إجمالي المدفوعات المسددة": H.format_money(total_paid),
+                "عدد الطلاب أصحاب الديون": f"{len(result)} طالب"
+            }
 
     # --------------------------------------------------------------------------
     # ATTRIBUTE SELECTION & EXPORT CONTROLS
@@ -404,7 +483,15 @@ def render(conn):
             display_df = result
 
         st.markdown("---")
-        st.subheader("👀 معاينة التقرير")
+        st.subheader("👀 معاينة التقرير والملخصات")
+        
+        # Display summary metrics cards visually in Streamlit UI
+        if summary_metrics:
+            cols = st.columns(len(summary_metrics))
+            for i, (k, v) in enumerate(summary_metrics.items()):
+                cols[i].metric(label=k, value=v)
+            st.markdown("")
+
         st.dataframe(display_df, use_container_width=True, hide_index=True)
 
         st.markdown("##### 📥 خيارات الطباعة والتصدير")
@@ -425,7 +512,7 @@ def render(conn):
 
         if st.session_state.get('show_report_print_preview', False):
             st.markdown("---")
-            st.markdown("#### معاينة الطباعة الرسمية (أفقي):")
-            _render_printable_report_pdf(report_title_str, meta_info, display_df)
+            st.markdown("#### معاينة الطباعة الرسمية (أفقي مع الملخصات):")
+            _render_printable_report_pdf(report_title_str, meta_info, display_df, summary_metrics)
     else:
-        ui.empty_state("لا توجد بيانات مطابقة للفلاتر المحددة.")
+        ui.empty_state("لا توجد بيانات مطابقة للفلاتر المحددة.")[cite: 3]
