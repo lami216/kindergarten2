@@ -196,7 +196,7 @@ def _render_printable_report_pdf(
     </style>
     </head>
     <body>
-        <button class="print-btn" onclick="window.print()">🖨️ اضغط هنا للطباعة أو الحفظ كـ PDF (أفقي)</button>
+        <button class="print-btn" onclick="window.print()">🖨️ اضغط هنا للطباعة أو الحفظ كـ PDF</button>
 
         <div class="print-header">
             <div class="header-brand">
@@ -580,12 +580,12 @@ def render(conn):
             )
 
         with c2:
-            if st.button("🖨️ معاينة وتوليد طباعة التقرير (أفقي PDF)", use_container_width=True):
+            if st.button("🖨️   طباعة التقرير (PDF)", use_container_width=True):
                 st.session_state['show_report_print_preview'] = True
 
         if st.session_state.get('show_report_print_preview', False):
             st.markdown("---")
-            st.markdown("#### معاينة الطباعة الرسمية (أفقي مع الملخصات):")
+            st.markdown("#### معاينة الطباعة ):")
             _render_printable_report_pdf(report_title_str, meta_info, display_df, summary_metrics)
     else:
         ui.empty_state("لا توجد بيانات مطابقة للفلاتر المحددة.")[cite: 3]
