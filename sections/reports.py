@@ -15,7 +15,7 @@ import helpers as H
 
 
 def _to_excel(df: pd.DataFrame) -> bytes:
-    """Helper to convert DataFrame to Excel binary stream[cite: 3]."""
+    """Helper to convert DataFrame to Excel binary stream."""
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         df.to_excel(writer, index=False, sheet_name='التقرير')
@@ -28,7 +28,7 @@ def _render_printable_report_pdf(
     df: pd.DataFrame,
     summary_metrics: dict,
 ):
-    """Renders a print-ready iframe with a landscape PDF layout, letterhead, and summary footer[cite: 3]."""
+    """Renders a print-ready iframe with a landscape PDF layout, letterhead, and summary footer."""
     
     headers_html = "".join([f"<th>{col}</th>" for col in df.columns])
     
@@ -236,7 +236,7 @@ def _render_printable_report_pdf(
 
 
 def render(conn):
-    ui.section_header("📈", "التقارير والتصدير", "استخراج بيانات مفلترة وتصديرها وإدارتها")[cite: 3]
+    ui.section_header("📈", "التقارير والتصدير", "استخراج بيانات مفلترة وتصديرها وإدارتها")
 
     report_type = st.radio(
         "اختر نوع التقرير",
@@ -268,7 +268,7 @@ def render(conn):
         """)
 
         if classes_df.empty:
-            ui.empty_state("لا توجد صفوف معرفة في النظام.")[cite: 3]
+            ui.empty_state("لا توجد صفوف معرفة في النظام.")
             return
 
         c1, c2, c3 = st.columns(3)
@@ -515,4 +515,4 @@ def render(conn):
             st.markdown("#### معاينة الطباعة الرسمية (أفقي مع الملخصات):")
             _render_printable_report_pdf(report_title_str, meta_info, display_df, summary_metrics)
     else:
-        ui.empty_state("لا توجد بيانات مطابقة للفلاتر المحددة.")[cite: 3]
+        ui.empty_state("لا توجد بيانات مطابقة للفلاتر المحددة.")
