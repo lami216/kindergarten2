@@ -17,32 +17,32 @@ RECEIPT_TEMPLATE = """
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap');
 
-    :root {
+    :root {{
         --primary-dark:#163D22;
         --gold:#D7A431;
-    }
-    * { 
+    }}
+    * {{ 
         box-sizing: border-box; 
         font-family: 'Cairo', 'Segoe UI', Tahoma, sans-serif;
-    }
-    html, body {
+    }}
+    html, body {{
         height: 100%;
         margin: 0;
         padding: 0;
         background: #FAF9F5;
         direction: rtl;
         text-align: right;
-    }
-    .page-container {
+    }}
+    .page-container {{
         max-width: 720px;
         margin: 0 auto;
         padding: 10px;
         display: flex;
         flex-direction: column;
         min-height: 100vh;
-    }
+    }}
     
-    .receipt-box {
+    .receipt-box {{
         background: #FFFDF6;
         border: 2px dashed var(--gold);
         border-radius: 12px;
@@ -53,52 +53,52 @@ RECEIPT_TEMPLATE = """
         display: flex;
         flex-direction: column;
         justify-content: space-between;
-    }
+    }}
 
-    .letterhead {
+    .letterhead {{
         display: flex; 
         align-items: center; 
         justify-content: center; 
         gap: 12px;
         margin-bottom: 8px;
-    }
-    .letterhead img { 
+    }}
+    .letterhead img {{ 
         width: 46px; 
         height: 46px; 
         border-radius: 50%; 
         flex-shrink: 0; 
-    }
-    .letterhead-text { text-align: center; }
-    .letterhead-text .lh-ar { font-size: 15px; font-weight: 800; color: var(--primary-dark); }
-    .letterhead-text .lh-en { font-size: 11px; color: #7C8A7E; }
+    }}
+    .letterhead-text {{ text-align: center; }}
+    .letterhead-text .lh-ar {{ font-size: 15px; font-weight: 800; color: var(--primary-dark); }}
+    .letterhead-text .lh-en {{ font-size: 11px; color: #7C8A7E; }}
     
-    .receipt-header {
+    .receipt-header {{
         display: flex;
         justify-content: space-between;
         align-items: center;
         border-bottom: 1px dashed var(--gold);
         padding-bottom: 6px;
         margin-bottom: 10px;
-    }
-    .receipt-header h3 {
+    }}
+    .receipt-header h3 {{
         margin: 0;
         color: var(--primary-dark);
         font-size: 16px;
-    }
-    .copy-badge {
+    }}
+    .copy-badge {{
         background: var(--primary-dark);
         color: #FFFDF6;
         font-size: 11px;
         font-weight: 700;
         padding: 2px 10px;
         border-radius: 6px;
-    }
-    .receipt-grid {
+    }}
+    .receipt-grid {{
         display: grid;
         grid-template-columns: 1fr 1fr;
         gap: 6px 16px;
-    }
-    .receipt-row {
+    }}
+    .receipt-row {{
         display: flex; 
         justify-content: flex-start; 
         align-items: center;
@@ -106,66 +106,66 @@ RECEIPT_TEMPLATE = """
         border-bottom: 1px dotted #e5e0c8; 
         padding: 4px 0;
         text-align: right;
-    }
-    .receipt-row.full-width {
+    }}
+    .receipt-row.full-width {{
         grid-column: span 2;
-    }
-    .receipt-row span { 
+    }}
+    .receipt-row span {{ 
         color: #7C8A7E; 
         white-space: nowrap; 
-    }
-    .receipt-row b { 
+    }}
+    .receipt-row b {{ 
         color: #1F2A22; 
         text-align: right;
-    }
-    .receipt-row.balance { 
+    }}
+    .receipt-row.balance {{ 
         border-bottom: none; 
         margin-top: 4px; 
         padding-top: 6px; 
         border-top: 1px solid #e5e0c8; 
-    }
-    .receipt-row.balance b { color: #B4790C; font-size: 14px; }
+    }}
+    .receipt-row.balance b {{ color: #B4790C; font-size: 14px; }}
     
-    .signatures-section {
+    .signatures-section {{
         display: flex;
         justify-content: space-between;
         align-items: flex-end;
         margin-top: 15px;
         padding-top: 10px;
         border-top: 1px dashed #d0c8b0;
-    }
-    .sig-box {
+    }}
+    .sig-box {{
         text-align: center;
         width: 42%;
-    }
-    .sig-title {
+    }}
+    .sig-title {{
         font-size: 12px;
         font-weight: 700;
         color: var(--primary-dark);
         margin-bottom: 25px;
-    }
-    .sig-line {
+    }}
+    .sig-line {{
         border-bottom: 1px dotted #7C8A7E;
         width: 100%;
-    }
+    }}
 
-    .cut-line {
+    .cut-line {{
         display: flex;
         align-items: center;
         text-align: center;
         margin: 8px 0;
         color: #A3AD9E;
         font-size: 11px;
-    }
-    .cut-line::before, .cut-line::after {
+    }}
+    .cut-line::before, .cut-line::after {{
         content: '';
         flex: 1;
         border-bottom: 1px dashed #A3AD9E;
-    }
-    .cut-line::before { margin-left: .5em; }
-    .cut-line::after { margin-right: .5em; }
+    }}
+    .cut-line::before {{ margin-left: .5em; }}
+    .cut-line::after {{ margin-right: .5em; }}
 
-    .print-btn {
+    .print-btn {{
         display: block;
         width: 100%;
         max-width: 720px;
@@ -178,38 +178,38 @@ RECEIPT_TEMPLATE = """
         font-size: 14px;
         font-weight: 700;
         cursor: pointer;
-    }
-    .print-btn:hover { opacity: .9; }
+    }}
+    .print-btn:hover {{ opacity: .9; }}
 
-    @media print {
-        .print-btn { display: none; }
-        html, body { 
+    @media print {{
+        .print-btn {{ display: none; }}
+        html, body {{ 
             background: #fff; 
             padding: 0; 
             margin: 0;
             height: 100%;
-        }
-        .page-container { 
+        }}
+        .page-container {{ 
             max-width: 100%; 
             height: 100vh;
             padding: 0;
             box-sizing: border-box;
             justify-content: space-between;
-        }
-        .receipt-box {
+        }}
+        .receipt-box {{
             height: 48%;
             flex: none;
             border-style: dashed;
-        }
-        .cut-line {
+        }}
+        .cut-line {{
             margin: 4px 0;
             height: 2%;
-        }
-        @page {
+        }}
+        @page {{
             size: A4 portrait;
             margin: 8mm;
-        }
-    }
+        }}
+    }}
 </style>
 </head>
 <body>
@@ -317,5 +317,4 @@ def render_receipt(receipt_id, date, student_name, payer, amount, reason, remain
         reason=reason_full,
         remaining=remaining,
     )
-    # Increased component height to accommodate signatures and exact height sizing
     components.html(html, height=1050, scrolling=True)
