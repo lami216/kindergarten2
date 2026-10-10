@@ -1,6 +1,6 @@
 """
 sections/dashboard.py — لوحة التحكم (الرئيسية)
-Organized into clear visual sections with subheadings and a comprehensive executive summary report.
+Organized into clear visual sections with subheadings for improved UI/UX.
 """
 
 import streamlit as st
@@ -129,6 +129,7 @@ def render(conn):
     ui.kpi(p1, "💵", "مقبوضات الطلاب (هذا الشهر)", H.format_money(monthly_student_income), bg="#E0F2FE", fg="#0369A1")
     ui.kpi(p2, "📦", "السيولة الخارجة (رواتب + مصروفات)", H.format_money(total_monthly_cash_outflow), bg="#FEF2F2", fg="#991B1B")
 
+    # Income vs Outflow Cash Flow Alert
     net_monthly_margin = monthly_student_income - total_monthly_cash_outflow
     st.write("")
     if net_monthly_margin < 0:
@@ -295,28 +296,3 @@ def render(conn):
                     )
                 }
             )
-
-    st.markdown("---")
-
-    # ==================================================================
-    # SECTION 7: EXECUTIVE SUMMARY REPORT & MANAGEMENT OVERVIEW
-    # ==================================================================
-    with st.container(border=True):
-        st.markdown("### 📋 التقرير التنفيذي الشامل للإدارة العليا")
-        st.markdown("ملخص تحليل الأداء المؤسسي، المالي، والتشغيلي للروضة جاهز للعرض والمراجعة.")
-
-        col_exec1, col_exec2, col_exec3 = st.columns(3)
-        col_exec1.metric("إجمالي الإيرادات المحصلة", H.format_money(total_revenue))
-        col_exec2.metric("إجمالي المصروفات المدفوعة", H.format_money(total_expenses_paid))
-        col_exec3.metric("إجمالي الأصول والموجودات", H.format_money(total_assets))
-
-        st.markdown("")
-        st.markdown("#### 📌 المؤشرات الرئيسية:")
-        st.markdown(f"""
-        - **إجمالي الكادر والطلاب:** {total_students} طالب/ة موزعين على {total_classes} صفوف، بإشراف {total_teachers} معلمات.
-        - **الذمم والديون المتبقية:** إجمالي الأقساط غير المسددة للطلاب بلغت **{H.format_money(total_student_outstanding)} شيكل**، بينما بلغت التزامات الموردين الآجلة **{H.format_money(total_supplier_debts)} شيكل**.
-        - **السيولة الشهرية الحالية ({current_month}):** تحصيلات الطلاب بلغت **{H.format_money(monthly_student_income)} شيكل** مقابل منصرفات تشغيلية ورواتب بقيمة **{H.format_money(total_monthly_cash_outflow)} شيكل**.
-        """)
-
-        if st.button("🖨️ طباعة وتصدير التقرير التنفيذي الشامل", use_container_width=True):
-            st.success("✨ تم اعتماد التقرير التنفيذي بنجاح. يمكنك استخدام قسم (التقارير والتصدير) لتوليد ملفات PDF أفقية أو Excel مخصصة لأي بند حسب الحاجة.")
