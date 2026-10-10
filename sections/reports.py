@@ -435,14 +435,14 @@ def render(conn):
                 {"البند الرئيسي": "إجمالي الأصول", "القيمة الإحصائية": H.format_money(total_assets), "ملاحظات إدارية": "تجهيزات وألعاب وممتلكات"},
                 {"البند الرئيسي": f"سيولة شهر {current_month}", "القيمة الإحصائية": H.format_money(net_monthly_margin), "ملاحظات إدارية": "صافي الفائض التشغيلي"}
             ])
-            exec_meta = {"نوع التقرير": "تقرير الإدارة العليا الشامل", "حالة الروضة": "مستقرة وتحت المتابعة"}
+            exec_meta = {"نوع التقرير": "تقرير الإدارة  الشامل", "حالة الروضة": "مستقرة وتحت المتابعة"}
             exec_metrics = {
                 "إجمالي الإيرادات": H.format_money(total_revenue),
                 "إجمالي المصروفات": H.format_money(total_expenses_paid),
                 "صافي سيولة الشهر": H.format_money(net_monthly_margin)
             }
             st.markdown("#### معاينة الطباعة الرسمية للتقرير الشامل:")
-            _render_printable_report_pdf("تقرير الإدارة العليا الشامل والأداء المالي", exec_meta, exec_summary_df, exec_metrics)
+            _render_printable_report_pdf("تقرير الإدارة   والأداء ", exec_meta, exec_summary_df, exec_metrics)
         return
 
     # --------------------------------------------------------------------------
@@ -860,5 +860,5 @@ def render(conn):
             st.markdown("---")
             st.markdown("#### معاينة الطباعة الرسمية :")
             _render_printable_report_pdf(report_title_str, meta_info, display_df, summary_metrics)
-    elif report_type != "📑 تقرير الإدارة العليا الشامل (التحليلي والمالي)":
+    elif report_type != "📑 تقرير الأداء العام  ":
         ui.empty_state("لا توجد بيانات مطابقة للفلاتر المحددة.")
