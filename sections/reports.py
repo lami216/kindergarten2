@@ -2,7 +2,7 @@
 sections/reports.py — التقارير والتصدير
 
 Filtered report views with direct browser printing (landscape PDF) and Excel exports,
-allowing customizable column selection and summary metrics.
+allowing customizable column selection and comprehensive summary totals.
 """
 
 import io
@@ -15,7 +15,7 @@ import helpers as H
 
 
 def _to_excel(df: pd.DataFrame) -> bytes:
-    """Helper to convert DataFrame to Excel binary stream."""
+    """Helper to convert DataFrame to Excel binary stream[cite: 3]."""
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         df.to_excel(writer, index=False, sheet_name='التقرير')
@@ -28,7 +28,7 @@ def _render_printable_report_pdf(
     df: pd.DataFrame,
     summary_metrics: dict,
 ):
-    """Renders a print-ready iframe with a landscape PDF layout, letterhead, and summary footer."""
+    """Renders a print-ready iframe with a landscape PDF layout, letterhead, and summary footer[cite: 3]."""
     
     headers_html = "".join([f"<th>{col}</th>" for col in df.columns])
     
@@ -42,13 +42,12 @@ def _render_printable_report_pdf(
 
     meta_html = "".join([f"<div><strong>{k}:</strong> {v}</div>" for k, v in meta_info.items()])
 
-    # Generate summary metrics cards html for print footer
     summary_html = ""
     if summary_metrics:
         summary_items = "".join([f'<div class="summary-card"><span>{k}</span><strong>{v}</strong></div>' for k, v in summary_metrics.items()])
         summary_html = f"""
         <div class="summary-section">
-            <div class="summary-title">📊 ملخص إحصائي للتقرير</div>
+            <div class="summary-title">📊 الملخص الإحصائي المالي والإداري</div>
             <div class="summary-grid">{summary_items}</div>
         </div>
         """
@@ -246,6 +245,9 @@ def render(conn):
             "👨‍👩‍👧‍👦 قائمة الطلاب وأولياء الأمور",
             "📋 قائمة التسجيلات",
             "⚠️ كشف الديون والذمم المتبقية",
+            "💼 سجل الرواتب والمستحقات",
+            "💸 تقرير المصروفات التشغيلية",
+            "🏛️ تقرير الأصول والموجودات الثابتة",
         ],
         horizontal=True,
     )
@@ -268,7 +270,7 @@ def render(conn):
         """)
 
         if classes_df.empty:
-            ui.empty_state("لا توجد صفوف معرفة في النظام.")
+            ui.empty_state("لا توجد صفوف معرفة في النظام.")[cite: 3]
             return
 
         c1, c2, c3 = st.columns(3)
@@ -415,7 +417,7 @@ def render(conn):
     # --------------------------------------------------------------------------
     # 5. OUTSTANDING BALANCES / DEBTORS REPORT
     # --------------------------------------------------------------------------
-    else:  # "⚠️ كشف الديون والذمم المتبقية"
+    elif report_type == "⚠️ كشف الديون والذمم المتبقية":
         years_df = ui.df(conn, "SELECT year_id FROM academic_years ORDER BY year_id DESC")
         year_list = years_df['year_id'].tolist() if not years_df.empty else [H.CURRENT_YEAR_DEFAULT]
         selected_year = st.selectbox("السنة الدراسية", year_list, key="debt_year")
@@ -464,6 +466,78 @@ def render(conn):
             }
 
     # --------------------------------------------------------------------------
+    # 6. TEACHER PAYMENTS REPORT
+    # --------------------------------------------------------------------------
+    elif report_type == "💼 سجل الرواتب والمستحقات":
+        result = ui.df(conn, """
+            SELECT tp.payment_id AS "رقم القسيمة", t.full_name AS "اسم المعلم/ة",
+                   tp.salary_month AS "شهر الراتب", tp.base_salary AS "الراتب الأساسي",
+                   tp.bonus AS "المكافآت", tp.deductions AS "الخصومات", tp.amount AS "صافي الصرف",
+                   tp.payment_date AS "تاريخ الصرف"
+            FROM teacher_payments tp
+            JOIN teachers t ON tp.national_id = t.national_id
+            ORDER BY tp.payment_date DESC
+        """)
+
+        if not result.empty:
+            result.insert(0, "م", range(1, len(result) + 1))
+            total_salaries = result['صافي الصرف'].sum()
+            meta_info = {"النوع": "تقرير صرف رواتب الكادر التعليمي"}
+            report_title_str = "سجل رواتب المعلمين والمعلمات"
+            summary_metrics = {
+                "إجمالي الرواتب المصروفة": H.format_money(total_salaries),
+                "عدد الحركات": f"{len(result)} حركة"
+            }
+
+    # --------------------------------------------------------------------------
+    # 7. OPERATIONAL EXPENSES REPORT
+    # --------------------------------------------------------------------------
+    elif report_type == "💸 تقرير المصروفات التشغيلية":
+        result = ui.df(conn, """
+            SELECT expense_id AS "رقم المصروف", expense_date AS "التاريخ",
+                   category AS "التصنيف", amount AS "المبلغ الكلي",
+                   amount_paid AS "المبلغ المدفوع", payment_status AS "حالة الدفع",
+                   payee AS "الجهة المستفيدة", notes AS "ملاحظات"
+            FROM expenses
+            ORDER BY expense_date DESC
+        """)
+
+        if not result.empty:
+            result.insert(0, "م", range(1, len(result) + 1))
+            total_exp = result['المبلغ الكلي'].sum()
+            total_paid_exp = result['المبلغ المدفوع'].sum()
+            meta_info = {"النوع": "تقرير المصروفات التشغيلية والذمم"}
+            report_title_str = "تقرير المصروفات التشغيلية"
+            summary_metrics = {
+                "إجمالي المصروفات": H.format_money(total_exp),
+                "إجمالي المدفوع فعلياً": H.format_money(total_paid_exp)
+            }
+
+    # --------------------------------------------------------------------------
+    # 8. ASSETS & EQUIPMENT REPORT
+    # --------------------------------------------------------------------------
+    else:  # "🏛️ تقرير الأصول والموجودات الثابتة"
+        result = ui.df(conn, """
+            SELECT asset_id AS "رقم الأصل", item_name AS "اسم الصنف",
+                   category AS "التصنيف", quantity AS "الكمية",
+                   unit_cost AS "سعر الوحدة", total_cost AS "التكلفة الكلية",
+                   condition_status AS "الحالة", purchase_date AS "تاريخ الشراء"
+            FROM assets
+            ORDER BY purchase_date DESC
+        """)
+
+        if not result.empty:
+            result.insert(0, "م", range(1, len(result) + 1))
+            total_assets_cost = result['التكلفة الكلية'].sum()
+            total_items_count = result['الكمية'].sum()
+            meta_info = {"النوع": "تقرير جرد الأصول والموجودات الثابتة"}
+            report_title_str = "تقرير الأصول والموجودات الثابتة"
+            summary_metrics = {
+                "إجمالي قيمة الأصول": H.format_money(total_assets_cost),
+                "إجمالي عدد القطع": f"{total_items_count} قطعة"
+            }
+
+    # --------------------------------------------------------------------------
     # ATTRIBUTE SELECTION & EXPORT CONTROLS
     # --------------------------------------------------------------------------
     if not result.empty:
@@ -485,7 +559,6 @@ def render(conn):
         st.markdown("---")
         st.subheader("👀 معاينة التقرير والملخصات")
         
-        # Display summary metrics cards visually in Streamlit UI
         if summary_metrics:
             cols = st.columns(len(summary_metrics))
             for i, (k, v) in enumerate(summary_metrics.items()):
@@ -515,4 +588,4 @@ def render(conn):
             st.markdown("#### معاينة الطباعة الرسمية (أفقي مع الملخصات):")
             _render_printable_report_pdf(report_title_str, meta_info, display_df, summary_metrics)
     else:
-        ui.empty_state("لا توجد بيانات مطابقة للفلاتر المحددة.")
+        ui.empty_state("لا توجد بيانات مطابقة للفلاتر المحددة.")[cite: 3]
