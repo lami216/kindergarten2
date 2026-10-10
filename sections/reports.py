@@ -1,7 +1,8 @@
 """
 sections/reports.py — التقارير والتصدير
 
-Filtered report views with direct browser printing (PDF) and Excel/CSV exports.
+Filtered report views with direct browser printing (PDF) and Excel exports,
+allowing customizable column selection.
 """
 
 import io
@@ -21,13 +22,12 @@ def _to_excel(df: pd.DataFrame) -> bytes:
     return output.getvalue()
 
 
-def _render_printable_roster_pdf(
-    class_name: str,
-    academic_year: str,
+def _render_printable_report_pdf(
+    report_title: str,
+    meta_info: dict,
     df: pd.DataFrame,
-    include_attendance: bool,
 ):
-    """Renders a print-ready iframe with a 'Print/Save to PDF' button."""
+    """Renders a print-ready iframe with a 'Print/Save to PDF' button and letterhead."""
     
     headers_html = "".join([f"<th>{col}</th>" for col in df.columns])
     
@@ -38,6 +38,8 @@ def _render_printable_roster_pdf(
 
     logo_b64 = ui._logo_base64()
     logo_img_tag = f'<img src="data:image/png;base64,{logo_b64}" />' if logo_b64 else ""
+
+    meta_html = "".join([f"<div><strong>{k}:</strong> {v}</div>" for k, v in meta_info.items()])
 
     html_content = f"""
     <!DOCTYPE html>
@@ -136,7 +138,7 @@ def _render_printable_roster_pdf(
             .print-btn {{ display: none; }}
             body {{ padding: 0; }}
             @page {{
-                size: A4 {"landscape" if include_attendance else "portrait"};
+                size: A4 portrait;
                 margin: 10mm;
             }}
         }}
@@ -154,14 +156,13 @@ def _render_printable_roster_pdf(
                 </div>
             </div>
             <div class="report-meta">
-                <div><strong>الصف:</strong> {class_name}</div>
-                <div><strong>السنة الدراسية:</strong> {academic_year}</div>
+                {meta_html}
                 <div><strong>تاريخ الاستخراج:</strong> {H.today_str()}</div>
             </div>
         </div>
 
         <div class="report-title">
-            كشف أسماء الطلاب {"والحضور" if include_attendance else ""} — {class_name} ({len(df)} طالب)
+            {report_title} ({len(df)} سجل)
         </div>
 
         <table>
@@ -181,7 +182,7 @@ def _render_printable_roster_pdf(
 
 
 def render(conn):
-    ui.section_header("📈", "التقارير والتصدير", "استخراج بيانات مفلترة وتصديرها إلى Excel")
+    ui.section_header("📈", "التقارير والتصدير", "استخراج بيانات مفلترة وتصديرها وإدارتها")
 
     report_type = st.radio(
         "اختر نوع التقرير",
@@ -198,6 +199,8 @@ def render(conn):
     st.markdown("---")
 
     result = pd.DataFrame()
+    meta_info = {}
+    report_title_str = ""
 
     # --------------------------------------------------------------------------
     # 1. CLASS ROSTER & ATTENDANCE SHEET REPORT
@@ -222,7 +225,7 @@ def render(conn):
         year_list = years['year_id'].tolist() if not years.empty else [H.CURRENT_YEAR_DEFAULT]
         selected_year = c2.selectbox("السنة الدراسية", year_list)
 
-        include_attendance_cols = c3.checkbox("إضافة أعمدة لتسجيل الحضور والغياب (للطباعة)", value=True)
+        include_attendance_cols = c3.checkbox("إضافة أعمدة لتسجيل الحضور والغياب", value=True)
 
         query = """
             SELECT 
@@ -249,15 +252,8 @@ def render(conn):
                 for day in ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "ملاحظات"]:
                     result[day] = ""
 
-            st.success(f"📋 عدد الطلاب في **{selected_class_name}**: **{len(result)} طالب/طالبة**")
-
-            with st.expander("🖨️ معاينة وتوليد طباعة كشف الأسماء (PDF)", expanded=False):
-                _render_printable_roster_pdf(
-                    selected_class_name,
-                    selected_year,
-                    result,
-                    include_attendance_cols,
-                )
+            meta_info = {"الصف": selected_class_name, "السنة الدراسية": selected_year}
+            report_title_str = f"كشف أسماء الطلاب {'والحضور' if include_attendance_cols else ''} — {selected_class_name}"
 
     # --------------------------------------------------------------------------
     # 2. FINANCIAL CASH RECEIPTS REPORT
@@ -291,7 +287,10 @@ def render(conn):
         result = ui.df(conn, query, tuple(params))
 
         if not result.empty:
+            result.insert(0, "م", range(1, len(result) + 1))
             st.metric("💰 إجمالي المبلغ المقبوض", H.format_money(result['المبلغ'].sum()))
+            meta_info = {"الفترة": f"{date_from or 'البداية'} إلى {date_to or 'النهاية'}", "مقابل": reason_filter}
+            report_title_str = "سجل المقبوضات المالية"
 
     # --------------------------------------------------------------------------
     # 3. STUDENTS & GUARDIANS REGISTRY
@@ -305,6 +304,10 @@ def render(conn):
             FROM students s JOIN parents p ON s.father_id = p.father_id
             ORDER BY s.full_name ASC
         """)
+        if not result.empty:
+            result.insert(0, "م", range(1, len(result) + 1))
+            meta_info = {"النوع": "قائمة الطلاب وأولياء الأمور الشاملة"}
+            report_title_str = "قائمة الطلاب وأولياء الأمور"
 
     # --------------------------------------------------------------------------
     # 4. REGISTRATION LIST
@@ -328,6 +331,11 @@ def render(conn):
             params.append(year_filter)
         query += " ORDER BY r.registration_id DESC"
         result = ui.df(conn, query, tuple(params))
+
+        if not result.empty:
+            result.insert(0, "م", range(1, len(result) + 1))
+            meta_info = {"السنة الدراسية": year_filter}
+            report_title_str = "قائمة التسجيلات"
 
     # --------------------------------------------------------------------------
     # 5. OUTSTANDING BALANCES / DEBTORS REPORT
@@ -369,33 +377,56 @@ def render(conn):
         result = pd.DataFrame(debt_rows)
 
         if not result.empty:
+            result.insert(0, "م", range(1, len(result) + 1))
             k1, k2 = st.columns(2)
             k1.metric("عدد الطلاب المتبقي عليهم مبالغ", len(result))
             k2.metric("إجمالي الديون المتبقية", H.format_money(result["المتبقي عليه (شيكل)"].sum()))
+            meta_info = {"السنة الدراسية": selected_year}
+            report_title_str = "كشف الديون والذمم المتبقية"
 
     # --------------------------------------------------------------------------
-    # RENDER DATAFRAME & EXPORT CONTROLS
+    # ATTRIBUTE SELECTION & EXPORT CONTROLS
     # --------------------------------------------------------------------------
     if not result.empty:
-        st.dataframe(result, use_container_width=True, hide_index=True)
+        st.markdown("---")
+        st.subheader("⚙️ تخصيص الأعمدة المعروضة")
+        
+        all_columns = list(result.columns)
+        # Default select all columns except maybe sequence 'م' or keep all selectable
+        selected_columns = st.multiselect(
+            "اختر الحقول/العمود المراد إظهارها في التقرير والطباعة:",
+            options=all_columns,
+            default=all_columns
+        )
 
-        st.markdown("##### 📥 تصدير التقرير")
+        if selected_columns:
+            display_df = result[selected_columns]
+        else:
+            display_df = result
+
+        st.markdown("---")
+        st.subheader("👀 معاينة التقرير")
+        st.dataframe(display_df, use_container_width=True, hide_index=True)
+
+        st.markdown("##### 📥 خيارات الطباعة والتصدير")
         c1, c2 = st.columns(2)
-        c1.download_button(
-            "📊 تحميل التقرير كملف Excel",
-            data=_to_excel(result),
-            file_name=f"report_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True,
-        )
+        
+        with c1:
+            st.download_button(
+                "📊 تحميل التقرير كملف Excel",
+                data=_to_excel(display_df),
+                file_name=f"report_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True,
+            )
 
-        csv_data = result.to_csv(index=False).encode('utf-8-sig')
-        c2.download_button(
-            "📄 تحميل التقرير كملف CSV",
-            data=csv_data,
-            file_name=f"report_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.csv",
-            mime="text/csv",
-            use_container_width=True,
-        )
+        with c2:
+            if st.button("🖨️ معاينة وتوليد طباعة التقرير (PDF)", use_container_width=True):
+                st.session_state['show_report_print_preview'] = True
+
+        if st.session_state.get('show_report_print_preview', False):
+            st.markdown("---")
+            st.markdown("#### معاينة الطباعة الرسمية:")
+            _render_printable_report_pdf(report_title_str, meta_info, display_df)
     else:
         ui.empty_state("لا توجد بيانات مطابقة للفلاتر المحددة.")
