@@ -22,42 +22,50 @@ TEACHER_SLIP_TEMPLATE = """
         box-sizing: border-box; 
         font-family: 'Cairo', 'Segoe UI', Tahoma, sans-serif;
     }}
-    body {{
+    html, body {{
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        background: #FAF9F5;
         direction: rtl;
         text-align: right;
-        margin: 0;
-        padding: 10px;
-        background: #FAF9F5;
     }}
     .page-container {{
-        max-width: 520px;
+        max-width: 720px;
         margin: 0 auto;
+        padding: 10px;
+        display: flex;
+        flex-direction: column;
+        min-height: 100vh;
     }}
     .letterhead {{
         display: flex; 
         align-items: center; 
         justify-content: center; 
-        gap: 10px;
-        margin-bottom: 6px;
+        gap: 12px;
+        margin-bottom: 8px;
     }}
     .letterhead img {{ 
-        width: 42px; 
-        height: 42px; 
+        width: 46px; 
+        height: 46px; 
         border-radius: 50%; 
         flex-shrink: 0; 
     }}
     .letterhead-text {{ text-align: center; }}
-    .letterhead-text .lh-ar {{ font-size: 14px; font-weight: 800; color: var(--primary-dark); }}
-    .letterhead-text .lh-en {{ font-size: 10px; color: #7C8A7E; }}
+    .letterhead-text .lh-ar {{ font-size: 15px; font-weight: 800; color: var(--primary-dark); }}
+    .letterhead-text .lh-en {{ font-size: 11px; color: #7C8A7E; }}
     
     .voucher-box {{
         background: #FFFDF6;
         border: 2px dashed var(--gold);
         border-radius: 12px;
-        padding: 12px 16px;
+        padding: 14px 20px;
         font-size: 12px;
         line-height: 1.5;
-        position: relative;
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
     }}
     .voucher-header {{
         display: flex;
@@ -65,25 +73,51 @@ TEACHER_SLIP_TEMPLATE = """
         align-items: center;
         border-bottom: 1px dashed var(--gold);
         padding-bottom: 6px;
-        margin-bottom: 8px;
+        margin-bottom: 10px;
     }}
     .voucher-header h3 {{
         margin: 0;
         color: var(--primary-dark);
-        font-size: 15px;
+        font-size: 16px;
     }}
     .copy-badge {{
         background: var(--primary-dark);
         color: #FFFDF6;
         font-size: 11px;
         font-weight: 700;
-        padding: 2px 8px;
+        padding: 2px 10px;
         border-radius: 6px;
+    }}
+    .voucher-grid {{
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 6px 16px;
+        margin-bottom: 8px;
+    }}
+    .voucher-row {{
+        display: flex; 
+        justify-content: flex-start; 
+        align-items: center;
+        gap: 8px;
+        border-bottom: 1px dotted #e5e0c8; 
+        padding: 4px 0;
+        text-align: right;
+    }}
+    .voucher-row.full-width {{
+        grid-column: span 2;
+    }}
+    .voucher-row span {{ 
+        color: #7C8A7E; 
+        white-space: nowrap; 
+    }}
+    .voucher-row b {{ 
+        color: #1F2A22; 
+        text-align: right;
     }}
     .details-table {{
         width: 100%;
         border-collapse: collapse;
-        margin: 8px 0;
+        margin: 6px 0;
     }}
     .details-table td, .details-table th {{
         padding: 5px;
@@ -96,31 +130,38 @@ TEACHER_SLIP_TEMPLATE = """
         font-weight: 700;
     }}
     .amount-highlight {{
-        font-size: 14px;
+        font-size: 13px;
         font-weight: 800;
         color: #15803D;
     }}
     .signatures {{
         display: flex;
         justify-content: space-between;
-        margin-top: 15px;
+        align-items: flex-end;
+        margin-top: 10px;
         padding-top: 8px;
-        border-top: 1px solid #e5e0c8;
+        border-top: 1px dashed #d0c8b0;
         text-align: center;
         font-size: 11px;
     }}
     .sig-block {{
-        width: 45%;
+        width: 42%;
+    }}
+    .sig-title {{
+        font-size: 12px;
+        font-weight: 700;
+        color: var(--primary-dark);
+        margin-bottom: 20px;
     }}
     .sig-line {{
-        margin-top: 20px;
-        border-bottom: 1px dashed #7C8A7E;
+        border-bottom: 1px dotted #7C8A7E;
+        width: 100%;
     }}
     .cut-line {{
         display: flex;
         align-items: center;
         text-align: center;
-        margin: 12px 0;
+        margin: 8px 0;
         color: #A3AD9E;
         font-size: 11px;
     }}
@@ -135,8 +176,8 @@ TEACHER_SLIP_TEMPLATE = """
     .print-btn {{
         display: block;
         width: 100%;
-        max-width: 520px;
-        margin: 14px auto 0 auto;
+        max-width: 720px;
+        margin: 0 auto 10px auto;
         background: var(--primary-dark);
         color: #fff;
         border: none;
@@ -150,8 +191,28 @@ TEACHER_SLIP_TEMPLATE = """
 
     @media print {{
         .print-btn {{ display: none; }}
-        body {{ background: #fff; padding: 0; }}
-        .page-container {{ max-width: 100%; }}
+        html, body {{ 
+            background: #fff; 
+            padding: 0; 
+            margin: 0;
+            height: 100%;
+        }}
+        .page-container {{ 
+            max-width: 100%; 
+            height: 100vh;
+            padding: 0;
+            box-sizing: border-box;
+            justify-content: space-between;
+        }}
+        .voucher-box {{
+            height: 48%;
+            flex: none;
+            border-style: dashed;
+        }}
+        .cut-line {{
+            margin: 4px 0;
+            height: 2%;
+        }}
         @page {{
             size: A4 portrait;
             margin: 8mm;
@@ -160,63 +221,61 @@ TEACHER_SLIP_TEMPLATE = """
 </style>
 </head>
 <body>
+    <button class="print-btn" onclick="window.print()">🖨️ طباعة النسختين (A4)</button>
     <div class="page-container">
-        <button class="print-btn" onclick="window.print()">🖨️ طباعة النسختين (A4)</button>
 
         <!-- ==================== COPY 1: SCHOOL ==================== -->
         <div class="voucher-box">
-            <div class="letterhead">
-                {logo_img_tag}
-                <div class="letterhead-text">
-                    <div class="lh-ar">روضة مؤسسة شباب البيرة</div>
-                    <div class="lh-en">Al-Bireh Youth Foundation Kindergarten</div>
+            <div>
+                <div class="letterhead">
+                    {logo_img_tag}
+                    <div class="letterhead-text">
+                        <div class="lh-ar">روضة مؤسسة شباب البيرة</div>
+                        <div class="lh-en">Al-Bireh Youth Foundation Kindergarten</div>
+                    </div>
                 </div>
+
+                <div class="voucher-header">
+                    <h3>🧾 قسيمة استلام راتب شهر: {salary_month}</h3>
+                    <span class="copy-badge">نسخة الروضة</span>
+                </div>
+
+                <div class="voucher-grid">
+                    <div class="voucher-row"><span>رقم القسيمة:</span><b>#{payment_id}</b></div>
+                    <div class="voucher-row"><span>تاريخ الصرف:</span><b>{payment_date}</b></div>
+                    <div class="voucher-row full-width"><span>اسم المعلم/ة:</span><b>{teacher_name}</b></div>
+                    <div class="voucher-row full-width"><span>رقم الهوية:</span><b>{national_id}</b></div>
+                </div>
+
+                <table class="details-table">
+                    <thead>
+                        <tr>
+                            <th>الراتب الأساسي</th>
+                            <th>المكافآت</th>
+                            <th>الخصومات</th>
+                            <th>صافي الراتب المستلم</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr style="text-align: center;">
+                            <td>{base_salary} شيكل</td>
+                            <td>+{bonus} شيكل</td>
+                            <td>-{deductions} شيكل</td>
+                            <td class="amount-highlight">{net_amount} شيكل</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                {notes_html}
             </div>
-
-            <div class="voucher-header">
-                <h3>🧾 قسيمة استلام راتب شهر: {salary_month}</h3>
-                <span class="copy-badge">نسخة الروضة</span>
-            </div>
-
-            <table class="details-table">
-                <tr>
-                    <td><b>رقم القسيمة:</b> #{payment_id}</td>
-                    <td><b>تاريخ الصرف:</b> {payment_date}</td>
-                </tr>
-                <tr>
-                    <td><b>اسم المعلم/ة:</b> {teacher_name}</td>
-                    <td><b>رقم الهوية:</b> {national_id}</td>
-                </tr>
-            </table>
-
-            <table class="details-table">
-                <thead>
-                    <tr>
-                        <th>الراتب الأساسي</th>
-                        <th>المكافآت</th>
-                        <th>الخصومات</th>
-                        <th>صافي الراتب المستلم</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr style="text-align: center;">
-                        <td>{base_salary} شيكل</td>
-                        <td>+{bonus} شيكل</td>
-                        <td>-{deductions} شيكل</td>
-                        <td class="amount-highlight">{net_amount} شيكل</td>
-                    </tr>
-                </tbody>
-            </table>
-
-            {notes_html}
 
             <div class="signatures">
                 <div class="sig-block">
-                    <b>توقيع المعلم/ة المستلم/ة</b>
+                    <div class="sig-title">توقيع المعلم/ة المستلم/ة</div>
                     <div class="sig-line"></div>
                 </div>
                 <div class="sig-block">
-                    <b>توقيع ودمغ الإدارة</b>
+                    <div class="sig-title">توقيع ودمغ الإدارة</div>
                     <div class="sig-line"></div>
                 </div>
             </div>
@@ -227,62 +286,61 @@ TEACHER_SLIP_TEMPLATE = """
 
         <!-- ==================== COPY 2: TEACHER ==================== -->
         <div class="voucher-box">
-            <div class="letterhead">
-                {logo_img_tag}
-                <div class="letterhead-text">
-                    <div class="lh-ar">روضة مؤسسة شباب البيرة</div>
-                    <div class="lh-en">Al-Bireh Youth Foundation Kindergarten</div>
+            <div>
+                <div class="letterhead">
+                    {logo_img_tag}
+                    <div class="letterhead-text">
+                        <div class="lh-ar">روضة مؤسسة شباب البيرة</div>
+                        <div class="lh-en">Al-Bireh Youth Foundation Kindergarten</div>
+                    </div>
                 </div>
+
+                <div class="voucher-header">
+                    <h3>🧾 قسيمة استلام راتب شهر: {salary_month}</h3>
+                    <span class="copy-badge">نسخة المعلم/ة</span>
+                </div>
+
+                <div class="voucher-grid">
+                    <div class="voucher-row"><span>رقم القسيمة:</span><b>#{payment_id}</b></div>
+                    <div class="voucher-row"><span>تاريخ الصرف:</span><b>{payment_date}</b></div>
+                    <div class="voucher-row full-width"><span>اسم المعلم/ة:</span><b>{teacher_name}</b></div>
+                    <div class="voucher-row full-width"><span>رقم الهوية:</span><b>{national_id}</b></div>
+                </div>
+
+                <table class="details-table">
+                    <thead>
+                        <tr>
+                            <th>الراتب الأساسي</th>
+                            <th>المكافآت</th>
+                            <th>الخصومات</th>
+                            <th>صافي الراتب المستلم</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr style="text-align: center;">
+                            <td>{base_salary} شيكل</td>
+                            <td>+{bonus} شيكل</td>
+                            <td>-{deductions} شيكل</td>
+                            <td class="amount-highlight">{net_amount} شيكل</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                {notes_html}
             </div>
-
-            <div class="voucher-header">
-                <h3>🧾 قسيمة استلام راتب شهر: {salary_month}</h3>
-                <span class="copy-badge">نسخة المعلم/ة</span>
-            </div>
-
-            <table class="details-table">
-                <tr>
-                    <td><b>رقم القسيمة:</b> #{payment_id}</td>
-                    <td><b>تاريخ الصرف:</b> {payment_date}</td>
-                </tr>
-                <tr>
-                    <td><b>اسم المعلم/ة:</b> {teacher_name}</td>
-                    <td><b>رقم الهوية:</b> {national_id}</td>
-                </tr>
-            </table>
-
-            <table class="details-table">
-                <thead>
-                    <tr>
-                        <th>الراتب الأساسي</th>
-                        <th>المكافآت</th>
-                        <th>الخصومات</th>
-                        <th>صافي الراتب المستلم</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr style="text-align: center;">
-                        <td>{base_salary} شيكل</td>
-                        <td>+{bonus} شيكل</td>
-                        <td>-{deductions} شيكل</td>
-                        <td class="amount-highlight">{net_amount} شيكل</td>
-                    </tr>
-                </tbody>
-            </table>
-
-            {notes_html}
 
             <div class="signatures">
                 <div class="sig-block">
-                    <b>توقيع المعلم/ة المستلم/ة</b>
+                    <div class="sig-title">توقيع المعلم/ة المستلم/ة</div>
                     <div class="sig-line"></div>
                 </div>
                 <div class="sig-block">
-                    <b>توقيع ودمغ الإدارة</b>
+                    <div class="sig-title">توقيع ودمغ الإدارة</div>
                     <div class="sig-line"></div>
                 </div>
             </div>
         </div>
+
     </div>
 </body>
 </html>
@@ -309,5 +367,4 @@ def render_salary_slip(payment_id, teacher_name, national_id, payment_date, sala
         notes_html=notes_html,
     )
     
-    # Height set to 880px to accommodate both vouchers and cut line inside Streamlit's iframe
-    components.html(html, height=880, scrolling=True)
+    components.html(html, height=1050, scrolling=True)
