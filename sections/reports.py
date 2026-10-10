@@ -3,7 +3,7 @@ sections/reports.py — التقارير والتصدير
 
 Filtered report views with robust filtering (by class, year, date ranges), 
 customizable column selection, summary metrics, landscape PDF printouts, 
-and a comprehensive executive visual analytics report.
+and a comprehensive executive management analysis report.
 """
 
 import io
@@ -263,7 +263,7 @@ def render(conn):
     report_type = st.radio(
         "اختر نوع التقرير",
         [
-            "📊 التقرير التنفيذي الشامل والرسومات البيانية",
+            "📑 تقرير الإدارة العليا الشامل (التحليلي والمالي)",
             "🏫 كشف الطلاب حسب الصف (للحضور والغياب)",
             "💵 سجل المقبوضات المالية",
             "👨‍👩‍👧‍👦 قائمة الطلاب وأولياء الأمور",
@@ -293,9 +293,9 @@ def render(conn):
     """)
 
     # --------------------------------------------------------------------------
-    # 0. EXECUTIVE SUMMARY & VISUAL ANALYTICS REPORT
+    # 0. EXECUTIVE MANAGEMENT COMPREHENSIVE REPORT
     # --------------------------------------------------------------------------
-    if report_type == "📊 التقرير التنفيذي الشامل والرسومات البيانية":
+    if report_type == "📑 تقرير الإدارة العليا الشامل (التحليلي والمالي)":
         current_month = datetime.now().strftime("%Y-%m")
         
         total_students = int(_get_scalar(conn, "SELECT COUNT(*) FROM students"))
@@ -321,24 +321,25 @@ def render(conn):
         total_monthly_cash_outflow = monthly_salaries_paid + monthly_expenses_paid
         net_monthly_margin = monthly_student_income - total_monthly_cash_outflow
 
-        st.markdown("### 📋 التقرير التنفيذي الشامل للإدارة العليا والرسومات البيانية")
-        st.markdown("تحليل شامل وموحد لأداء الروضة التشغيلي، المالي، والسيولة النقدية مدعماً بالرسوم البيانية التفاعلية.")
+        st.markdown("### 📑 تقرير الإدارة العليا الشامل (أداء الروضة والمالية والسيولة)")
+        st.markdown("تقرير إداري تحليلي متكامل مخصص لاجتماعات مجلس الإدارة ومراجعة السيولة والعمليات التشغيلية.")
 
-        # Top KPIs
+        # Top Executive Metrics
         e1, e2, e3, e4 = st.columns(4)
-        e1.metric("إجمالي الطلاب", total_students)
-        e2.metric("إجمالي الإيرادات", H.format_money(total_revenue))
-        e3.metric("إجمالي المصروفات", H.format_money(total_expenses_paid))
-        e4.metric("الأصول والموجودات", H.format_money(total_assets))
+        e1.metric("إجمالي الطلاب المسجلين", total_students)
+        e2.metric("إجمالي الإيرادات المحصلة", H.format_money(total_revenue))
+        e3.metric("إجمالي المصروفات المدفوعة", H.format_money(total_expenses_paid))
+        e4.metric("قيمة الأصول الثابتة", H.format_money(total_assets))
 
         st.markdown("---")
 
-        # Charts Section
+        # Visual Analytics Section
+        st.markdown("#### 📊 الرسوم البيانية التوضيحية للأداء")
         left, right = st.columns(2)
 
         with left:
             with st.container(border=True):
-                st.markdown("##### 📈 المقبوضات آخر 6 أشهر")
+                st.markdown("##### 📈 اتجاه المقبوضات آخر 6 أشهر")
                 rev = ui.df(conn, """
                     SELECT TO_CHAR(payment_date::date, 'YYYY-MM') AS "الشهر", SUM(amount) AS "المبلغ"
                     FROM payments
@@ -358,7 +359,7 @@ def render(conn):
 
         with right:
             with st.container(border=True):
-                st.markdown("##### 🏷️ توزيع الطلاب على الصفوف")
+                st.markdown("##### 🏷️ الكثافة الطلابية في الصفوف")
                 dist = ui.df(conn, """
                     SELECT (c.class_type || ' ' || c.section) AS "الصف", COUNT(r.registration_id) AS "العدد"
                     FROM classes c
@@ -380,7 +381,7 @@ def render(conn):
 
         with exp_col:
             with st.container(border=True):
-                st.markdown("##### 💸 المصروفات حسب الفئة")
+                st.markdown("##### 💸 هيكل المصروفات التشغيلية")
                 exp_chart_df = ui.df(conn, """
                     SELECT category AS "الفئة", SUM(amount_paid) AS "الإجمالي"
                     FROM expenses GROUP BY category ORDER BY "الإجمالي" DESC
@@ -395,7 +396,7 @@ def render(conn):
 
         with ast_col:
             with st.container(border=True):
-                st.markdown("##### 🧸 توزيع الأصول والتجهيزات")
+                st.markdown("##### 🧸 توزيع الأصول والتجهيزات التعليمية")
                 ast_chart_df = ui.df(conn, """
                     SELECT category AS "الفئة", SUM(total_cost) AS "الإجمالي"
                     FROM assets GROUP BY category ORDER BY "الإجمالي" DESC
@@ -409,12 +410,39 @@ def render(conn):
                     st.plotly_chart(fig_ast, use_container_width=True, config={"displayModeBar": False})
 
         st.markdown("---")
-        st.markdown("#### 📌 ملخص المؤشرات التشغيلية والمالية:")
+        st.markdown("#### 📝 التوصيات والتحليل المالي الختامي:")
         st.markdown(f"""
-        - **الهيكل البشري والصفوف:** يبلغ إجمالي عدد الطلاب {total_students} طالباً موزعين على {total_classes} صفاً، بإشراف {total_teachers} معلمات.
-        - **حالة السيولة لشهر ({current_month}):** دخل التحصيلات بلغ **{H.format_money(monthly_student_income)} شيكل**، مقابل إجمالي منصرفات ورواتب بقيمة **{H.format_money(total_monthly_cash_outflow)} شيكل** (صافي هامش: **{H.format_money(net_monthly_margin)} شيكل**).
-        - **الالتزامات وديون الموردين:** إجمالي الالتزامات الآجلة للموردين بلغت **{H.format_money(total_supplier_debts)} شيكل**.
+        - **الموقف التشغيلي:** تعمل الروضة بطاقة استيعابية موزعة على {total_classes} صفوف تحت إدارة وتحفيز {total_teachers} معلمات قديرات.
+        - **حالة السيولة الشهرية ({current_month}):** حققت التحصيلات مبلغ **{H.format_money(monthly_student_income)} شيكل** مقابل منصرفات تشغيلية ورواتب بقيمة **{H.format_money(total_monthly_cash_outflow)} شيكل**، بصافي هامش تشغيلي بلغ **{H.format_money(net_monthly_margin)} شيكل**.
+        - **التزامات الموردين:** إجمالي الالتزامات الآجلة القائمة للموردين تبلغ **{H.format_money(total_supplier_debts)} شيكل**.
         """)
+
+        # Print / PDF Export Preview for Executive Summary Report
+        st.markdown("---")
+        st.markdown("##### 📥 تصدار وطباعة التقرير الشامل")
+        if st.button("🖨️ معاينة و طباعة التقرير الشامل للإدارة (PDF)", use_container_width=True):
+            st.session_state['show_exec_print_preview'] = True
+
+        if st.session_state.get('show_exec_print_preview', False):
+            # Build a summary dataframe table for formal PDF printing output
+            exec_summary_df = pd.DataFrame([
+                {"البند الرئيسي": "إجمالي الطلاب", "القيمة الإحصائية": str(total_students), "ملاحظات إدارية": "طالب/ة مسجلون"},
+                {"البند الرئيسي": "إجمالي المعلمات", "القيمة الإحصائية": str(total_teachers), "ملاحظات إدارية": "معلمة في الكادر التعليمي"},
+                {"البند الرئيسي": "إجمالي الصفوف", "القيمة الإحصائية": str(total_classes), "ملاحظات إدارية": "شعب صفية نشطة"},
+                {"البند الرئيسي": "إجمالي المقبوضات", "القيمة الإحصائية": H.format_money(total_revenue), "ملاحظات إدارية": "إيرادات تراكمية"},
+                {"البند الرئيسي": "المصروفات المدفوعة", "القيمة الإحصائية": H.format_money(total_expenses_paid), "ملاحظات إدارية": "مصروفات تشغيلية مدفوعة"},
+                {"البند الرئيسي": "التزامات الموردين", "القيمة الإحصائية": H.format_money(total_supplier_debts), "ملاحظات إدارية": "ذمم دائنة آجلة"},
+                {"البند الرئيسي": "إجمالي الأصول", "القيمة الإحصائية": H.format_money(total_assets), "ملاحظات إدارية": "تجهيزات وألعاب وممتلكات"},
+                {"البند الرئيسي": f"سيولة شهر {current_month}", "القيمة الإحصائية": H.format_money(net_monthly_margin), "ملاحظات إدارية": "صافي الفائض التشغيلي"}
+            ])
+            exec_meta = {"نوع التقرير": "تقرير الإدارة العليا الشامل", "حالة الروضة": "مستقرة وتحت المتابعة"}
+            exec_metrics = {
+                "إجمالي الإيرادات": H.format_money(total_revenue),
+                "إجمالي المصروفات": H.format_money(total_expenses_paid),
+                "صافي سيولة الشهر": H.format_money(net_monthly_margin)
+            }
+            st.markdown("#### معاينة الطباعة الرسمية للتقرير الشامل:")
+            _render_printable_report_pdf("تقرير الإدارة العليا الشامل والأداء المالي", exec_meta, exec_summary_df, exec_metrics)
         return
 
     # --------------------------------------------------------------------------
@@ -832,5 +860,5 @@ def render(conn):
             st.markdown("---")
             st.markdown("#### معاينة الطباعة الرسمية :")
             _render_printable_report_pdf(report_title_str, meta_info, display_df, summary_metrics)
-    elif report_type != "📊 التقرير التنفيذي الشامل والرسومات البيانية":
+    elif report_type != "📑 تقرير الإدارة العليا الشامل (التحليلي والمالي)":
         ui.empty_state("لا توجد بيانات مطابقة للفلاتر المحددة.")
