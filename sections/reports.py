@@ -2,20 +2,23 @@
 sections/reports.py — التقارير والتصدير
 
 Filtered report views with robust filtering (by class, year, date ranges), 
-customizable column selection, summary metrics, and landscape PDF printouts.
+customizable column selection, summary metrics, landscape PDF printouts, 
+and a comprehensive executive visual analytics report.
 """
 
 import io
 import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
+import plotly.express as px
+from datetime import datetime
 
 import ui
 import helpers as H
 
 
 def _to_excel(df: pd.DataFrame) -> bytes:
-    """Helper to convert DataFrame to Excel binary stream[cite: 3]."""
+    """Helper to convert DataFrame to Excel binary stream."""
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         df.to_excel(writer, index=False, sheet_name='التقرير')
@@ -28,7 +31,7 @@ def _render_printable_report_pdf(
     df: pd.DataFrame,
     summary_metrics: dict,
 ):
-    """Renders a print-ready iframe with a landscape PDF layout, letterhead, and summary footer[cite: 3]."""
+    """Renders a print-ready iframe with a landscape PDF layout, letterhead, and summary footer."""
     
     headers_html = "".join([f"<th>{col}</th>" for col in df.columns])
     
@@ -234,12 +237,33 @@ def _render_printable_report_pdf(
     components.html(html_content, height=height, scrolling=True)
 
 
+def _get_scalar(conn, query, params=()):
+    """Executes a scalar SQL query safely."""
+    try:
+        cur = conn.cursor()
+        cur.execute(query, params)
+        res = cur.fetchone()
+        cur.close()
+        if res is None:
+            return 0
+        if isinstance(res, dict):
+            val = list(res.values())[0]
+        elif isinstance(res, (tuple, list)):
+            val = res[0]
+        else:
+            val = res
+        return val if val is not None else 0
+    except Exception:
+        return 0
+
+
 def render(conn):
     ui.section_header("📈", "التقارير والتصدير", "استخراج بيانات مفلترة وتصديرها وإدارتها")
 
     report_type = st.radio(
         "اختر نوع التقرير",
         [
+            "📊 التقرير التنفيذي الشامل والرسومات البيانية",
             "🏫 كشف الطلاب حسب الصف (للحضور والغياب)",
             "💵 سجل المقبوضات المالية",
             "👨‍👩‍👧‍👦 قائمة الطلاب وأولياء الأمور",
@@ -269,11 +293,136 @@ def render(conn):
     """)
 
     # --------------------------------------------------------------------------
+    # 0. EXECUTIVE SUMMARY & VISUAL ANALYTICS REPORT
+    # --------------------------------------------------------------------------
+    if report_type == "📊 التقرير التنفيذي الشامل والرسومات البيانية":
+        current_month = datetime.now().strftime("%Y-%m")
+        
+        total_students = int(_get_scalar(conn, "SELECT COUNT(*) FROM students"))
+        total_teachers = int(_get_scalar(conn, "SELECT COUNT(*) FROM teachers"))
+        total_classes = int(_get_scalar(conn, "SELECT COUNT(*) FROM classes"))
+        total_revenue = float(_get_scalar(conn, "SELECT COALESCE(SUM(amount), 0) FROM payments"))
+        total_expenses_paid = float(_get_scalar(conn, "SELECT COALESCE(SUM(amount_paid), 0) FROM expenses"))
+        total_supplier_debts = float(_get_scalar(conn, "SELECT COALESCE(SUM(amount - amount_paid), 0) FROM expenses"))
+        total_assets = float(_get_scalar(conn, "SELECT COALESCE(SUM(total_cost), 0) FROM assets"))
+        
+        monthly_student_income = float(_get_scalar(conn, """
+            SELECT COALESCE(SUM(amount), 0) FROM payments WHERE TO_CHAR(payment_date::date, 'YYYY-MM') = %s
+        """, (current_month,)))
+        
+        monthly_salaries_paid = float(_get_scalar(conn, """
+            SELECT COALESCE(SUM(amount), 0) FROM teacher_payments WHERE salary_month = %s
+        """, (current_month,)))
+        
+        monthly_expenses_paid = float(_get_scalar(conn, """
+            SELECT COALESCE(SUM(amount_paid), 0) FROM expenses WHERE TO_CHAR(expense_date::date, 'YYYY-MM') = %s
+        """, (current_month,)))
+        
+        total_monthly_cash_outflow = monthly_salaries_paid + monthly_expenses_paid
+        net_monthly_margin = monthly_student_income - total_monthly_cash_outflow
+
+        st.markdown("### 📋 التقرير التنفيذي الشامل للإدارة العليا والرسومات البيانية")
+        st.markdown("تحليل شامل وموحد لأداء الروضة التشغيلي، المالي، والسيولة النقدية مدعماً بالرسوم البيانية التفاعلية.")
+
+        # Top KPIs
+        e1, e2, e3, e4 = st.columns(4)
+        e1.metric("إجمالي الطلاب", total_students)
+        e2.metric("إجمالي الإيرادات", H.format_money(total_revenue))
+        e3.metric("إجمالي المصروفات", H.format_money(total_expenses_paid))
+        e4.metric("الأصول والموجودات", H.format_money(total_assets))
+
+        st.markdown("---")
+
+        # Charts Section
+        left, right = st.columns(2)
+
+        with left:
+            with st.container(border=True):
+                st.markdown("##### 📈 المقبوضات آخر 6 أشهر")
+                rev = ui.df(conn, """
+                    SELECT TO_CHAR(payment_date::date, 'YYYY-MM') AS "الشهر", SUM(amount) AS "المبلغ"
+                    FROM payments
+                    GROUP BY TO_CHAR(payment_date::date, 'YYYY-MM')
+                    ORDER BY TO_CHAR(payment_date::date, 'YYYY-MM') DESC
+                    LIMIT 6
+                """)
+                if rev.empty:
+                    ui.empty_state("لا توجد مقبوضات مسجلة بعد.")
+                else:
+                    rev_sorted = rev.sort_values("الشهر")
+                    rev_sorted["الشهر"] = rev_sorted["الشهر"].astype(str)
+                    fig_rev = px.bar(rev_sorted, x="الشهر", y="المبلغ", text_auto=True, height=280)
+                    fig_rev.update_traces(marker_color="#10B981", marker_line_color="#059669", marker_line_width=1.5, textposition="outside")
+                    fig_rev.update_layout(xaxis_title="", yaxis_title="", xaxis=dict(type='category'), margin=dict(l=10, r=10, t=25, b=10), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(family="Cairo", size=12))
+                    st.plotly_chart(fig_rev, use_container_width=True, config={"displayModeBar": False})
+
+        with right:
+            with st.container(border=True):
+                st.markdown("##### 🏷️ توزيع الطلاب على الصفوف")
+                dist = ui.df(conn, """
+                    SELECT (c.class_type || ' ' || c.section) AS "الصف", COUNT(r.registration_id) AS "العدد"
+                    FROM classes c
+                    LEFT JOIN registrations r ON r.class_id = c.class_id
+                        AND r.year_id = (SELECT year_id FROM academic_years ORDER BY start_date DESC LIMIT 1)
+                    GROUP BY c.class_id, c.class_type, c.section
+                """)
+                if dist.empty:
+                    ui.empty_state("لا توجد صفوف بعد.")
+                else:
+                    dist["الصف"] = dist["الصف"].astype(str)
+                    fig_dist = px.bar(dist, x="الصف", y="العدد", text_auto=True, height=280)
+                    fig_dist.update_traces(marker_color="#0284C7", marker_line_color="#0369A1", marker_line_width=1.5, textposition="outside")
+                    fig_dist.update_layout(xaxis_title="", yaxis_title="", xaxis=dict(type='category'), yaxis=dict(dtick=1), margin=dict(l=10, r=10, t=25, b=10), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(family="Cairo", size=12))
+                    st.plotly_chart(fig_dist, use_container_width=True, config={"displayModeBar": False})
+
+        # Breakdown Pie Charts
+        exp_col, ast_col = st.columns(2)
+
+        with exp_col:
+            with st.container(border=True):
+                st.markdown("##### 💸 المصروفات حسب الفئة")
+                exp_chart_df = ui.df(conn, """
+                    SELECT category AS "الفئة", SUM(amount_paid) AS "الإجمالي"
+                    FROM expenses GROUP BY category ORDER BY "الإجمالي" DESC
+                """)
+                if exp_chart_df.empty:
+                    ui.empty_state("لا توجد مصروفات مسجلة بعد.")
+                else:
+                    fig_exp = px.pie(exp_chart_df, names="الفئة", values="الإجمالي", hole=0.4, height=280, color_discrete_sequence=px.colors.qualitative.Set3)
+                    fig_exp.update_traces(textinfo="percent+label")
+                    fig_exp.update_layout(margin=dict(l=10, r=10, t=25, b=10), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(family="Cairo", size=12), showlegend=False)
+                    st.plotly_chart(fig_exp, use_container_width=True, config={"displayModeBar": False})
+
+        with ast_col:
+            with st.container(border=True):
+                st.markdown("##### 🧸 توزيع الأصول والتجهيزات")
+                ast_chart_df = ui.df(conn, """
+                    SELECT category AS "الفئة", SUM(total_cost) AS "الإجمالي"
+                    FROM assets GROUP BY category ORDER BY "الإجمالي" DESC
+                """)
+                if ast_chart_df.empty:
+                    ui.empty_state("لا توجد أصول أو ألعاب مسجلة بعد.")
+                else:
+                    fig_ast = px.pie(ast_chart_df, names="الفئة", values="الإجمالي", hole=0.4, height=280, color_discrete_sequence=px.colors.qualitative.Pastel)
+                    fig_ast.update_traces(textinfo="percent+label")
+                    fig_ast.update_layout(margin=dict(l=10, r=10, t=25, b=10), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(family="Cairo", size=12), showlegend=False)
+                    st.plotly_chart(fig_ast, use_container_width=True, config={"displayModeBar": False})
+
+        st.markdown("---")
+        st.markdown("#### 📌 ملخص المؤشرات التشغيلية والمالية:")
+        st.markdown(f"""
+        - **الهيكل البشري والصفوف:** يبلغ إجمالي عدد الطلاب {total_students} طالباً موزعين على {total_classes} صفاً، بإشراف {total_teachers} معلمات.
+        - **حالة السيولة لشهر ({current_month}):** دخل التحصيلات بلغ **{H.format_money(monthly_student_income)} شيكل**، مقابل إجمالي منصرفات ورواتب بقيمة **{H.format_money(total_monthly_cash_outflow)} شيكل** (صافي هامش: **{H.format_money(net_monthly_margin)} شيكل**).
+        - **الالتزامات وديون الموردين:** إجمالي الالتزامات الآجلة للموردين بلغت **{H.format_money(total_supplier_debts)} شيكل**.
+        """)
+        return
+
+    # --------------------------------------------------------------------------
     # 1. CLASS ROSTER & ATTENDANCE SHEET REPORT
     # --------------------------------------------------------------------------
-    if report_type == "🏫 كشف الطلاب حسب الصف (للحضور والغياب)":
+    elif report_type == "🏫 كشف الطلاب حسب الصف (للحضور والغياب)":
         if classes_df.empty:
-            ui.empty_state("لا توجد صفوف معرفة في النظام.")[cite: 3]
+            ui.empty_state("لا توجد صفوف معرفة في النظام.")
             return
 
         c1, c2, c3 = st.columns(3)
@@ -634,7 +783,7 @@ def render(conn):
             }
 
     # --------------------------------------------------------------------------
-    # ATTRIBUTE SELECTION & EXPORT CONTROLS
+    # ATTRIBUTE SELECTION & EXPORT CONTROLS (For tabular reports)
     # --------------------------------------------------------------------------
     if not result.empty:
         st.markdown("---")
@@ -683,5 +832,5 @@ def render(conn):
             st.markdown("---")
             st.markdown("#### معاينة الطباعة الرسمية :")
             _render_printable_report_pdf(report_title_str, meta_info, display_df, summary_metrics)
-    else:
-        ui.empty_state("لا توجد بيانات مطابقة للفلاتر المحددة.")[cite: 3]
+    elif report_type != "📊 التقرير التنفيذي الشامل والرسومات البيانية":
+        ui.empty_state("لا توجد بيانات مطابقة للفلاتر المحددة.")
