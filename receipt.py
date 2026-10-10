@@ -17,118 +17,159 @@ RECEIPT_TEMPLATE = """
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap');
 
-    :root {{
+    :root {
         --primary-dark:#163D22;
         --gold:#D7A431;
-    }}
-    * {{ 
+    }
+    * { 
         box-sizing: border-box; 
         font-family: 'Cairo', 'Segoe UI', Tahoma, sans-serif;
-    }}
-    body {{
+    }
+    html, body {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        background: #FAF9F5;
         direction: rtl;
         text-align: right;
-        margin: 0;
-        padding: 10px;
-        background: #FAF9F5;
-    }}
-    .page-container {{
-        max-width: 520px;
+    }
+    .page-container {
+        max-width: 720px;
         margin: 0 auto;
-    }}
-    .letterhead {{
-        display: flex; 
-        align-items: center; 
-        justify-content: center; 
-        gap: 10px;
-        margin-bottom: 6px;
-    }}
-    .letterhead img {{ 
-        width: 42px; 
-        height: 42px; 
-        border-radius: 50%; 
-        flex-shrink: 0; 
-    }}
-    .letterhead-text {{ text-align: center; }}
-    .letterhead-text .lh-ar {{ font-size: 14px; font-weight: 800; color: var(--primary-dark); }}
-    .letterhead-text .lh-en {{ font-size: 10px; color: #7C8A7E; }}
+        padding: 10px;
+        display: flex;
+        flex-direction: column;
+        min-height: 100vh;
+    }
     
-    .receipt-box {{
+    .receipt-box {
         background: #FFFDF6;
         border: 2px dashed var(--gold);
         border-radius: 12px;
-        padding: 12px 16px;
+        padding: 14px 20px;
         font-size: 13px;
-        line-height: 1.6;
-        position: relative;
-    }}
-    .receipt-header {{
+        line-height: 1.5;
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+    }
+
+    .letterhead {
+        display: flex; 
+        align-items: center; 
+        justify-content: center; 
+        gap: 12px;
+        margin-bottom: 8px;
+    }
+    .letterhead img { 
+        width: 46px; 
+        height: 46px; 
+        border-radius: 50%; 
+        flex-shrink: 0; 
+    }
+    .letterhead-text { text-align: center; }
+    .letterhead-text .lh-ar { font-size: 15px; font-weight: 800; color: var(--primary-dark); }
+    .letterhead-text .lh-en { font-size: 11px; color: #7C8A7E; }
+    
+    .receipt-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
         border-bottom: 1px dashed var(--gold);
         padding-bottom: 6px;
-        margin-bottom: 8px;
-    }}
-    .receipt-header h3 {{
+        margin-bottom: 10px;
+    }
+    .receipt-header h3 {
         margin: 0;
         color: var(--primary-dark);
-        font-size: 15px;
-    }}
-    .copy-badge {{
+        font-size: 16px;
+    }
+    .copy-badge {
         background: var(--primary-dark);
         color: #FFFDF6;
         font-size: 11px;
         font-weight: 700;
-        padding: 2px 8px;
+        padding: 2px 10px;
         border-radius: 6px;
-    }}
-    .receipt-grid {{
+    }
+    .receipt-grid {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: 4px 12px;
-    }}
-    .receipt-row {{
+        gap: 6px 16px;
+    }
+    .receipt-row {
         display: flex; 
-        justify-content: space-between; 
-        gap: 6px;
+        justify-content: flex-start; 
+        align-items: center;
+        gap: 8px;
         border-bottom: 1px dotted #e5e0c8; 
-        padding: 3px 0;
-    }}
-    .receipt-row.full-width {{
+        padding: 4px 0;
+        text-align: right;
+    }
+    .receipt-row.full-width {
         grid-column: span 2;
-    }}
-    .receipt-row span {{ color: #7C8A7E; white-space: nowrap; }}
-    .receipt-row b {{ color: #1F2A22; }}
-    .receipt-row.balance {{ 
+    }
+    .receipt-row span { 
+        color: #7C8A7E; 
+        white-space: nowrap; 
+    }
+    .receipt-row b { 
+        color: #1F2A22; 
+        text-align: right;
+    }
+    .receipt-row.balance { 
         border-bottom: none; 
-        margin-top: 2px; 
+        margin-top: 4px; 
         padding-top: 6px; 
         border-top: 1px solid #e5e0c8; 
-    }}
-    .receipt-row.balance b {{ color: #B4790C; font-size: 14px; }}
+    }
+    .receipt-row.balance b { color: #B4790C; font-size: 14px; }
     
-    .cut-line {{
+    .signatures-section {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        margin-top: 15px;
+        padding-top: 10px;
+        border-top: 1px dashed #d0c8b0;
+    }
+    .sig-box {
+        text-align: center;
+        width: 42%;
+    }
+    .sig-title {
+        font-size: 12px;
+        font-weight: 700;
+        color: var(--primary-dark);
+        margin-bottom: 25px;
+    }
+    .sig-line {
+        border-bottom: 1px dotted #7C8A7E;
+        width: 100%;
+    }
+
+    .cut-line {
         display: flex;
         align-items: center;
         text-align: center;
-        margin: 12px 0;
+        margin: 8px 0;
         color: #A3AD9E;
         font-size: 11px;
-    }}
-    .cut-line::before, .cut-line::after {{
+    }
+    .cut-line::before, .cut-line::after {
         content: '';
         flex: 1;
         border-bottom: 1px dashed #A3AD9E;
-    }}
-    .cut-line::before {{ margin-left: .5em; }}
-    .cut-line::after {{ margin-right: .5em; }}
+    }
+    .cut-line::before { margin-left: .5em; }
+    .cut-line::after { margin-right: .5em; }
 
-    .print-btn {{
+    .print-btn {
         display: block;
         width: 100%;
-        max-width: 520px;
-        margin: 14px auto 0 auto;
+        max-width: 720px;
+        margin: 0 auto 10px auto;
         background: var(--primary-dark);
         color: #fff;
         border: none;
@@ -137,46 +178,79 @@ RECEIPT_TEMPLATE = """
         font-size: 14px;
         font-weight: 700;
         cursor: pointer;
-    }}
-    .print-btn:hover {{ opacity: .9; }}
+    }
+    .print-btn:hover { opacity: .9; }
 
-    @media print {{
-        .print-btn {{ display: none; }}
-        body {{ background: #fff; padding: 0; }}
-        .page-container {{ max-width: 100%; }}
-        @page {{
+    @media print {
+        .print-btn { display: none; }
+        html, body { 
+            background: #fff; 
+            padding: 0; 
+            margin: 0;
+            height: 100%;
+        }
+        .page-container { 
+            max-width: 100%; 
+            height: 100vh;
+            padding: 0;
+            box-sizing: border-box;
+            justify-content: space-between;
+        }
+        .receipt-box {
+            height: 48%;
+            flex: none;
+            border-style: dashed;
+        }
+        .cut-line {
+            margin: 4px 0;
+            height: 2%;
+        }
+        @page {
             size: A4 portrait;
             margin: 8mm;
-        }}
-    }}
+        }
+    }
 </style>
 </head>
 <body>
+    <button class="print-btn" onclick="window.print()">🖨️ طباعة النسختين (A4)</button>
     <div class="page-container">
-        <button class="print-btn" onclick="window.print()">🖨️ طباعة النسختين (A4)</button>
 
         <!-- ==================== COPY 1: SCHOOL ==================== -->
         <div class="receipt-box">
-            <div class="letterhead">
-                {logo_img_tag}
-                <div class="letterhead-text">
-                    <div class="lh-ar">روضة مؤسسة شباب البيرة</div>
-                    <div class="lh-en">Al-Bireh Youth Foundation Kindergarten</div>
+            <div>
+                <div class="letterhead">
+                    {logo_img_tag}
+                    <div class="letterhead-text">
+                        <div class="lh-ar">روضة مؤسسة شباب البيرة</div>
+                        <div class="lh-en">Al-Bireh Youth Foundation Kindergarten</div>
+                    </div>
+                </div>
+                <div class="receipt-header">
+                    <h3>🧾 وصل استلام نقدية</h3>
+                    <span class="copy-badge">نسخة الروضة</span>
+                </div>
+                <div class="receipt-grid">
+                    <div class="receipt-row"><span>رقم الوصل:</span><b>#{receipt_id}</b></div>
+                    <div class="receipt-row"><span>التاريخ:</span><b>{date}</b></div>
+                    <div class="receipt-row full-width"><span>اسم الطالب:</span><b>{student_name}</b></div>
+                    <div class="receipt-row full-width"><span>وصلنا من السيد/ة:</span><b>{payer}</b></div>
+                    <div class="receipt-row"><span>مبلغ وقدره:</span><b>{amount} شيكل</b></div>
+                    <div class="receipt-row"><span>طريقة الدفع:</span><b>كاش 💵</b></div>
+                    <div class="receipt-row full-width"><span>مقابل:</span><b>{reason}</b></div>
+                    <div class="receipt-row full-width balance"><span>المبلغ المتبقي لهذه السنة:</span><b>{remaining} شيكل</b></div>
                 </div>
             </div>
-            <div class="receipt-header">
-                <h3>🧾 وصل استلام نقدية</h3>
-                <span class="copy-badge">نسخة الروضة</span>
-            </div>
-            <div class="receipt-grid">
-                <div class="receipt-row"><span>رقم الوصل:</span><b>#{receipt_id}</b></div>
-                <div class="receipt-row"><span>التاريخ:</span><b>{date}</b></div>
-                <div class="receipt-row full-width"><span>اسم الطالب:</span><b>{student_name}</b></div>
-                <div class="receipt-row full-width"><span>وصلنا من السيد/ة:</span><b>{payer}</b></div>
-                <div class="receipt-row"><span>مبلغ وقدره:</span><b>{amount} شيكل </b></div>
-                <div class="receipt-row"><span>طريقة الدفع:</span><b>كاش 💵</b></div>
-                <div class="receipt-row full-width"><span>مقابل:</span><b>{reason}</b></div>
-                <div class="receipt-row full-width balance"><span>المبلغ المتبقي لهذه السنة:</span><b>{remaining} شيكل </b></div>
+
+            <div class="signatures-section">
+                <div class="sig-box">
+                    <div class="sig-title">توقيع المستلم / مديرة الروضة</div>
+                    <div class="sig-line"></div>
+                </div>
+                <div class="sig-box">
+                    <div class="sig-title">توقيع دافع المبلغ</div>
+                    <div class="sig-line"></div>
+                </div>
             </div>
         </div>
 
@@ -185,28 +259,42 @@ RECEIPT_TEMPLATE = """
 
         <!-- ==================== COPY 2: PAYER ==================== -->
         <div class="receipt-box">
-            <div class="letterhead">
-                {logo_img_tag}
-                <div class="letterhead-text">
-                    <div class="lh-ar">روضة مؤسسة شباب البيرة</div>
-                    <div class="lh-en">Al-Bireh Youth Foundation Kindergarten</div>
+            <div>
+                <div class="letterhead">
+                    {logo_img_tag}
+                    <div class="letterhead-text">
+                        <div class="lh-ar">روضة مؤسسة شباب البيرة</div>
+                        <div class="lh-en">Al-Bireh Youth Foundation Kindergarten</div>
+                    </div>
+                </div>
+                <div class="receipt-header">
+                    <h3>🧾 وصل استلام نقدية</h3>
+                    <span class="copy-badge">نسخة ولي الأمر</span>
+                </div>
+                <div class="receipt-grid">
+                    <div class="receipt-row"><span>رقم الوصل:</span><b>#{receipt_id}</b></div>
+                    <div class="receipt-row"><span>التاريخ:</span><b>{date}</b></div>
+                    <div class="receipt-row full-width"><span>اسم الطالب:</span><b>{student_name}</b></div>
+                    <div class="receipt-row full-width"><span>وصلنا من السيد/ة:</span><b>{payer}</b></div>
+                    <div class="receipt-row"><span>مبلغ وقدره:</span><b>{amount} شيكل</b></div>
+                    <div class="receipt-row"><span>طريقة الدفع:</span><b>كاش 💵</b></div>
+                    <div class="receipt-row full-width"><span>مقابل:</span><b>{reason}</b></div>
+                    <div class="receipt-row full-width balance"><span>المبلغ المتبقي لهذه السنة:</span><b>{remaining} شيكل</b></div>
                 </div>
             </div>
-            <div class="receipt-header">
-                <h3>🧾 وصل استلام نقدية</h3>
-                <span class="copy-badge">نسخة ولي الأمر</span>
-            </div>
-            <div class="receipt-grid">
-                <div class="receipt-row"><span>رقم الوصل:</span><b>#{receipt_id}</b></div>
-                <div class="receipt-row"><span>التاريخ:</span><b>{date}</b></div>
-                <div class="receipt-row full-width"><span>اسم الطالب:</span><b>{student_name}</b></div>
-                <div class="receipt-row full-width"><span>وصلنا من السيد/ة:</span><b>{payer}</b></div>
-                <div class="receipt-row"><span>مبلغ وقدره:</span><b>{amount} شيكل</b></div>
-                <div class="receipt-row"><span>طريقة الدفع:</span><b>كاش 💵</b></div>
-                <div class="receipt-row full-width"><span>مقابل:</span><b>{reason}</b></div>
-                <div class="receipt-row full-width balance"><span>المبلغ المتبقي لهذه السنة:</span><b>{remaining} شيكل</b></div>
+
+            <div class="signatures-section">
+                <div class="sig-box">
+                    <div class="sig-title">توقيع المستلم / مديرة الروضة</div>
+                    <div class="sig-line"></div>
+                </div>
+                <div class="sig-box">
+                    <div class="sig-title">توقيع دافع المبلغ</div>
+                    <div class="sig-line"></div>
+                </div>
             </div>
         </div>
+
     </div>
 </body>
 </html>
@@ -229,5 +317,5 @@ def render_receipt(receipt_id, date, student_name, payer, amount, reason, remain
         reason=reason_full,
         remaining=remaining,
     )
-    # Height updated to 820px to comfortably display both copies in the Streamlit iframe
-    components.html(html, height=820, scrolling=True)
+    # Increased component height to accommodate signatures and exact height sizing
+    components.html(html, height=1050, scrolling=True)
