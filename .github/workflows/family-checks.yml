@@ -25,14 +25,52 @@ jobs:
       TEST_POSTGRES_DSN: postgresql://test:test@127.0.0.1:5432/kindergarten_test
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
-          pip install pytest
+          pip install pytest playwright
       - name: Python syntax
         run: python -m compileall -q app.py db.py ui.py style.py sections tests
       - name: Integration and UI tests
         run: python -m pytest -q tests/
+      - name: Install Chromium for browser tests
+        run: python -m playwright install --with-deps chromium
+      - name: Start isolated QA previews
+        shell: bash
+        run: |
+          mkdir -p .streamlit
+          printf '[postgres]\nurl = "%s"\n' "$TEST_POSTGRES_DSN" > .streamlit/secrets.toml
+          git worktree add --detach /tmp/pr1-baseline b99d9acb80f30acabea5d8e535ac7f0cb3e9f0ec
+          mkdir -p /tmp/pr1-baseline/tests /tmp/pr1-baseline/.streamlit
+          cp tests/qa_browser_app.py /tmp/pr1-baseline/tests/qa_browser_app.py
+          cp .streamlit/secrets.toml /tmp/pr1-baseline/.streamlit/secrets.toml
+          (PYTHONPATH="$GITHUB_WORKSPACE" python -m streamlit run tests/qa_browser_app.py --server.headless true --server.port 8501 --server.address 127.0.0.1 --browser.gatherUsageStats false > /tmp/qa-after.log 2>&1) &
+          (cd /tmp/pr1-baseline && PYTHONPATH=/tmp/pr1-baseline python -m streamlit run tests/qa_browser_app.py --server.headless true --server.port 8502 --server.address 127.0.0.1 --browser.gatherUsageStats false > /tmp/qa-before.log 2>&1) &
+          for port in 8501 8502; do
+            ready=0
+            for n in $(seq 1 80); do
+              if curl -fsS "http://127.0.0.1:$port/_stcore/health" >/dev/null; then ready=1; break; fi
+              sleep 1
+            done
+            if [ "$ready" != 1 ]; then cat /tmp/qa-after.log /tmp/qa-before.log; exit 1; fi
+          done
+      - name: Chromium regression and same-data screenshots
+        run: python tests/browser_pr1.py
+      - name: Upload actual browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: family-pr1-chromium-before-after
+          path: visual-evidence/
+          if-no-files-found: warn
+          retention-days: 14
+      - name: QA app log tail on failure
+        if: failure()
+        run: |
+          tail -100 /tmp/qa-after.log || true
+          tail -100 /tmp/qa-before.log || true
