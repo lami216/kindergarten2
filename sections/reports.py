@@ -355,7 +355,7 @@ def render(conn):
                     fig_rev = px.bar(rev_sorted, x="الشهر", y="المبلغ", text_auto=True, height=280)
                     fig_rev.update_traces(marker_color="#10B981", marker_line_color="#059669", marker_line_width=1.5, textposition="outside")
                     fig_rev.update_layout(xaxis_title="", yaxis_title="", xaxis=dict(type='category'), margin=dict(l=10, r=10, t=25, b=10), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(family="Cairo", size=12))
-                    st.plotly_chart(fig_rev, use_container_width=True, config={"displayModeBar": False})
+                    ui.plotly_chart(fig_rev, use_container_width=True, config={"displayModeBar": False})
 
         with right:
             with st.container(border=True):
@@ -374,7 +374,7 @@ def render(conn):
                     fig_dist = px.bar(dist, x="الصف", y="العدد", text_auto=True, height=280)
                     fig_dist.update_traces(marker_color="#0284C7", marker_line_color="#0369A1", marker_line_width=1.5, textposition="outside")
                     fig_dist.update_layout(xaxis_title="", yaxis_title="", xaxis=dict(type='category'), yaxis=dict(dtick=1), margin=dict(l=10, r=10, t=25, b=10), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(family="Cairo", size=12))
-                    st.plotly_chart(fig_dist, use_container_width=True, config={"displayModeBar": False})
+                    ui.plotly_chart(fig_dist, use_container_width=True, config={"displayModeBar": False})
 
         # Breakdown Pie Charts
         exp_col, ast_col = st.columns(2)
@@ -392,7 +392,7 @@ def render(conn):
                     fig_exp = px.pie(exp_chart_df, names="الفئة", values="الإجمالي", hole=0.4, height=280, color_discrete_sequence=px.colors.qualitative.Set3)
                     fig_exp.update_traces(textinfo="percent+label")
                     fig_exp.update_layout(margin=dict(l=10, r=10, t=25, b=10), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(family="Cairo", size=12), showlegend=False)
-                    st.plotly_chart(fig_exp, use_container_width=True, config={"displayModeBar": False})
+                    ui.plotly_chart(fig_exp, use_container_width=True, config={"displayModeBar": False})
 
         with ast_col:
             with st.container(border=True):
@@ -407,7 +407,7 @@ def render(conn):
                     fig_ast = px.pie(ast_chart_df, names="الفئة", values="الإجمالي", hole=0.4, height=280, color_discrete_sequence=px.colors.qualitative.Pastel)
                     fig_ast.update_traces(textinfo="percent+label")
                     fig_ast.update_layout(margin=dict(l=10, r=10, t=25, b=10), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(family="Cairo", size=12), showlegend=False)
-                    st.plotly_chart(fig_ast, use_container_width=True, config={"displayModeBar": False})
+                    ui.plotly_chart(fig_ast, use_container_width=True, config={"displayModeBar": False})
 
         st.markdown("---")
         st.markdown("#### 📝 التوصيات والتحليل المالي الختامي:")
@@ -838,7 +838,7 @@ def render(conn):
                 cols[i].metric(label=k, value=v)
             st.markdown("")
 
-        st.dataframe(display_df, use_container_width=True, hide_index=True)
+        ui.dataframe(display_df, use_container_width=True, hide_index=True)
 
         st.markdown("##### 📥 خيارات الطباعة والتصدير")
         c1, c2 = st.columns(2)

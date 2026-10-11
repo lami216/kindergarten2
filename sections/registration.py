@@ -108,7 +108,7 @@ def render(conn):
                 shown = shown[shown["السنة الدراسية"] == year_filter]
             if status_filter != "الكل":
                 shown = shown[shown["الحالة"] == status_filter]
-            st.dataframe(
+            ui.dataframe(
                 shown.drop(columns=["registration_id", "class_id", "paid_toward_tuition"]),
                 use_container_width=True, hide_index=True
             )

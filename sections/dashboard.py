@@ -177,7 +177,7 @@ def render(conn):
                     plot_bgcolor="rgba(0,0,0,0)", 
                     font=dict(family="Cairo", size=12)
                 )
-                st.plotly_chart(fig_rev, use_container_width=True, config={"displayModeBar": False})
+                ui.plotly_chart(fig_rev, use_container_width=True, config={"displayModeBar": False})
 
     with right:
         with st.container(border=True):
@@ -204,7 +204,7 @@ def render(conn):
                     plot_bgcolor="rgba(0,0,0,0)", 
                     font=dict(family="Cairo", size=12)
                 )
-                st.plotly_chart(fig_dist, use_container_width=True, config={"displayModeBar": False})
+                ui.plotly_chart(fig_dist, use_container_width=True, config={"displayModeBar": False})
 
     # Breakdown Charts
     exp_col, ast_col = st.columns(2)
@@ -237,7 +237,7 @@ def render(conn):
                     font=dict(family="Cairo", size=12),
                     showlegend=False
                 )
-                st.plotly_chart(fig_exp, use_container_width=True, config={"displayModeBar": False})
+                ui.plotly_chart(fig_exp, use_container_width=True, config={"displayModeBar": False})
 
     with ast_col:
         with st.container(border=True):
@@ -267,7 +267,7 @@ def render(conn):
                     font=dict(family="Cairo", size=12),
                     showlegend=False
                 )
-                st.plotly_chart(fig_ast, use_container_width=True, config={"displayModeBar": False})
+                ui.plotly_chart(fig_ast, use_container_width=True, config={"displayModeBar": False})
 
     # ==================================================================
     # SECTION 6: RECENT ACTIVITY
@@ -285,7 +285,7 @@ def render(conn):
         if recent.empty:
             ui.empty_state("لا توجد تسجيلات بعد.")
         else:
-            st.dataframe(
+            ui.dataframe(
                 recent,
                 use_container_width=True,
                 hide_index=True,

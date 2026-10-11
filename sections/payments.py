@@ -131,7 +131,7 @@ def render(conn):
                 shown = shown[shown["اسم الطالب"].str.contains(search, na=False) |
                                shown["الدافع"].str.contains(search, na=False)]
             
-            st.dataframe(shown.drop(columns=["registration_id", "تفاصيل أخرى"]), use_container_width=True, hide_index=True)
+            ui.dataframe(shown.drop(columns=["registration_id", "تفاصيل أخرى"]), use_container_width=True, hide_index=True)
             st.metric("💰 مجموع الدفعات المعروضة", H.format_money(shown["المبلغ"].sum()))
 
             st.markdown("---")
