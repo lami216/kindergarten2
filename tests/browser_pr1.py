@@ -128,6 +128,9 @@ async def verify_double_submit_and_sibling(browser):
     page = await context.new_page()
     await page.goto(BASES["after-fixes"], wait_until="domcontentloaded")
     await navigate(page, "students")
+    # On mobile, the deliberately open sidebar is an overlay; close it before
+    # interacting with the form, as a user would.
+    await sidebar_state(page, False)
     initial_children = query_one("SELECT COUNT(*) FROM students")
     initial_parents = query_one("SELECT COUNT(*) FROM parents")
     await page.locator(".st-key-kid_name input").fill("طفل كروميوم اختبار مكرر")
