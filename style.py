@@ -450,14 +450,145 @@ div[data-testid="stMarkdownContainer"] {
 #MainMenu {visibility: hidden;}
 footer {visibility: hidden;}
 div[data-testid="stDecoration"] {display: none;}
-div[data-testid="stToolbar"] {visibility: hidden;}
 div[data-testid="stStatusWidget"] {display: none !important;}
 .stDeployButton {display: none !important;}
 </style>
 """
 
 
+
+SHELL_CSS = """
+<style>
+/* Native controls remain visible and use the existing palette. */
+.st-key-appearance_control {
+    position:fixed; top:8px; left:12px; width:150px !important;
+    z-index:999992; background:var(--card-bg); color:var(--text-main);
+    border:1px solid var(--card-border); border-radius:6px; padding:8px; min-height:44px;
+}
+[data-testid="stLayoutWrapper"]:has(> .st-key-appearance_control) {
+    position:absolute; width:0 !important; height:0 !important;
+}
+.st-key-night_mode label > span + div { direction:ltr; }
+.st-key-appearance_control [data-testid="stWidgetLabel"] p {
+    color:var(--text-main) !important; font-size:14px;
+}
+[data-testid="stSidebarHeader"] { direction:ltr; }
+div[data-testid="stToolbar"] { visibility:visible; }
+[data-testid="stExpandSidebarButton"],
+[data-testid="stSidebarCollapseButton"] button {
+    min-height:44px; min-width:44px; padding:8px !important;
+    background:var(--card-bg); color:var(--text-main) !important;
+    border:1px solid var(--card-border); border-radius:6px;
+}
+.st-key-night_mode label[data-selected="true"] > span + div {
+    background:#006348 !important;
+}
+[data-testid="stExpandSidebarButton"] span,
+[data-testid="stSidebarCollapseButton"] button span { color:var(--text-main) !important; }
+[data-testid="stExpandSidebarButton"] > span { display:none; }
+[data-testid="stExpandSidebarButton"] { gap:8px; min-width:104px; font-size:14px; }
+[data-testid="stExpandSidebarButton"]::before {
+    content:""; width:20px; height:20px; background:currentColor;
+    mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M3 6h18M3 12h18M3 18h18' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E") center/contain no-repeat;
+}
+[data-testid="stExpandSidebarButton"]::after { content:"القائمة"; font-size:14px; }
+[data-testid="stSidebarCollapseButton"] button::after { content:"إغلاق"; font-size:12px; }
+section[data-testid="stSidebar"][aria-expanded="true"] [data-testid="stSidebarCollapseButton"],
+section[data-testid="stSidebar"][aria-expanded="true"] [data-testid="stSidebarCollapseButton"] button {
+    opacity:1 !important; visibility:visible !important;
+}
+section[data-testid="stSidebar"][aria-expanded="false"] { transform:translateX(100%); visibility:hidden; }
+section[data-testid="stSidebar"][aria-expanded="false"] [data-testid="stSidebarContent"] {
+    visibility:hidden !important;
+}
+button:focus-visible, input:focus-visible, [role="switch"]:focus-visible {
+    outline:3px solid #8dd9bc !important; outline-offset:2px;
+}
+@media (max-width:768px) {
+    [data-testid="stSidebar"] {
+        position:fixed !important; right:0; left:auto; top:0; height:100dvh !important;
+        width:min(300px, calc(100vw - 48px)) !important;
+        min-width:0 !important; max-width:min(300px, calc(100vw - 48px)) !important;
+    }
+    [data-testid="stSidebar"][aria-expanded="true"] {
+        transform:none; box-shadow:-32px 0 48px rgba(0,0,0,.4);
+    }
+    [data-testid="stSidebarContent"] { height:100%; overflow-y:auto; }
+    [data-testid="stSidebarHeader"] { position:sticky; top:0; background:inherit; z-index:2; }
+}
+</style>
+"""
+
+THEME_SURFACES = """
+<style>
+section[data-testid="stSidebar"], [data-testid="stSidebarHeader"] {
+    background:#002d20 !important;
+}
+section[data-testid="stSidebar"] .stButton > button[kind="primary"] {
+    background:#006348 !important; box-shadow:none !important;
+}
+.stApp, [data-testid="stAppViewContainer"], [data-testid="stMain"] {
+    background:var(--bg); color:var(--text-main);
+}
+.stApp p, .stApp label, .stApp small, .stApp [data-testid="stMarkdownContainer"] {
+    color:var(--text-main);
+}
+div[data-testid="stForm"], [data-testid="stDialog"] [role="dialog"],
+[data-testid="stExpander"] details, [data-testid="stAlert"] {
+    background:var(--card-bg) !important; color:var(--text-main) !important;
+    border:1px solid var(--card-border) !important;
+}
+[data-testid="stDialog"] p, [data-testid="stDialog"] label,
+[data-testid="stDialog"] [data-testid="stMarkdownContainer"] {
+    color:var(--text-main) !important;
+}
+.stApp input::placeholder, .stApp textarea::placeholder {
+    color:var(--text-muted) !important; opacity:1 !important;
+}
+[data-baseweb="select"] div { color:var(--text-main); }
+[data-testid="stAppDeployButton"] { display:none; }
+[data-baseweb="tab-highlight"] { background-color:var(--primary) !important; }
+div[data-testid="stForm"] div[data-baseweb="input"],
+div[data-testid="stForm"] div[data-baseweb="input"]:focus-within,
+[data-baseweb="input"], [data-baseweb="base-input"],
+[data-baseweb="textarea"], [data-baseweb="select"] > div,
+.stApp input:not([type="checkbox"]), .stApp textarea {
+    background:var(--card-bg) !important; color:var(--text-main) !important;
+    border-color:var(--card-border) !important; caret-color:var(--text-main);
+}
+[data-baseweb="popover"], [data-baseweb="menu"], [role="listbox"],
+[role="option"], [data-baseweb="calendar"], [data-baseweb="calendar"] button {
+    background:var(--card-bg) !important; color:var(--text-main) !important;
+}
+[data-baseweb="select"] span { color:var(--text-main) !important; }
+[role="option"]:hover, [role="option"][aria-selected="true"] {
+    background:var(--primary-light) !important;
+}
+.stApp button[kind="secondary"], [data-testid="stDownloadButton"] button,
+[data-testid="stPopoverButton"] {
+    background:var(--card-bg); color:var(--text-main); border-color:var(--card-border);
+}
+button[data-baseweb="tab"][aria-selected="true"] { background:var(--card-bg) !important; }
+.login-header h2 { color:var(--primary-dark) !important; }
+.login-header .subtitle-en { color:var(--text-muted) !important; }
+.login-badge { background:var(--primary-light); color:var(--primary-dark); }
+</style>
+"""
+
+
 def apply_style():
-    """Injects custom CSS styling into the Streamlit application."""
+    """Public, URL-bound preference; never participates in authentication."""
     import streamlit as st
-    st.markdown(CSS, unsafe_allow_html=True)
+    with st.container(key="appearance_control"):
+        night = st.toggle("الوضع الليلي", key="night_mode", bind="query-params",
+                          persist_state="session")
+    palette = """<style>:root {
+        --bg:#101519; --card-bg:#202223; --card-border:#303636;
+        --text-main:#f0f4f2; --text-muted:#b8c3bf;
+        --primary:#006348; --primary-dark:#8dd9bc; --primary-light:#002d20;
+        color-scheme:dark;
+    }
+    .kpi-icon { background:#002d20 !important; color:#8dd9bc !important; }
+    </style>""" if night else "<style>:root {color-scheme:light;}</style>"
+    surfaces = THEME_SURFACES if night else ""
+    st.markdown(CSS + SHELL_CSS + surfaces + palette, unsafe_allow_html=True)
