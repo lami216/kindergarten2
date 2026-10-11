@@ -224,3 +224,15 @@ class RequiredFixesPostgresTest(unittest.TestCase):
                            FROM students WHERE student_id=%s""", (second_id,))
             row = cur.fetchone()
         self.assertEqual(tuple(row.values()), (None, None, None))
+
+    def test_switching_existing_parent_does_not_erase_new_family_draft(self):
+        app = AppTest.from_string(SCRIPT).run(timeout=20)
+        self.assertEqual(len(app.exception), 0)
+        app.text_input(key="kid_mother_name").set_value("أم لم تُحفظ بعد")
+        app.text_input(key="kid_mother_phone").set_value("0599000100")
+        app.checkbox(key="kid_use_existing").set_value(True).run(timeout=20)
+        self.assertEqual(len(app.exception), 0)
+        self.assertEqual(app.text_input(key="kid_mother_name").value,
+                         "أم لم تُحفظ بعد")
+        app.checkbox(key="kid_use_existing").set_value(False).run(timeout=20)
+        self.assertEqual(app.text_input(key="kid_mother_phone").value, "0599000100")
