@@ -112,6 +112,21 @@ def _pickup_editor(owner, initial=None):
     return people
 
 
+def _parent_fields(family):
+    """Keep these widgets mounted even while a saved family is selected."""
+    a, b = st.columns(2)
+    family["father_name"] = a.text_input("اسم الأب",
+        key=_form_key("kid_father_name")).strip()
+    family["father_mobile"] = a.text_input("هاتف الأب",
+        key=_form_key("kid_father_phone")).strip()
+    family["mother_name"] = b.text_input("اسم الأم",
+        key=_form_key("kid_mother_name")).strip()
+    family["mother_mobile"] = b.text_input("هاتف الأم",
+        key=_form_key("kid_mother_phone")).strip()
+    family["contact_email"] = st.text_input("بريد التواصل (اختياري)",
+        key=_form_key("kid_email")).strip()
+
+
 def _medical_flag(old_details, old_flag, new_details, clear_legacy=False):
     """New/removed notes update the flag; note-less legacy flags are protected."""
     if _text(new_details).strip():
@@ -168,18 +183,12 @@ def render(conn):
                     key=_form_key("kid_existing_family"))
                 parent_id = selected[0]
                 st.caption("بيانات الأهل المشتركة تُعدّل من صفحة أولياء الأمور.")
+                # Streamlit destroys an unrendered widget's state on rerun.
+                # Keep fields mounted in a closed expander when switching modes.
+                with st.expander("بيانات أهل جديدة محفوظة (اختياري)"):
+                    _parent_fields(family)
             else:
-                a, b = st.columns(2)
-                family["father_name"] = a.text_input("اسم الأب",
-                    key=_form_key("kid_father_name")).strip()
-                family["father_mobile"] = a.text_input("هاتف الأب",
-                    key=_form_key("kid_father_phone")).strip()
-                family["mother_name"] = b.text_input("اسم الأم",
-                    key=_form_key("kid_mother_name")).strip()
-                family["mother_mobile"] = b.text_input("هاتف الأم",
-                    key=_form_key("kid_mother_phone")).strip()
-                family["contact_email"] = st.text_input("بريد التواصل (اختياري)",
-                    key=_form_key("kid_email")).strip()
+                _parent_fields(family)
 
             with st.expander("تفاصيل اختيارية"):
                 medical = st.text_area("ملاحظات صحية", key=_form_key("kid_health"))
