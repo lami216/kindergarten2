@@ -43,6 +43,9 @@ def seed():
 
 async def navigate(page, section):
     nav = page.locator(f".st-key-nav_{section} button")
+    # stApp mounts before Streamlit has finished rendering navigation;
+    # avoid treating a still-loading 1280px page as a missing opener.
+    await nav.wait_for(state="attached", timeout=30000)
     if not await nav.is_visible():
         opener = page.locator('[data-testid="stExpandSidebarButton"]')
         await opener.first.click(timeout=10000)
