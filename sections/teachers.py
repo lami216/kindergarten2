@@ -53,7 +53,7 @@ def render(conn):
             ui.empty_state("لا توجد معلمات مسجلات بعد.")
         else:
             # Display Table of Teachers
-            st.dataframe(teachers.rename(columns={
+            ui.dataframe(teachers.rename(columns={
                 'national_id': 'رقم الهوية',
                 'full_name': 'الاسم',
                 'salary': 'الراتب الافتراضي',
