@@ -3,6 +3,7 @@ db.py — Database initialization and connection management.
 Uses st.cache_resource to maintain a persistent connection to PostgreSQL/Supabase.
 """
 
+import hashlib
 import json
 import uuid
 
@@ -64,6 +65,36 @@ def contact_validation_error(father_name, father_mobile, mother_name, mother_mob
     return None
 
 
+def _child_request_fingerprint(child, family, existing_parent_id):
+    """Hash the normalized data we actually persist, not a UI session identifier."""
+    cleaned_child = {
+        "full_name": child["full_name"].strip(),
+        "birth_date": str(child["birth_date"]),
+        "gender": child["gender"],
+        "birth_place": child["birth_place"].strip(),
+        "address": child["address"].strip(),
+        "medical_details": child["medical_details"].strip(),
+        "allergies": child["allergies"].strip(),
+        "general_notes": child["general_notes"].strip(),
+        "authorized_pickups": [
+            {"name": item["name"].strip(), "phone": item["phone"].strip()}
+            for item in child["authorized_pickups"]
+        ],
+    }
+    if existing_parent_id:
+        cleaned_family = {"mode": "existing", "parent_id": str(existing_parent_id)}
+    else:
+        cleaned_family = {"mode": "new", **{
+            key: family[key].strip() for key in (
+                "father_name", "father_mobile", "mother_name",
+                "mother_mobile", "contact_email")
+        }}
+    payload = {"child": cleaned_child, "family": cleaned_family}
+    encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True,
+                         separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
 def save_child_with_family(child, family, existing_parent_id, request_token):
     """Persist family + child atomically; request_token makes repeated clicks idempotent.
 
@@ -78,16 +109,23 @@ def save_child_with_family(child, family, existing_parent_id, request_token):
             family["mother_name"], family["mother_mobile"])
         if problem:
             raise ValueError(problem)
+    fingerprint = _child_request_fingerprint(child, family, existing_parent_id)
     connection = new_transaction_connection()
     try:
         with connection.cursor() as cur:
-            # Serialise only repeated submissions of the same form token.
+            # Serialize retries under the same token before checking the payload.
             cur.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))",
                         (str(request_token),))
-            cur.execute("SELECT student_id FROM students WHERE request_token=%s",
-                        (str(request_token),))
+            cur.execute("""
+                SELECT student_id, request_fingerprint FROM students
+                WHERE request_token=%s
+            """, (str(request_token),))
             already = cur.fetchone()
             if already:
+                if already["request_fingerprint"] != fingerprint:
+                    raise ValueError(
+                        "تعارض طلب الحفظ: استُخدم رمز هذا الطلب لبيانات مختلفة. "
+                        "احتفظنا بمدخلاتك؛ ابدأ نموذجاً جديداً قبل تسجيل طفل آخر.")
                 connection.commit()
                 return already["student_id"], False
             if existing_parent_id:
@@ -112,8 +150,8 @@ def save_child_with_family(child, family, existing_parent_id, request_token):
                 INSERT INTO students
                     (student_id, full_name, birth_date, gender, birth_place, address,
                      medical_details, has_medical_condition, allergies, general_notes,
-                     authorized_pickups, father_id, request_token)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s)
+                     authorized_pickups, father_id, request_token, request_fingerprint)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s)
             """, (student_id, child["full_name"].strip(), child["birth_date"],
                   child["gender"], child["birth_place"].strip() or None,
                   child["address"].strip() or None,
@@ -121,7 +159,7 @@ def save_child_with_family(child, family, existing_parent_id, request_token):
                   int(bool(child["medical_details"].strip())),
                   child["allergies"].strip() or None, child["general_notes"].strip() or None,
                   json.dumps(child["authorized_pickups"], ensure_ascii=False),
-                  parent_id, str(request_token)))
+                  parent_id, str(request_token), fingerprint))
         connection.commit()
         return student_id, True
     except Exception:
@@ -303,6 +341,7 @@ def init_db():
             ALTER TABLE students ADD COLUMN IF NOT EXISTS general_notes TEXT;
             ALTER TABLE students ADD COLUMN IF NOT EXISTS authorized_pickups JSONB NOT NULL DEFAULT '[]'::jsonb;
             ALTER TABLE students ADD COLUMN IF NOT EXISTS request_token UUID;
+            ALTER TABLE students ADD COLUMN IF NOT EXISTS request_fingerprint VARCHAR(64);
             CREATE UNIQUE INDEX IF NOT EXISTS students_request_token_unique
               ON students(request_token);
         """)
