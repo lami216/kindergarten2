@@ -36,8 +36,9 @@ def render(conn):
             "contact_email": "بريد التواصل",
             "linked_children": "الأطفال المرتبطون"
         })
+        # Display empty SQL values as blank cells, never literal None/nan.
         ui.dataframe(table[["اسم الأب", "هاتف الأب", "اسم الأم", "هاتف الأم",
-                             "بريد التواصل", "الأطفال المرتبطون"]],
+                             "بريد التواصل", "الأطفال المرتبطون"]].fillna(""),
                      use_container_width=True, hide_index=True)
 
     st.markdown("---")
