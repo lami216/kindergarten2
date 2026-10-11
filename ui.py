@@ -53,6 +53,29 @@ def kpi(col, icon, label, value, bg="#E9F5EC", fg="#219044"):
         """, unsafe_allow_html=True)
 
 
+
+def dataframe(data, **kwargs):
+    """Retain native table/export UX; theme cell values without modifying data."""
+    if st.session_state.get("night_mode", False) and isinstance(data, pd.DataFrame):
+        data = data.style.set_properties(**{
+            "background-color": "#202223", "color": "#f0f4f2",
+        })
+    return st.dataframe(data, **kwargs)
+
+
+def plotly_chart(figure, **kwargs):
+    """Copy presentation only, retaining figure traces and interactions."""
+    if st.session_state.get("night_mode", False):
+        import plotly.graph_objects as go
+        figure = go.Figure(figure)
+        figure.update_layout(paper_bgcolor="#202223", plot_bgcolor="#202223",
+                             font_color="#f0f4f2")
+        figure.update_xaxes(gridcolor="#303636", zerolinecolor="#303636")
+        figure.update_yaxes(gridcolor="#303636", zerolinecolor="#303636")
+        kwargs["theme"] = None
+    return st.plotly_chart(figure, **kwargs)
+
+
 def empty_state(message):
     st.info(message)
 

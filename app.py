@@ -10,7 +10,7 @@ import os
 import streamlit as st
 
 from db import init_db, get_connection
-from style import CSS
+from style import apply_style
 import auth
 import sidebar
 
@@ -25,7 +25,7 @@ LOGO_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "
 # Setup
 # --------------------------------------------------------------------------
 st.set_page_config(page_title="روضة مؤسسة شباب البيرة", page_icon=LOGO_PATH, layout="wide")
-st.markdown(CSS, unsafe_allow_html=True)
+apply_style()
 
 if not auth.check_authentication():
     st.stop()

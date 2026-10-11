@@ -77,7 +77,7 @@ def render(conn):
 
             classes_display['n'] = classes_display['n'].astype(int)
 
-            st.dataframe(classes_display.rename(columns={
+            ui.dataframe(classes_display.rename(columns={
                 'class_type': 'النوع', 'section': 'الشعبة', 'class_name': 'الاسم',
                 'teacher_name': 'المعلم/ة المسؤول/ة', 'n': 'عدد الطلاب (السنة الحالية)'
             })[['النوع', 'الشعبة', 'الاسم', 'المعلم/ة المسؤول/ة', 'عدد الطلاب (السنة الحالية)']],
