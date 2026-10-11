@@ -87,6 +87,8 @@ async def visualize(browser):
             await page.locator(".stApp").wait_for(timeout=30000)
             for section in ("students", "parents"):
                 await navigate(page, section)
+                # Mobile drawer overlays the appearance switch while open.
+                await sidebar_state(page, False)
                 for dark in (False, True):
                     await night_mode(page, dark)
                     for expanded in (True, False):
