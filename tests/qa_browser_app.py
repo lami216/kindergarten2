@@ -15,7 +15,7 @@ from sections import students, parents
 if not os.environ.get("TEST_POSTGRES_DSN"):
     raise RuntimeError("QA browser app requires isolated TEST_POSTGRES_DSN")
 
-st.set_page_config(page_title="QA — الروضة", layout="wide")
+st.set_page_config(page_title="QA — الروضة", layout="wide", initial_sidebar_state="expanded")
 apply_style()
 
 @st.cache_resource
