@@ -154,3 +154,73 @@ class RequiredFixesPostgresTest(unittest.TestCase):
             with self.conn.cursor() as cur:
                 cur.execute("SELECT has_medical_condition FROM students WHERE student_id=%s",(sid,))
                 self.assertEqual(cur.fetchone()["has_medical_condition"],0)
+
+    def test_pickup_rows_add_remove_and_failed_save_keep_entered_data(self):
+        child_name = "طفل قوائم " + uuid.uuid4().hex[:8]
+        with patch.object(db, "new_transaction_connection", side_effect=_connect):
+            app = AppTest.from_string(SCRIPT).run(timeout=20)
+            app.text_input(key="kid_name").set_value(child_name)
+            app.text_input(key="kid_mother_name").set_value("أم قوائم")
+            app.button(key="kid_add_0_pickup_add").click().run(timeout=20)
+            keys = [w.key for w in app.text_input
+                    if w.key and w.key.startswith("kid_add_0_pickup_")
+                    and w.key.endswith("_name")]
+            self.assertEqual(len(keys), 1)
+            first = keys[0].removesuffix("_name")
+            app.text_input(key=first + "_name").set_value("جد الطفل")
+            app.text_input(key=first + "_phone").set_value("0599112233")
+            app.button(key="kid_add_0_pickup_add").click().run(timeout=20)
+            self.assertEqual(app.text_input(key="kid_name").value, child_name)
+            self.assertEqual(app.text_input(key=first + "_name").value, "جد الطفل")
+            second = [w.key.removesuffix("_name") for w in app.text_input
+                      if w.key and w.key.startswith("kid_add_0_pickup_")
+                      and w.key.endswith("_name") and w.key != first + "_name"]
+            self.assertEqual(len(second), 1)
+            app.button(key=second[0] + "_remove").click().run(timeout=20)
+            self.assertEqual(app.text_input(key=first + "_phone").value, "0599112233")
+            self.assertEqual(app.text_input(key="kid_name").value, child_name)
+            next(b for b in app.button if "حفظ بيانات الطفل" in b.label).click().run(timeout=20)
+            self.assertTrue(any("هاتف" in e.value for e in app.error))
+            self.assertEqual(app.text_input(key=first + "_name").value, "جد الطفل")
+            app.text_input(key="kid_mother_phone").set_value("0599445566")
+            next(b for b in app.button if "حفظ بيانات الطفل" in b.label).click().run(timeout=20)
+            self.assertEqual(len(app.exception), 0)
+            self.assertEqual(app.text_input(key="kid_name_v1").value, "")
+            self.assertTrue(any("تم حفظ الطفل" in s.value for s in app.success))
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT authorized_pickups FROM students WHERE full_name=%s",
+                        (child_name,))
+            record = cur.fetchone()
+        self.assertEqual(record["authorized_pickups"],
+                         [{"name": "جد الطفل", "phone": "0599112233"}])
+
+    def test_switching_from_filled_notes_to_nullable_notes_shows_blank(self):
+        fid = "L" + uuid.uuid4().hex[:19]
+        first_id = "S" + uuid.uuid4().hex[:19]
+        second_id = "S" + uuid.uuid4().hex[:19]
+        with self.conn.cursor() as cur:
+            cur.execute("INSERT INTO parents (father_id, mother_name) VALUES (%s,%s)",
+                        (fid, "أم انتقال"))
+            cur.execute("""INSERT INTO students (student_id, full_name, father_id,
+                        medical_details, allergies, general_notes)
+                        VALUES(%s,%s,%s,%s,%s,%s)""",
+                        (first_id, "طفل ممتلئ", fid, "نص صحي", "حساسية", "ملاحظة"))
+            cur.execute("""INSERT INTO students (student_id, full_name, father_id,
+                        medical_details, allergies, general_notes)
+                        VALUES(%s,%s,%s,NULL,NULL,NULL)""",
+                        (second_id, "طفل فارغ", fid))
+        app = AppTest.from_string(SCRIPT).run(timeout=20)
+        app.selectbox(key="student_select_edit").set_value(
+            (first_id, "طفل ممتلئ")).run(timeout=20)
+        self.assertEqual(app.text_area(key=f"edit_{first_id}_health").value, "نص صحي")
+        app.selectbox(key="student_select_edit").set_value(
+            (second_id, "طفل فارغ")).run(timeout=20)
+        for key in ("health", "allergy", "notes"):
+            self.assertEqual(app.text_area(key=f"edit_{second_id}_{key}").value, "")
+        app.text_input(key=f"edit_{second_id}_name").set_value("طفل فارغ معدل")
+        next(b for b in app.button if b.label == "💾 حفظ التعديلات").click().run(timeout=20)
+        with self.conn.cursor() as cur:
+            cur.execute("""SELECT medical_details, allergies, general_notes
+                           FROM students WHERE student_id=%s""", (second_id,))
+            row = cur.fetchone()
+        self.assertEqual(tuple(row.values()), (None, None, None))
