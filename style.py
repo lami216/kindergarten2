@@ -498,6 +498,13 @@ section[data-testid="stSidebar"][aria-expanded="true"] [data-testid="stSidebarCo
     opacity:1 !important; visibility:visible !important;
 }
 section[data-testid="stSidebar"][aria-expanded="false"] { transform:translateX(100%); visibility:hidden; }
+/* Some Streamlit descendants explicitly override inherited visibility.
+   Keep the whole closed rail non-painting and non-interactive; do not hide
+   the native reopen button, which lives outside this closed section. */
+section[data-testid="stSidebar"][aria-expanded="false"] * {
+    visibility:hidden !important;
+    pointer-events:none !important;
+}
 section[data-testid="stSidebar"][aria-expanded="false"] [data-testid="stSidebarContent"] {
     visibility:hidden !important;
 }
