@@ -64,11 +64,15 @@ async def sidebar_state(page, opened):
 async def night_mode(page, desired):
     toggle = page.locator(".st-key-night_mode [role='switch']").first
     await expect(toggle).to_be_visible(timeout=10000)
-    current = await toggle.get_attribute("aria-checked") == "true"
+    current = await toggle.is_checked()
     if current != desired:
-        await toggle.click()
-        await expect(toggle).to_have_attribute("aria-checked",
-                                               "true" if desired else "false")
+        # React Aria renders a visible label over its checkbox input.
+        # Click what the user taps; never bypass browser hit-testing.
+        await page.locator(".st-key-night_mode label").last.click()
+        if desired:
+            await expect(toggle).to_be_checked()
+        else:
+            await expect(toggle).not_to_be_checked()
     await page.wait_for_timeout(250)
 
 
