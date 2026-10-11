@@ -59,7 +59,7 @@ class FamilyAppTest(unittest.TestCase):
             app.text_input(key="kid_mother_name").set_value("أم تجربة واجهة")
             next(b for b in app.button if "حفظ بيانات الطفل" in b.label).click().run(timeout=20)
             self.assertEqual(len(app.exception), 0)
-            self.assertTrue(any("هاتف" in e.message for e in app.error))
+            self.assertTrue(any("هاتف" in e.value for e in app.error))
             self.assertEqual(app.text_input(key="kid_name").value, name)
             app.text_input(key="kid_mother_phone").set_value("0599555555")
             next(b for b in app.button if "حفظ بيانات الطفل" in b.label).click().run(timeout=20)
