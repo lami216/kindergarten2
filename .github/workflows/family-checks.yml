@@ -1,0 +1,38 @@
+name: Family + appearance regression
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: kindergarten_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U test -d kindergarten_test"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      TEST_POSTGRES_DSN: postgresql://test:test@127.0.0.1:5432/kindergarten_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pytest
+      - name: Python syntax
+        run: python -m compileall -q app.py db.py ui.py style.py sections tests
+      - name: Integration and UI tests
+        run: python -m pytest -q tests/
