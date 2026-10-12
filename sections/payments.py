@@ -55,6 +55,7 @@ def _render_historical(conn):
         JOIN students s ON s.student_id = r.student_id
         JOIN classes c ON c.class_id = r.class_id
         JOIN parents p ON p.father_id = s.father_id
+        WHERE NOT EXISTS (SELECT 1 FROM monthly_accounts ma WHERE ma.student_id=s.student_id)
         ORDER BY r.registration_id DESC
     """)
 
