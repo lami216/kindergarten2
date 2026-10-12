@@ -7,6 +7,7 @@ import ui
 import helpers as H
 import teacher_receipt
 import payroll_finance as P
+from monthly_finance import today as business_today
 import uuid
 from datetime import datetime
 
@@ -31,7 +32,7 @@ def render(conn):
         selected_teacher_label = st.selectbox("اختر المعلمة *", list(teacher_map.keys()), index=None, key="salary_teacher")
         t_id, default_salary, t_name = teacher_map.get(selected_teacher_label, (None, 0.0, ""))
 
-        current_month = datetime.now().strftime("%Y-%m")
+        current_month = business_today().strftime("%Y-%m")
 
         st.session_state.setdefault("salary_request_token", str(uuid.uuid4()))
         salary_version = st.session_state.get("salary_form_version", 0)
@@ -180,9 +181,9 @@ def render(conn):
             teacher=st.selectbox("المعلمة",list(teacher_map.keys()),index=None,
                                  key=f"advance_teacher_v{advance_version}")
             advance_month=st.text_input("تُخصم عن شهر (YYYY-MM)",
-                                      value=datetime.now().strftime("%Y-%m"),
+                                      value=business_today().strftime("%Y-%m"),
                                       key=f"advance_month_v{advance_version}")
-            advance_day=st.date_input("تاريخ صرف السلفة", key=f"advance_date_v{advance_version}")
+            advance_day=st.date_input("تاريخ صرف السلفة",value=business_today(), key=f"advance_date_v{advance_version}")
             advance_amount=st.number_input("مبلغ السلفة (أوقية قديمة)",
                 min_value=0.0,step=1.0,format="%.2f",key=f"advance_amount_v{advance_version}")
             advance_note=st.text_input("ملاحظات (اختياري)",
