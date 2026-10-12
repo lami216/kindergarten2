@@ -236,3 +236,80 @@ class RequiredFixesPostgresTest(unittest.TestCase):
                          "أم لم تُحفظ بعد")
         app.checkbox(key="kid_use_existing").set_value(False).run(timeout=20)
         self.assertEqual(app.text_input(key="kid_mother_phone").value, "0599000100")
+
+    def test_unused_new_family_draft_is_ignored_for_existing_guardian(self):
+        """Invalid draft stays available; it must not block or overwrite the chosen parent."""
+        pid = "L" + uuid.uuid4().hex[:19]
+        sid_name = "طفل أسرة موجودة " + uuid.uuid4().hex[:8]
+        saved_phone = "0599444555"
+        with self.conn.cursor() as cur:
+            cur.execute("""INSERT INTO parents (father_id, father_name, father_mobile)
+                           VALUES (%s, %s, %s)""",
+                        (pid, "ولي تجريبي موجود", saved_phone))
+        before_students = _count(self.conn, "students")
+        before_parents = _count(self.conn, "parents")
+        with patch.object(db, "new_transaction_connection", side_effect=_connect):
+            app = AppTest.from_string(SCRIPT).run(timeout=20)
+            self.assertEqual(len(app.exception), 0)
+            bad_name = "أ" * 101
+            bad_phone = "0" * 21
+            app.text_input(key="kid_name").set_value(sid_name)
+            app.text_input(key="kid_father_name").set_value(bad_name)
+            app.text_input(key="kid_father_phone").set_value(bad_phone)
+            app.text_input(key="kid_email").set_value("invalid-email")
+            app.checkbox(key="kid_use_existing").set_value(True).run(timeout=20)
+            self.assertEqual(app.text_input(key="kid_email").value, "invalid-email")
+            self.assertEqual(app.text_input(key="kid_father_name").value, bad_name)
+            choices = [item for item in app.selectbox(key="kid_existing_family").options
+                       if item[0] == pid]
+            self.assertEqual(len(choices), 1)
+            app.selectbox(key="kid_existing_family").set_value(choices[0]).run(timeout=20)
+            self.assertEqual(app.text_input(key="kid_email").value, "invalid-email")
+            app.checkbox(key="kid_use_existing").set_value(False).run(timeout=20)
+            self.assertEqual(app.text_input(key="kid_father_phone").value, bad_phone)
+            submit = lambda: next(b for b in app.button if "حفظ بيانات الطفل" in b.label)
+            submit().click().run(timeout=20)
+            self.assertTrue(any("أسماء الأهل" in e.value for e in app.error))
+            self.assertEqual(app.text_input(key="kid_name").value, sid_name)
+            self.assertEqual(_count(self.conn, "students"), before_students)
+            app.text_input(key="kid_father_name").set_value("أب مسودة")
+            submit().click().run(timeout=20)
+            self.assertTrue(any("الهاتف" in e.value for e in app.error))
+            app.text_input(key="kid_father_phone").set_value("0599888777")
+            submit().click().run(timeout=20)
+            self.assertTrue(any("بريد" in e.value for e in app.error))
+            self.assertEqual(app.text_input(key="kid_email").value, "invalid-email")
+            app.checkbox(key="kid_use_existing").set_value(True).run(timeout=20)
+            # Existing selection retained if Streamlit could preserve the option.
+            app.selectbox(key="kid_existing_family").set_value(choices[0]).run(timeout=20)
+            submit().click().run(timeout=20)
+            self.assertEqual(len(app.exception), 0)
+            self.assertEqual(app.text_input(key="kid_name_v1").value, "")
+            self.assertTrue(any("تم حفظ الطفل" in s.value for s in app.success))
+        self.assertEqual(_count(self.conn, "students"), before_students + 1)
+        self.assertEqual(_count(self.conn, "parents"), before_parents)
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT father_id FROM students WHERE full_name=%s", (sid_name,))
+            self.assertEqual(cur.fetchone()["father_id"], pid)
+            cur.execute("""SELECT father_name, father_mobile, contact_email
+                           FROM parents WHERE father_id=%s""", (pid,))
+            parent = cur.fetchone()
+        self.assertEqual(parent["father_name"], "ولي تجريبي موجود")
+        self.assertEqual(parent["father_mobile"], saved_phone)
+        self.assertIsNone(parent["contact_email"])
+
+    def test_child_validation_still_runs_with_existing_family(self):
+        pid = "L" + uuid.uuid4().hex[:19]
+        with self.conn.cursor() as cur:
+            cur.execute("INSERT INTO parents (father_id, mother_name) VALUES (%s, %s)",
+                        (pid, "أم مسجلة"))
+        before = _count(self.conn, "students")
+        app = AppTest.from_string(SCRIPT).run(timeout=20)
+        app.text_input(key="kid_name").set_value("ط" * 101)
+        app.checkbox(key="kid_use_existing").set_value(True).run(timeout=20)
+        choice = next(item for item in app.selectbox(key="kid_existing_family").options
+                      if item[0] == pid)
+        app.selectbox(key="kid_existing_family").set_value(choice).run(timeout=20)
+        next(b for b in app.button if "حفظ بيانات الطفل" in b.label).click().run(timeout=20)
+        self.assertTrue(any("اسم الطفل" in e.value for e in app.error))
+        self.assertEqual(_count(self.conn, "students"), before)
