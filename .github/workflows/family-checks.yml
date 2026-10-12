@@ -63,6 +63,8 @@ jobs:
         run: python tests/browser_pr1.py
       - name: Actual Chromium monthly/exempt receipt PostgreSQL readback
         run: PYTHONPATH=. python tests/browser_monthly_finance.py
+      - name: Chromium historical receipt audit and PostgreSQL readback
+        run: PYTHONPATH=. python tests/browser_historical_finance.py
       - name: Upload actual browser evidence
         if: always()
         uses: actions/upload-artifact@v4
