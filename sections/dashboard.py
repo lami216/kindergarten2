@@ -87,7 +87,9 @@ def render(conn):
     ui.kpi(r2,"💸","إجمالي المصروفات",money(financial["expenses"]),bg="#FFF1F2",fg="#BE123C")
     ui.kpi(r3,"📊","الباقي من المداخيل",money(financial["remaining_cash"]),bg="#E0F2FE",fg="#0369A1")
     r4,r5,r6=st.columns(3)
-    r4.metric("الباقي على الطلاب",money(financial["due_now"]))
+    # Unit is stated in the section title and adjacent cash cards.  A long
+    # currency suffix would clip this native metric at tablet widths.
+    r4.metric("الباقي على الطلاب",H.format_money(financial["due_now"]))
     r5.metric("أطفال سددوا التسجيل",financial["registration_children"])
     r6.metric("جيليه مدفوعة",financial["gilet_count"])
     st.caption(f"تسجيل {money(financial['registration_cash'])} · "
