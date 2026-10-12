@@ -2,6 +2,7 @@
 import streamlit as st
 
 import db
+import student_debt as D
 import ui
 
 
@@ -130,12 +131,11 @@ def render(conn):
                         st.error("تعذّر حفظ التعديلات؛ يرجى المحاولة مجدداً.")
 
             if delete:
-                # Existing permission/deletion semantics are unchanged.
                 try:
-                    with conn.cursor() as cur:
-                        cur.execute("DELETE FROM parents WHERE father_id=%s", (fid,))
-                    st.warning("تم حذف ولي الأمر.")
+                    D.remove_guardian_if_unlinked(fid)
+                    st.success("حُذف ملف ولي الأمر غير المرتبط بأي طفل.")
                     st.rerun()
+                except ValueError as error:
+                    st.error(str(error))
                 except Exception:
-                    conn.rollback()
-                    st.error("تعذّر الحذف؛ يرجى مراجعة البيانات المرتبطة.")
+                    st.error("تعذّر حذف ولي الأمر دون المساس بملفات الأطفال.")
