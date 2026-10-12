@@ -52,7 +52,7 @@ def render(conn):
                 with st.form("add_expense_form", clear_on_submit=True):
                     exp_date = st.date_input("تاريخ المصروف", value=date.today())
                     category = st.selectbox("بند المصروف", EXPENSE_CATEGORIES)
-                    amount = st.number_input("إجمالي قيمة الفاتورة/المصروف (شيكل)", min_value=0.0, step=10.0, format="%.2f")
+                    amount = st.number_input("إجمالي قيمة الفاتورة/المصروف (أوقية قديمة)", min_value=0.0, step=10.0, format="%.2f")
                     
                     pay_status = st.selectbox("حالة الدفع", PAYMENT_STATUSES)
                     
@@ -63,7 +63,7 @@ def render(conn):
                         amount_paid = 0.0
                     else:  # مدفوع جزئياً
                         amount_paid = st.number_input(
-                            "المبلغ المدفوع فعلياً (شيكل)", 
+                            "المبلغ المدفوع فعلياً (أوقية قديمة)", 
                             min_value=0.0, 
                             max_value=float(amount) if amount > 0 else 0.0, 
                             value=float(amount)/2 if amount > 0 else 0.0,
@@ -120,7 +120,7 @@ def render(conn):
                 ui.empty_state("لا توجد مصروفات للتعديل أو الحذف.")
             else:
                 exp_options = {
-                    row["expense_id"]: f"#{row['expense_id']} - {row['category']} (المتبقي: {float(row['amount']) - float(row['amount_paid'])} ₪) - {row['payment_status']}" 
+                    row["expense_id"]: f"#{row['expense_id']} - {row['category']} (المتبقي: {float(row['amount']) - float(row['amount_paid'])} أوقية قديمة) - {row['payment_status']}" 
                     for _, row in df_exp_manage.iterrows()
                 }
                 selected_id = st.selectbox("اختر المصروف لتعديله، تسديد الدين، أو الحذف:", options=list(exp_options.keys()), format_func=lambda x: exp_options[x])
@@ -166,7 +166,7 @@ def render(conn):
                     st.markdown("##### 🚨 إجراءات الديون والحذف")
                     with st.container(border=True):
                         if remaining_debt > 0:
-                            st.info(f"💡 المتبقي كدين لهذا المصروف: **{remaining_debt:,.2f} ₪**")
+                            st.info(f"💡 المتبقي كدين لهذا المصروف: **{remaining_debt:,.2f} أوقية قديمة**")
                             if st.button("💸 تسديد الدين بالكامل الآن", key=f"settle_{selected_id}", use_container_width=True):
                                 with conn.cursor() as cur:
                                     cur.execute("""
@@ -178,12 +178,22 @@ def render(conn):
                                 st.rerun()
                             st.write("---")
 
-                        st.warning("حذف المصروف سينعكس فوراً على الحسابات واللوحة الرئيسية.")
-                        if st.button("🗑️ حذف المصروف نهائياً", key=f"del_exp_{selected_id}", use_container_width=True):
-                            with conn.cursor() as cur:
-                                cur.execute("DELETE FROM expenses WHERE expense_id = %s", (selected_id,))
-                            st.success("🗑️ تم الحذف بنجاح!")
-                            st.rerun()
+                        st.warning("لا يمكن حذف مصروف سُجل له صرف نقدي؛ تُحفظ آثاره في سجل الحركة.")
+                        if st.button("🗑️ حذف مصروف غير مدفوع", key=f"del_exp_{selected_id}", use_container_width=True):
+                            try:
+                                with conn.cursor() as cur:
+                                    cur.execute("SELECT 1 FROM expense_cash_events WHERE expense_id=%s",
+                                                (selected_id,))
+                                    if cur.fetchone():
+                                        raise ValueError("هذا المصروف له حركة نقدية محفوظة؛ لا يمكن حذفها.")
+                                    cur.execute("DELETE FROM expenses WHERE expense_id = %s", (selected_id,))
+                                st.success("حُذف المصروف غير المدفوع.")
+                                st.rerun()
+                            except ValueError as exc:
+                                st.error(str(exc))
+                            except Exception:
+                                conn.rollback()
+                                st.error("تعذّر حذف هذا المصروف.")
 
     # ==================================================================
     # MAIN TAB 2: CAPITAL ASSETS & TOYS
@@ -204,7 +214,7 @@ def render(conn):
                     item_name = st.text_input("اسم الأصل / اللعبة", placeholder="مثال: مجمع ألعاب بلاستيكي")
                     category = st.selectbox("فئة الأصل", ASSET_CATEGORIES)
                     qty = st.number_input("الكمية", min_value=1, value=1, step=1)
-                    unit_cost = st.number_input("سعر القطعة (شيكل)", min_value=0.0, step=10.0, format="%.2f")
+                    unit_cost = st.number_input("سعر القطعة (أوقية قديمة)", min_value=0.0, step=10.0, format="%.2f")
                     status = st.selectbox("الحالة", ASSET_CONDITIONS)
                     notes = st.text_area("ملاحظات / المورد", height=70)
 
