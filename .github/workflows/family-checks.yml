@@ -38,6 +38,11 @@ jobs:
         run: python -m compileall -q app.py db.py ui.py style.py sections tests
       - name: Integration and UI tests
         run: python -m pytest -q tests/
+      - name: Full PostgreSQL suite with conflicting process and DB timezones
+        env:
+          TZ: Pacific/Honolulu
+          PGOPTIONS: -c timezone=Europe/Berlin
+        run: python -m pytest -q tests/
       - name: Install Chromium for browser tests
         run: python -m playwright install --with-deps chromium
       - name: Start isolated QA previews
