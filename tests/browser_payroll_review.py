@@ -16,7 +16,7 @@ def sql(text,args=()):
                           cursor_factory=RealDictCursor) as conn:
         with conn.cursor() as c:
             c.execute(text,args)
-            return c.fetchall()
+            return c.fetchall() if c.description is not None else []
 
 
 async def select_teacher(page, selector, name):
