@@ -64,12 +64,17 @@ def render(conn):
                 if not existing.empty:
                     st.error("❌ هذا الطالب مسجل مسبقاً في هذه السنة الدراسية.")
                 else:
+                    # New monthly accounts have their own schedule and charges;
+                    # academic placement never issues a second annual tuition.
+                    monthly = not ui.df(conn,
+                        "SELECT 1 FROM monthly_accounts WHERE student_id=%s",(sid,)).empty
+                    billed_tuition = 0 if monthly else annual_tuition
                     try:
                         cur = conn.cursor()
                         cur.execute('''
                             INSERT INTO registrations (student_id, class_id, year_id, status, registration_date, annual_tuition)
                             VALUES (%s, %s, %s, %s, %s, %s)
-                        ''', (sid, cid, year_label, H.STATUS_NEW, H.today_str(), annual_tuition))
+                        ''', (sid, cid, year_label, H.STATUS_NEW, H.today_str(), billed_tuition))
                         conn.commit()
                         cur.close()
                         st.success(f"✅ تم تسجيل «{student_label.split(' — ')[0]}» بنجاح! الرسوم المقررة: {H.format_money(annual_tuition)} شيكل. "
@@ -153,12 +158,17 @@ def render(conn):
 
                         if save:
                             try:
+                                monthly = not ui.df(conn, """
+                                    SELECT 1 FROM monthly_accounts a JOIN registrations r
+                                    ON a.student_id=r.student_id WHERE r.registration_id=%s
+                                """,(rid,)).empty
+                                billed_tuition = 0 if monthly else new_tuition
                                 cur = conn.cursor()
                                 cur.execute("""
                                     UPDATE registrations 
                                     SET class_id=%s, annual_tuition=%s 
                                     WHERE registration_id=%s
-                                """, (class_options[new_class_label], new_tuition, rid))
+                                """, (class_options[new_class_label], billed_tuition, rid))
                                 conn.commit()
                                 cur.close()
                                 st.success("✅ تم تحديث بيانات التسجيل بنجاح.")
