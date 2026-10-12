@@ -3,6 +3,8 @@ import os
 import uuid
 import unittest
 from datetime import date
+from decimal import Decimal
+from sections.monthly_payments import fmt, money_number
 from unittest.mock import patch
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -209,6 +211,21 @@ class SingleCurrencyCashTests(unittest.TestCase):
         self.assertTrue(exempt["exempt"])
         self.assertEqual(exempt["receipts"],[])
         self.assertEqual(exempt["fees"],{})
+
+    def test_fractional_operational_cash_is_not_truncated_in_report(self):
+        """The old-ouguiya label cannot silently discard fractional real cash."""
+        self.assertEqual(money_number(Decimal("2000.50")),"2,000.50")
+        self.assertEqual(fmt(Decimal("2000.50")),"2,000.50 أوقية قديمة")
+        self.assertEqual(money_number(Decimal("12000.00")),"12,000")
+        before=self.report(self.day,self.day)
+        with self.admin.cursor() as c:
+            c.execute("""INSERT INTO expenses(expense_date,category,amount,amount_paid)
+                         VALUES(%s,'اختبار دقة كسور النقد',2000.50,2000.50)""",
+                      (self.day,))
+        after=self.report(self.day,self.day)
+        self.assertEqual(after["expenses"]-before["expenses"],Decimal("2000.50"))
+        self.assertEqual(after["remaining_cash"]-before["remaining_cash"],Decimal("-2000.50"))
+        self.assertEqual(fmt(after["expenses"]-before["expenses"]),"2,000.50 أوقية قديمة")
 
     def test_academic_registration_has_no_implicit_annual_charge(self):
         """Omitted historical amount defaults to zero; explicit history stays intact."""
