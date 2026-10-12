@@ -254,3 +254,57 @@ class MonthlyFinanceDBTests(unittest.TestCase):
         F.cancel_receipt(rid,"إلغاء قبض",actor="tester")
         after=F.financial_report(self.admin,date(2026,1,1),F.today())
         self.assertEqual(rep["new_cash"]-after["new_cash"],12000)
+
+    def test_failure_after_creating_receipt_rolls_back_parent_and_student(self):
+        before={t:self.count(t) for t in
+                ("parents","students","monthly_accounts","monthly_receipts","monthly_allocations")}
+        with patch.object(F,"_audit",side_effect=RuntimeError("simulated audit write fault")):
+            with self.assertRaisesRegex(RuntimeError,"simulated"):
+                self.create(cash=12000,reg=True,gilet=True)
+        self.assertEqual(before,{t:self.count(t) for t in before})
+
+    def test_funded_future_snapshot_survives_new_tariff(self):
+        sid=self.create(cash=12000,reg=True,gilet=True)
+        with self.admin.cursor() as c:
+            c.execute("SELECT period_no,price FROM monthly_periods WHERE student_id=%s ORDER BY period_no",
+                      (sid,))
+            original=[(r["period_no"],r["price"]) for r in c.fetchall()]
+        self.assertEqual(original,[(0,3000),(1,3000),(2,3000)])
+        F.update_tariffs(1100,2400,4500,"new price")
+        with self.admin.cursor() as c:
+            c.execute("SELECT period_no,price FROM monthly_periods WHERE student_id=%s ORDER BY period_no",
+                      (sid,))
+            after={r["period_no"]:r["price"] for r in c.fetchall()}
+        self.assertEqual([after[i] for i in range(3)],[3000]*3)
+        self.assertEqual(self.projection(sid,self.anchor)["fees"]["registration"]["price"],1000)
+
+    def test_payment_and_cancellation_race_keeps_exact_allocations(self):
+        sid=self.create(cash=3000)
+        original=self.projection(sid,self.anchor)["receipts"][0]["receipt_id"]
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            a=pool.submit(F.take_payment,sid,3000,actor="race")
+            b=pool.submit(F.cancel_receipt,original,"reversal",actor="race")
+            a.result()
+            b.result()
+        p=self.projection(sid,self.anchor)
+        active=[r for r in p["receipts"] if r["state"]=="active"]
+        self.assertEqual(sum(r["amount"] for r in active),3000)
+        with self.admin.cursor() as c:
+            c.execute("""SELECT COALESCE(SUM(a.amount),0) AS n FROM monthly_allocations a
+                JOIN monthly_receipts r ON r.receipt_id=a.receipt_id
+                WHERE r.student_id=%s AND a.active""",(sid,))
+            self.assertEqual(c.fetchone()["n"],3000)
+
+    def test_repeated_migration_leaves_historical_receipt_and_expense_untouched(self):
+        with self.admin.cursor() as c:
+            c.execute("""SELECT COALESCE(SUM(amount),0) AS n FROM payments""")
+            old_cash=c.fetchone()["n"]
+            c.execute("SELECT COALESCE(SUM(amount_paid),0) AS n FROM expenses")
+            old_expenses=c.fetchone()["n"]
+        F.migrate(self.admin)
+        F.migrate(self.admin)
+        with self.admin.cursor() as c:
+            c.execute("SELECT COALESCE(SUM(amount),0) AS n FROM payments")
+            self.assertEqual(c.fetchone()["n"],old_cash)
+            c.execute("SELECT COALESCE(SUM(amount_paid),0) AS n FROM expenses")
+            self.assertEqual(c.fetchone()["n"],old_expenses)
