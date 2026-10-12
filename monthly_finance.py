@@ -154,6 +154,19 @@ def migrate(conn):
                 INSERT INTO finance_schema_versions(version) VALUES(3);
             """)
 
+        # Stop before silently relabelling financial rows from an unknown past
+        # currency. The published database preflight was empty, but that is not
+        # proof for every deployment or a license to reinterpret old money.
+        c.execute("SELECT 1 FROM finance_schema_versions WHERE version=4")
+        if not c.fetchone():
+            for table in ("payments","expenses","teacher_payments","teacher_advances"):
+                c.execute("SELECT COUNT(*) AS n FROM "+table)
+                if c.fetchone()["n"]:
+                    raise ValueError(
+                        "توقفت تهيئة المالية: توجد عمليات مالية سابقة في "
+                        + table + "؛ يلزم فحص عملتها والنسخة الاحتياطية قبل تفعيل "
+                        "دفتر النقدية الجديد. لم تتغير هذه العمليات.")
+
         # Version 4: preserve an immutable-date cash-event projection for expenses.
         # Legacy expense rows are backfilled only as labelled opening cash events;
         # values and originals remain untouched. A later settlement is dated when
