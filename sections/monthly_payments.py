@@ -165,6 +165,9 @@ def render_settings(conn):
 
 
 def render_receipts(conn):
+    last=st.session_state.pop("monthly_receipt_feedback",None)
+    if last:
+        st.success(last)
     receipts=ui.df(conn,"""SELECT r.student_id, r.receipt_id AS "الوصل",s.full_name AS "الطفل",
        r.amount AS "المبلغ",r.received_on AS "التاريخ",
        r.payer AS "الدافع",r.state AS "الحالة"
@@ -207,11 +210,11 @@ def render_receipts(conn):
             try:
                 if void:
                     F.cancel_receipt(chosen[0],reason,actor=actor())
-                    st.success("أُلغي أثر الوصل مع الاحتفاظ بسجل المراجعة.")
+                    st.session_state["monthly_receipt_feedback"]="أُلغي أثر الوصل مع الاحتفاظ بسجل المراجعة."
                 else:
                     F.correct_receipt(chosen[0],int(a),reason,actor=actor(),
                                       token=str(uuid.uuid4()))
-                    st.success("تم التصحيح وإعادة توزيع المبلغ في معاملة واحدة.")
+                    st.session_state["monthly_receipt_feedback"]="تم التصحيح وإعادة توزيع المبلغ في معاملة واحدة."
                 st.rerun()
             except ValueError as exc:
                 st.error(str(exc))
