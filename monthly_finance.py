@@ -219,6 +219,52 @@ def migrate(conn):
             ON CONFLICT DO NOTHING
         """)
         c.execute("INSERT INTO finance_schema_versions(version) VALUES(4) ON CONFLICT DO NOTHING")
+        # Version 5: permanent payroll/advance cash evidence and archived teachers.
+        # The amount actually disbursed is immutable. Cancelling the document
+        # does not create a fictional refund or remove the cash outflow.
+        c.execute("""
+            ALTER TABLE teachers ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ;
+            ALTER TABLE teachers ADD COLUMN IF NOT EXISTS archived_by TEXT;
+            ALTER TABLE teacher_payments ADD COLUMN IF NOT EXISTS request_token UUID;
+            ALTER TABLE teacher_payments ADD COLUMN IF NOT EXISTS request_hash VARCHAR(64);
+            ALTER TABLE teacher_payments ADD COLUMN IF NOT EXISTS record_state TEXT NOT NULL DEFAULT 'active';
+            ALTER TABLE teacher_payments ADD COLUMN IF NOT EXISTS cash_amount NUMERIC(10,2);
+            UPDATE teacher_payments SET cash_amount=amount WHERE cash_amount IS NULL;
+            ALTER TABLE teacher_advances ADD COLUMN IF NOT EXISTS request_token UUID;
+            ALTER TABLE teacher_advances ADD COLUMN IF NOT EXISTS request_hash VARCHAR(64);
+            ALTER TABLE teacher_advances ADD COLUMN IF NOT EXISTS record_state TEXT NOT NULL DEFAULT 'active';
+            ALTER TABLE teacher_advances ADD COLUMN IF NOT EXISTS cash_amount NUMERIC(10,2);
+            UPDATE teacher_advances SET cash_amount=amount WHERE cash_amount IS NULL;
+            CREATE UNIQUE INDEX IF NOT EXISTS payroll_salary_token_uniq
+                ON teacher_payments(request_token) WHERE request_token IS NOT NULL;
+            CREATE UNIQUE INDEX IF NOT EXISTS payroll_advance_token_uniq
+                ON teacher_advances(request_token) WHERE request_token IS NOT NULL;
+            CREATE TABLE IF NOT EXISTS payroll_audit (
+                audit_id BIGSERIAL PRIMARY KEY,
+                payment_id INTEGER REFERENCES teacher_payments(payment_id) ON DELETE RESTRICT,
+                advance_id INTEGER REFERENCES teacher_advances(advance_id) ON DELETE RESTRICT,
+                action TEXT NOT NULL,
+                actor TEXT NOT NULL,
+                reason TEXT NOT NULL,
+                occurred_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                before_state JSONB NOT NULL,
+                after_state JSONB NOT NULL,
+                CHECK ((payment_id IS NULL) <> (advance_id IS NULL))
+            );
+        """)
+        for table, column, target in (
+            ("teacher_payments","national_id","teachers(national_id)"),
+            ("teacher_advances","national_id","teachers(national_id)"),
+        ):
+            c.execute("""SELECT conname FROM pg_constraint
+                         WHERE conrelid=%s::regclass AND contype='f'
+                           AND confrelid='teachers'::regclass""", (table,))
+            for row in c.fetchall():
+                c.execute("ALTER TABLE "+table+" DROP CONSTRAINT "+ '"' + row["conname"].replace('"','""') + '"')
+            c.execute("ALTER TABLE "+table+" ADD CONSTRAINT "+
+                      table+"_teacher_retained_fk FOREIGN KEY ("+column+") REFERENCES "+
+                      target+" ON DELETE RESTRICT")
+        c.execute("INSERT INTO finance_schema_versions(version) VALUES(5) ON CONFLICT DO NOTHING")
     if not conn.autocommit:
         conn.commit()
 
