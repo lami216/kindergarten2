@@ -252,18 +252,21 @@ def migrate(conn):
                 CHECK ((payment_id IS NULL) <> (advance_id IS NULL))
             );
         """)
-        for table, column, target in (
-            ("teacher_payments","national_id","teachers(national_id)"),
-            ("teacher_advances","national_id","teachers(national_id)"),
-        ):
-            c.execute("""SELECT conname FROM pg_constraint
-                         WHERE conrelid=%s::regclass AND contype='f'
-                           AND confrelid='teachers'::regclass""", (table,))
-            for row in c.fetchall():
-                c.execute("ALTER TABLE "+table+" DROP CONSTRAINT "+ '"' + row["conname"].replace('"','""') + '"')
-            c.execute("ALTER TABLE "+table+" ADD CONSTRAINT "+
-                      table+"_teacher_retained_fk FOREIGN KEY ("+column+") REFERENCES "+
-                      target+" ON DELETE RESTRICT")
+        c.execute("SELECT 1 FROM finance_schema_versions WHERE version=5")
+        if not c.fetchone():
+            for table, column, target in (
+                ("teacher_payments","national_id","teachers(national_id)"),
+                ("teacher_advances","national_id","teachers(national_id)"),
+            ):
+                c.execute("""SELECT conname FROM pg_constraint
+                             WHERE conrelid=%s::regclass AND contype='f'
+                               AND confrelid='teachers'::regclass""", (table,))
+                for row in c.fetchall():
+                    safe_name='"'+row["conname"].replace('"','""')+'"'
+                    c.execute("ALTER TABLE "+table+" DROP CONSTRAINT "+safe_name)
+                c.execute("ALTER TABLE "+table+" ADD CONSTRAINT "+
+                          table+"_teacher_retained_fk FOREIGN KEY ("+column+") REFERENCES "+
+                          target+" ON DELETE RESTRICT")
         c.execute("INSERT INTO finance_schema_versions(version) VALUES(5) ON CONFLICT DO NOTHING")
         # Version 6: debt waivers are ledger adjustments, not payments.
         # No historical identity/obligation is dropped on archiving.
