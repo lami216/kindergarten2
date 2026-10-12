@@ -12,6 +12,7 @@ import streamlit as st
 import ui
 import helpers as H
 import receipt
+from sections import monthly_payments
 
 
 def _get_registration_tuition(conn, registration_id):
@@ -29,6 +30,22 @@ def _get_registration_tuition(conn, registration_id):
 
 
 def render(conn):
+    ui.section_header("💵", "الدفعات المالية", "حسابات الأوقية القديمة، والإيصالات التاريخية")
+    tab_accounts, tab_receipts, tab_prices, tab_old = st.tabs([
+        "📅 حسابات الأطفال الشهرية", "🧾 وصولات شهرية", "⚙️ إعدادات الرسوم",
+        "📂 الدفعات السنوية القديمة"])
+    with tab_accounts:
+        monthly_payments.render_accounts(conn)
+    with tab_receipts:
+        monthly_payments.render_receipts(conn)
+    with tab_prices:
+        monthly_payments.render_settings(conn)
+    with tab_old:
+        _render_historical(conn)
+
+
+def _render_historical(conn):
+    st.caption("السجلات السنوية القديمة محفوظة بعملتها وقيمها الأصلية.")
     ui.section_header("💵", "الدفعات المالية", "تسجيل دفعة نقدية وطباعة وصل استلام")
 
     active_regs = ui.df(conn, """
