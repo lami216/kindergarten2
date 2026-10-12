@@ -63,22 +63,32 @@ def financial_panel(conn, student, *, payment=True):
         fees=result["fees"]
         registration=fees.get("registration",{"price":0,"paid":0})
         garment=fees.get("gilet")
-        st.write("التسجيل: " + ("**مدفوع**" if registration["paid"]>=registration["price"]
-                  else "**باقي** " + fmt(registration["price"]-registration["paid"])))
-        st.write("الجيليه: " + ("**غير مطلوبة**" if garment is None
-                 else "**مدفوعة**" if garment["paid"]>=garment["price"]
-                 else "**باقي** " + fmt(garment["price"]-garment["paid"])))
+        def item_state(fee):
+            if fee is None:
+                return "**غير مطلوبة**"
+            if fee["waived"]:
+                return ("**ألغي الدين**" if not fee["paid"] else
+                    "**مدفوع جزئياً والباقي ملغى**")
+            if fee["paid"] >= fee["price"]:
+                return "**مدفوع بالكامل**"
+            return "**باقي** " + fmt(max(0,fee["price"]-fee["paid"]-fee["waived"]))
+        st.write("التسجيل: " + item_state(registration))
+        st.write("الجيليه: " + item_state(garment))
         st.write(f"الشهور المدفوعة بالكامل: **{result['paid_periods']}**"
                  + (f" · مدفوع حتى: {result['paid_through']}" if result["paid_through"] else ""))
         st.write(f"**الباقي للدفع الآن: {fmt(result['due_now'])}**")
+        if result["account"].get("archived_at"):
+            st.warning("حساب مؤرشف: لم تُمحَ الرسوم أو الوصولات، ولن تُصدر شهور جديدة.")
         if result["future_partial"]:
             st.caption(f"دفعات مقدمة نحو شهر لم يبدأ بعد؛ الباقي حين يبدأ: "
                        f"{fmt(result['future_partial'])}")
         st.caption(f"أول شهر غير مكتمل أو موعد الدفعة القادمة: {result['next_unpaid']}")
         today=F.today()
         rows=[{"الفترة":f"{period['start']} إلى {period['end']-timedelta(days=1)}",
-               "المطلوب":fmt(period["price"]),"المدفوع":fmt(period["paid"]),
-               "الحالة":("مدفوع مقدماً" if period["paid"]==period["price"] and period["start"]>today
+               "المطلوب":fmt(period["price"]),"المدفوع":fmt(period["paid"]),"الملغى":fmt(period["waived"]),
+               "الحالة":("ألغي الدين" if period["waived"] and not period["paid"]
+                        else "مدفوع جزئياً والباقي ملغى" if period["waived"]
+                        else "مدفوع مقدماً" if period["paid"]==period["price"] and period["start"]>today
                         else "مدفوع" if period["paid"]==period["price"]
                         else "دفعة مقدمة جزئية" if period["start"]>today and period["paid"]
                         else "باقي" if period["start"]<=today else "لم يبدأ")}
