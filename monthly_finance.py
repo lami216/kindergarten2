@@ -201,6 +201,9 @@ def _due_started(c, student, account, as_of=None):
     as_of = as_of or today()
     if isinstance(as_of,str):
         as_of = date.fromisoformat(as_of)
+    # A report may ask for a future end date; this must NOT issue an
+    # unfunded future monthly obligation.
+    as_of = min(as_of, today())
     anchor = account["start_date"]
     if as_of < anchor:
         return
