@@ -9,6 +9,7 @@ from psycopg2.extras import RealDictCursor
 
 import db
 import monthly_finance as F
+import helpers as H
 
 DSN=os.environ.get("TEST_POSTGRES_DSN")
 
@@ -208,6 +209,31 @@ class SingleCurrencyCashTests(unittest.TestCase):
         self.assertTrue(exempt["exempt"])
         self.assertEqual(exempt["receipts"],[])
         self.assertEqual(exempt["fees"],{})
+
+    def test_academic_registration_has_no_implicit_annual_charge(self):
+        """Omitted historical amount defaults to zero; explicit history stays intact."""
+        sid,_=db.save_child_with_family(self.child,self.family,None,str(uuid.uuid4()))
+        unique=uuid.uuid4().hex[:18]
+        year="Y"+unique
+        with self.admin.cursor() as c:
+            c.execute("INSERT INTO academic_years(year_id) VALUES(%s)",(year,))
+            c.execute("""INSERT INTO classes(class_type,section)
+                         VALUES(%s,%s) RETURNING class_id""",
+                      ("تجريبي "+unique[:7],unique[:7]))
+            classroom=c.fetchone()["class_id"]
+            c.execute("""INSERT INTO registrations(student_id,class_id,year_id,status)
+                         VALUES(%s,%s,%s,%s) RETURNING registration_id,annual_tuition""",
+                      (sid,classroom,year,H.STATUS_NEW))
+            registration=c.fetchone()
+        self.assertEqual(registration["annual_tuition"],0)
+        self.assertEqual(H.compute_remaining_balance(self.admin,registration["registration_id"]),0)
+        self.assertEqual(H.compute_remaining_balance(self.admin,-9999999),0)
+        # Read-only legacy compatibility must still reflect explicit historic
+        # amounts; a default change must never overwrite stored records.
+        with self.admin.cursor() as c:
+            c.execute("UPDATE registrations SET annual_tuition=3500 WHERE registration_id=%s",
+                      (registration["registration_id"],))
+        self.assertEqual(H.compute_remaining_balance(self.admin,registration["registration_id"]),3500)
 
     def test_preexisting_financial_rows_block_first_cash_migration(self):
         """Guard is read-only and transactional; history is not relabelled."""
