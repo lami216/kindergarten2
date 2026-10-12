@@ -195,3 +195,19 @@ class SingleCurrencyCashTests(unittest.TestCase):
         self.assertTrue(exempt["exempt"])
         self.assertEqual(exempt["receipts"],[])
         self.assertEqual(exempt["fees"],{})
+
+    def test_preexisting_financial_rows_block_first_cash_migration(self):
+        """Guard is read-only and transactional; history is not relabelled."""
+        with connect() as local:
+            with local.cursor() as c:
+                c.execute("DELETE FROM finance_schema_versions WHERE version=4")
+                c.execute("""INSERT INTO expenses(expense_date,category,amount,amount_paid)
+                    VALUES(%s,'غير معرّف العملة',123,123)""",(self.day,))
+            with self.assertRaisesRegex(ValueError,"عمليات مالية سابقة"):
+                F.migrate(local)
+            local.rollback()
+        with self.admin.cursor() as c:
+            c.execute("SELECT 1 FROM finance_schema_versions WHERE version=4")
+            self.assertIsNotNone(c.fetchone())
+            c.execute("SELECT 1 FROM expenses WHERE category='غير معرّف العملة'")
+            self.assertIsNone(c.fetchone())
