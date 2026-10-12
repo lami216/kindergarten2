@@ -130,6 +130,29 @@ def migrate(conn):
                 c.execute(f"ALTER TABLE {table} ADD CONSTRAINT {fk} FOREIGN KEY ({column}) "
                           f"REFERENCES {target} ON DELETE RESTRICT")
             c.execute("INSERT INTO finance_schema_versions(version) VALUES(2)")
+        # Version 3: leave every historical receipt accessible after cancellation
+        # and record a durable before/after snapshot for edits and voids.
+        c.execute("SELECT 1 FROM finance_schema_versions WHERE version=3")
+        if not c.fetchone():
+            c.execute("""
+                ALTER TABLE payments ADD COLUMN IF NOT EXISTS
+                    receipt_state VARCHAR(12) NOT NULL DEFAULT 'active';
+                ALTER TABLE payments ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMPTZ;
+                ALTER TABLE payments ADD COLUMN IF NOT EXISTS cancelled_by TEXT;
+                ALTER TABLE payments ADD COLUMN IF NOT EXISTS cancel_reason TEXT;
+                CREATE TABLE IF NOT EXISTS historical_payment_audit (
+                    audit_id BIGSERIAL PRIMARY KEY,
+                    receipt_number INTEGER NOT NULL REFERENCES payments(receipt_number)
+                        ON DELETE RESTRICT,
+                    action TEXT NOT NULL,
+                    actor TEXT NOT NULL,
+                    happened_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                    reason TEXT NOT NULL,
+                    before_state JSONB NOT NULL,
+                    after_state JSONB NOT NULL
+                );
+                INSERT INTO finance_schema_versions(version) VALUES(3);
+            """)
     if not conn.autocommit:
         conn.commit()
 
@@ -565,7 +588,7 @@ def financial_report(conn, start, end):
               (SELECT COALESCE(SUM(a.amount),0) FROM monthly_allocations a
                WHERE a.fee_id=f.fee_id AND a.active)=f.price""")
         paid_gilets=int(c.fetchone()["n"])
-        c.execute("SELECT COALESCE(SUM(amount),0) AS n FROM payments WHERE payment_date BETWEEN %s AND %s",(start,end))
+        c.execute("SELECT COALESCE(SUM(amount),0) AS n FROM payments WHERE receipt_state='active' AND payment_date BETWEEN %s AND %s",(start,end))
         old_cash=c.fetchone()["n"]
         c.execute("SELECT COALESCE(SUM(amount_paid),0) AS n FROM expenses WHERE expense_date BETWEEN %s AND %s",(start,end))
         expenses=c.fetchone()["n"]
