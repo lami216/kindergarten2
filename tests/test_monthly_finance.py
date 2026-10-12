@@ -164,7 +164,7 @@ class MonthlyFinanceDBTests(unittest.TestCase):
         self.assertEqual([x["price"] for x in current["periods"][:2]],[3000,3000])
         self.assertEqual(current["fees"]["registration"]["price"],1000)
         self.assertEqual(current["receipts"][0]["amount"],6000)
-        self.assertEqual(current["periods"][2]["price"],7000)
+        self.assertEqual(current["periods"][2]["price"],3000)  # started before tariff change
 
     def test_repeated_token_and_conflicting_retry(self):
         sid=self.create()
@@ -244,7 +244,7 @@ class MonthlyFinanceDBTests(unittest.TestCase):
 
     def test_report_reconciles_active_receipt_once(self):
         sid=self.create(cash=12000,reg=True,gilet=True)
-        rep=F.financial_report(self.admin,date(2026,1,1),date(2026,4,30))
+        rep=F.financial_report(self.admin,date(2026,1,1),F.today())
         self.assertGreaterEqual(rep["registration_cash"],1000)
         self.assertGreaterEqual(rep["monthly_cash"],9000)
         self.assertEqual(rep["registration_cash"]+rep["gilet_cash"]+rep["monthly_cash"],
@@ -252,5 +252,5 @@ class MonthlyFinanceDBTests(unittest.TestCase):
         self.assertGreaterEqual(rep["prepaid_cash"],6000)
         rid=self.projection(sid,self.anchor)["receipts"][0]["receipt_id"]
         F.cancel_receipt(rid,"إلغاء قبض",actor="tester")
-        after=F.financial_report(self.admin,date(2026,1,1),date(2026,4,30))
+        after=F.financial_report(self.admin,date(2026,1,1),F.today())
         self.assertEqual(rep["new_cash"]-after["new_cash"],12000)
