@@ -736,8 +736,8 @@ def projection(conn, student, as_of=None, *, materialize=True):
         # Ordinary payments use received_on, even if registered later.
         c.execute("""SELECT f.kind,f.price,
             COALESCE(SUM(a.amount) FILTER (WHERE r.received_on<=%s
-               AND (r.corrects_id IS NULL OR r.created_at::date<=%s)
-               AND (r.state='active' OR r.cancelled_at::date>%s)),0) AS paid,
+               AND (r.corrects_id IS NULL OR (r.created_at AT TIME ZONE 'Africa/Nouakchott')::date<=%s)
+               AND (r.state='active' OR (r.cancelled_at AT TIME ZONE 'Africa/Nouakchott')::date>%s)),0) AS paid,
             COALESCE((SELECT SUM(w.amount) FROM monthly_waivers w
                       WHERE w.fee_id=f.fee_id AND w.effective_on<=%s),0) AS waived
             FROM monthly_fees f LEFT JOIN monthly_allocations a ON a.fee_id=f.fee_id
@@ -748,8 +748,8 @@ def projection(conn, student, as_of=None, *, materialize=True):
                          **({"waived":int(r.get("waived",0))} if int(r.get("waived",0)) else {})} for r in c.fetchall()}
         c.execute("""SELECT p.period_no,p.starts,p.ends,p.price,
             COALESCE(SUM(a.amount) FILTER (WHERE r.received_on<=%s
-               AND (r.corrects_id IS NULL OR r.created_at::date<=%s)
-               AND (r.state='active' OR r.cancelled_at::date>%s)),0) AS paid,
+               AND (r.corrects_id IS NULL OR (r.created_at AT TIME ZONE 'Africa/Nouakchott')::date<=%s)
+               AND (r.state='active' OR (r.cancelled_at AT TIME ZONE 'Africa/Nouakchott')::date>%s)),0) AS paid,
             COALESCE((SELECT SUM(w.amount) FROM monthly_waivers w
                       WHERE w.period_id=p.period_id AND w.effective_on<=%s),0) AS waived
             FROM monthly_periods p LEFT JOIN monthly_allocations a ON a.period_id=p.period_id
@@ -793,7 +793,7 @@ def account_setup_suggestion(conn, student):
     """Only real enrollment/creation dates: never infer a registration from birth."""
     with conn.cursor() as c:
         c.execute("""
-            SELECT s.created_at::date AS created_on,
+            SELECT s.(s.created_at AT TIME ZONE 'Africa/Nouakchott')::date AS created_on,
                 (SELECT MIN(r.registration_date) FROM registrations r
                  WHERE r.student_id=s.student_id) AS registered_on,
                 EXISTS(SELECT 1 FROM monthly_accounts a
@@ -867,33 +867,33 @@ def financial_report(conn, start, end):
         ensure_started(student,as_of=end)
     with conn.cursor() as c:
         c.execute("""SELECT COALESCE(SUM(amount),0) AS n FROM monthly_receipts
-                     WHERE (state='active' OR cancelled_at::date>%s)
+                     WHERE (state='active' OR (cancelled_at AT TIME ZONE 'Africa/Nouakchott')::date>%s)
                      AND (corrects_id IS NULL OR created_at::date<=%s)
                      AND received_on BETWEEN %s AND %s""",(end,end,start,end))
         cash=int(c.fetchone()["n"])
         c.execute("""SELECT f.kind,COALESCE(SUM(a.amount),0) AS n
              FROM monthly_allocations a JOIN monthly_receipts r ON r.receipt_id=a.receipt_id
              JOIN monthly_fees f ON f.fee_id=a.fee_id
-             WHERE (a.active OR r.cancelled_at::date>%s)
-               AND (r.state='active' OR r.cancelled_at::date>%s)
-               AND (r.corrects_id IS NULL OR r.created_at::date<=%s)
+             WHERE (a.active OR (r.cancelled_at AT TIME ZONE 'Africa/Nouakchott')::date>%s)
+               AND (r.state='active' OR (r.cancelled_at AT TIME ZONE 'Africa/Nouakchott')::date>%s)
+               AND (r.corrects_id IS NULL OR (r.created_at AT TIME ZONE 'Africa/Nouakchott')::date<=%s)
                AND r.received_on BETWEEN %s AND %s
              GROUP BY f.kind""",(end,end,end,start,end))
         fees={r["kind"]:int(r["n"]) for r in c.fetchall()}
         c.execute("""SELECT COALESCE(SUM(a.amount),0) AS n FROM monthly_allocations a
              JOIN monthly_receipts r ON r.receipt_id=a.receipt_id
              JOIN monthly_periods p ON p.period_id=a.period_id
-             WHERE (a.active OR r.cancelled_at::date>%s)
-             AND (r.state='active' OR r.cancelled_at::date>%s)
-             AND (r.corrects_id IS NULL OR r.created_at::date<=%s)
+             WHERE (a.active OR (r.cancelled_at AT TIME ZONE 'Africa/Nouakchott')::date>%s)
+             AND (r.state='active' OR (r.cancelled_at AT TIME ZONE 'Africa/Nouakchott')::date>%s)
+             AND (r.corrects_id IS NULL OR (r.created_at AT TIME ZONE 'Africa/Nouakchott')::date<=%s)
              AND r.received_on BETWEEN %s AND %s""",(end,end,end,start,end))
         monthly=int(c.fetchone()["n"])
         c.execute("""SELECT COALESCE(SUM(a.amount),0) AS n FROM monthly_allocations a
              JOIN monthly_receipts r ON r.receipt_id=a.receipt_id
              JOIN monthly_periods p ON p.period_id=a.period_id
-             WHERE (a.active OR r.cancelled_at::date>%s)
-             AND (r.state='active' OR r.cancelled_at::date>%s)
-             AND (r.corrects_id IS NULL OR r.created_at::date<=%s)
+             WHERE (a.active OR (r.cancelled_at AT TIME ZONE 'Africa/Nouakchott')::date>%s)
+             AND (r.state='active' OR (r.cancelled_at AT TIME ZONE 'Africa/Nouakchott')::date>%s)
+             AND (r.corrects_id IS NULL OR (r.created_at AT TIME ZONE 'Africa/Nouakchott')::date<=%s)
              AND r.received_on BETWEEN %s AND %s AND p.starts>r.received_on""",
              (end,end,end,start,end))
         prepaid=int(c.fetchone()["n"])
@@ -902,9 +902,9 @@ def financial_report(conn, start, end):
                    SUM(a.amount) AS paid
             FROM monthly_fees f JOIN monthly_allocations a ON a.fee_id=f.fee_id
             JOIN monthly_receipts r ON r.receipt_id=a.receipt_id
-            WHERE f.price>0 AND (a.active OR r.cancelled_at::date>%s)
-              AND (r.state='active' OR r.cancelled_at::date>%s)
-              AND (r.corrects_id IS NULL OR r.created_at::date<=%s)
+            WHERE f.price>0 AND (a.active OR (r.cancelled_at AT TIME ZONE 'Africa/Nouakchott')::date>%s)
+              AND (r.state='active' OR (r.cancelled_at AT TIME ZONE 'Africa/Nouakchott')::date>%s)
+              AND (r.corrects_id IS NULL OR (r.created_at AT TIME ZONE 'Africa/Nouakchott')::date<=%s)
               AND r.received_on<=%s
             GROUP BY f.fee_id
             HAVING SUM(a.amount)=MAX(f.price)
