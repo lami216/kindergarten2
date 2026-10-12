@@ -463,6 +463,31 @@ SHELL_CSS = """
 [data-testid="stExpander"] [data-testid="stElementContainer"]:has(.pickup-style-anchor) {
     display:none !important;
 }
+/* Native fee-mode choices: color the displayed descendants, not just wrapper.
+   Covers versions of the existing Streamlit widget after successful saves. */
+[class*="st-key-kid_finance_mode"] [data-testid="stSegmentedControl"] button,
+[class*="st-key-kid_finance_mode"] button[aria-pressed] {
+    background:var(--card-bg) !important;
+    color:var(--text-main) !important;
+    border:1px solid var(--card-border) !important;
+}
+[class*="st-key-kid_finance_mode"] :is([data-testid="stSegmentedControl"] button,button[aria-pressed]) :is(p,span,svg) {
+    color:inherit !important;
+}
+[class*="st-key-kid_finance_mode"] :is([data-testid="stSegmentedControl"] button,button[aria-pressed]):is(:hover,:focus-visible):not([aria-pressed="true"]) {
+    background:var(--card-bg) !important;
+    color:var(--text-main) !important;
+    border-color:var(--primary) !important;
+}
+[class*="st-key-kid_finance_mode"] button[aria-pressed="true"],
+[class*="st-key-kid_finance_mode"] [data-testid="stSegmentedControl"] button[aria-checked="true"] {
+    background:#006348 !important;
+    color:#ffffff !important;
+    border-color:#006348 !important;
+}
+[class*="st-key-kid_finance_mode"] :is(button[aria-pressed="true"],button[aria-checked="true"]) :is(p,span,svg) {
+    color:#ffffff !important;
+}
 /* Native controls remain visible and use the existing palette. */
 .st-key-appearance_control {
     position:fixed; top:8px; left:12px; width:150px !important;
