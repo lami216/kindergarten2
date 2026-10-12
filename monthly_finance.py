@@ -291,6 +291,16 @@ def migrate(conn):
             );
             CREATE INDEX IF NOT EXISTS monthly_waiver_fee_idx ON monthly_waivers(fee_id);
             CREATE INDEX IF NOT EXISTS monthly_waiver_period_idx ON monthly_waivers(period_id);
+            CREATE TABLE IF NOT EXISTS monthly_waiver_batches (
+                request_token UUID PRIMARY KEY,
+                student_id VARCHAR(20) NOT NULL REFERENCES monthly_accounts(student_id)
+                   ON DELETE RESTRICT,
+                request_hash VARCHAR(64) NOT NULL,
+                effective_on DATE NOT NULL,
+                actor TEXT NOT NULL, reason TEXT NOT NULL,
+                gross_waived BIGINT NOT NULL CHECK(gross_waived>0),
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
         """)
         c.execute("INSERT INTO finance_schema_versions(version) VALUES(6) ON CONFLICT DO NOTHING")
     if not conn.autocommit:
@@ -350,7 +360,7 @@ def update_tariffs(registration, gilet, tuition, actor):
 
 
 def _lock(c, student):
-    c.execute("SELECT student_id,status,start_date FROM monthly_accounts WHERE student_id=%s FOR UPDATE",
+    c.execute("SELECT student_id,status,start_date,departure_on,archived_at FROM monthly_accounts WHERE student_id=%s FOR UPDATE",
               (student,))
     row = c.fetchone()
     if not row:
@@ -430,6 +440,8 @@ def _fund_months(c, receipt, account, money, *, as_of=None):
         if index >= 1200:
             raise ValueError("عدد الفترات يتجاوز الحد المسموح.")
         row = rows.get(index)
+        if row is None and account.get("departure_on"):
+            raise ValueError("الحساب مؤرشف؛ لا تُنشأ شهور جديدة بعد المغادرة.")
         if row is None:
             c.execute("""INSERT INTO monthly_periods(student_id,period_no,starts,ends,price)
                 VALUES(%s,%s,%s,%s,%s) RETURNING period_id""",
