@@ -171,6 +171,12 @@ def _render_historical(conn):
                 f"وصل #{int(row['رقم الوصل'])} — {row['اسم الطالب']} — {H.format_money(row['المبلغ'])} شيكل"
                 for _, row in payments.iterrows()
             }
+            # After a write, explicitly restore the receipt selection before
+            # constructing this widget. Streamlit may otherwise invalidate the
+            # display-formatted selection on the following rerun.
+            restored = st.session_state.pop("legacy_restore_receipt", None)
+            if restored in pay_labels:
+                st.session_state["payment_select_edit"] = restored
             selected = st.selectbox(
                 "اختر الوصل للطباعة أو التعديل", options=list(pay_labels),
                 format_func=lambda rid: pay_labels[rid],
@@ -235,6 +241,7 @@ def _render_historical(conn):
                                     st.session_state["legacy_receipt_notice"] = "أُلغي الوصل؛ حُفظت بياناته الأصلية وسبب الإلغاء."
                                 else:
                                     st.session_state["legacy_receipt_notice"] = "حُفظ التصحيح ونسخته السابقة في سجل المراجعة."
+                                st.session_state["legacy_restore_receipt"] = receipt_no
                                 st.rerun()
                             except ValueError as exc:
                                 st.error(str(exc))
