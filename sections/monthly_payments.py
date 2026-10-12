@@ -61,18 +61,24 @@ def financial_panel(conn, student, *, payment=True):
                  "الحالة":"ساري" if r["state"]=="active" else "ملغى"}
                 for r in receipts[:20]]),hide_index=True,use_container_width=True)
         if payment:
-            with st.form(f"monthly_simple_pay_{student}"):
-                paid=st.number_input("المبلغ المدفوع",min_value=1,max_value=F.MAX_AMOUNT,
-                                     value=3000,step=1)
+            # No default 3000: the next visible form must never implicitly
+            # create a second receipt after the successful-save rerun.
+            token_key=f"monthly_pay_token_{student}"
+            version_key=f"monthly_pay_version_{student}"
+            version=st.session_state.get(version_key,0)
+            if token_key not in st.session_state:
+                st.session_state[token_key]=str(uuid.uuid4())
+            with st.form(f"monthly_simple_pay_{student}_v{version}"):
+                paid=st.number_input("المبلغ المدفوع",min_value=0,max_value=F.MAX_AMOUNT,
+                           value=0,step=1,key=f"monthly_amount_{student}_v{version}")
                 submit=st.form_submit_button("💾 تسجيل دفعة",type="primary",
                                                use_container_width=True)
             if submit:
-                if "monthly_pay_token" not in st.session_state:
-                    st.session_state["monthly_pay_token"]=str(uuid.uuid4())
                 try:
                     rid,new=F.take_payment(student,int(paid),actor=actor(),
-                                             token=st.session_state["monthly_pay_token"])
-                    st.session_state["monthly_pay_token"]=str(uuid.uuid4())
+                                             token=st.session_state[token_key])
+                    st.session_state[token_key]=str(uuid.uuid4())
+                    st.session_state[version_key]=version+1
                     st.session_state["monthly_payment_success"]=(
                         f"تم تسجيل الدفعة — وصل #{rid}" if new
                         else f"هذه الدفعة محفوظة بالفعل — وصل #{rid}")
@@ -81,8 +87,9 @@ def financial_panel(conn, student, *, payment=True):
                     st.error(str(error))
                 except Exception:
                     st.error("تعذّر تسجيل الدفعة؛ لم يُخصم المبلغ. حاول مجدداً.")
-            if st.session_state.pop("monthly_payment_success",None):
-                st.success("تم حفظ الدفعة بنجاح.")
+            message=st.session_state.pop("monthly_payment_success",None)
+            if message:
+                st.success(message)
 
 
 def render_accounts(conn):
