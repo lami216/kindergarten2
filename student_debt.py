@@ -125,26 +125,20 @@ def pay_unpaid_fee(student, kind, *, actor, token=None):
             if not row:
                 raise ValueError("هذا الرسم غير مطلوب لهذا الطفل.")
             due=int(row["price"])-int(row["paid"])-int(row["waived"])
-            # Under replay, query token first and let _issue compare fingerprint.
-            fingerprint=F._hash({"student":student,"kind":kind,"fee_id":row["fee_id"],
-                                 "amount":due,"purpose":"specific-unpaid-fee"})
-            c.execute("SELECT receipt_id,request_hash FROM monthly_receipts WHERE request_token=%s",
-                      (token,))
+            c.execute("""SELECT receipt_id,request_hash,amount,student_id
+                         FROM monthly_receipts WHERE request_token=%s""",(token,))
             old=c.fetchone()
             if old:
-                if old["request_hash"]!=fingerprint:
-                    # After an earlier identical save the due becomes zero.
-                    # Test historical token's operation identity below.
-                    c.execute("""SELECT amount,student_id FROM monthly_receipts
-                                 WHERE receipt_id=%s""",(old["receipt_id"],))
-                    prev=c.fetchone()
-                    if prev and prev["student_id"]==student:
-                        # A new state cannot authorize changed payload.
-                        raise ValueError("رمز الدفعة مستخدم سابقاً؛ لا تكرر القبض.")
-                    raise ValueError("تعارض رمز طلب القبض.")
+                previous_hash=F._hash({"student":student,"kind":kind,"fee_id":row["fee_id"],
+                                      "amount":int(old["amount"]),
+                                      "purpose":"specific-unpaid-fee"})
+                if old["student_id"]!=student or old["request_hash"]!=previous_hash:
+                    raise ValueError("تعارض رمز طلب القبض؛ تغير الرسم أو الطفل.")
                 conn.commit()
                 return old["receipt_id"],False
             if due<=0: raise ValueError("لا يوجد مبلغ مستحق لهذا الرسم.")
+            fingerprint=F._hash({"student":student,"kind":kind,"fee_id":row["fee_id"],
+                                 "amount":due,"purpose":"specific-unpaid-fee"})
             rid,new=F._issue(c,account,due,"ولي الأمر",actor,token,fingerprint,
                     selected_registration=kind=="registration",selected_gilet=kind=="gilet")
         conn.commit()
