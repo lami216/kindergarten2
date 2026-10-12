@@ -9,7 +9,7 @@ import psycopg2
 from playwright.async_api import async_playwright, expect
 
 OUT = Path("visual-evidence")
-BASES = {"before-b99d9ac": "http://127.0.0.1:8502",
+BASES = {"before-final-fixes": "http://127.0.0.1:8502",
          "after-fixes": "http://127.0.0.1:8501"}
 SIZES = [360, 390, 430, 768, 1280]
 
@@ -181,12 +181,122 @@ async def verify_double_submit_and_sibling(browser):
     print("Chromium 390 form reset, duplicate click, validation and sibling checks passed")
 
 
+def _contrast_ratio(first, second):
+    """WCAG contrast for actual rendered text and surface colors."""
+    def channel(value):
+        value /= 255
+        return value / 12.92 if value <= 0.04045 else ((value + 0.055) / 1.055) ** 2.4
+
+    def luminance(css):
+        components = [float(v) for v in re.findall(r"[\\d.]+", css)[:3]]
+        if len(components) != 3:
+            raise AssertionError("Expected opaque RGB color: " + css)
+        return sum(weight * channel(value) for weight, value in
+                   zip((0.2126, 0.7152, 0.0722), components))
+
+    a, b = sorted((luminance(first), luminance(second)))
+    return (b + 0.05) / (a + 0.05)
+
+
+async def verify_pickup_contrast(browser):
+    """Actual open pickup rows, light/night, 390/1280; compare before/after."""
+    records = []
+    for width in (390, 1280):
+        for night in (False, True):
+            for version, base in BASES.items():
+                context = await browser.new_context(viewport={"width": width, "height": 850})
+                page = await context.new_page()
+                await page.goto(base, wait_until="domcontentloaded")
+                await navigate(page, "students")
+                await sidebar_state(page, False)
+                await night_mode(page, night)
+                summary = page.locator('[data-testid="stExpander"] summary').filter(
+                    has_text="المخولون باستلام الطفل").first
+                await summary.click()
+                details = summary.locator("xpath=..")
+                await expect(details).to_have_attribute("open", "")
+                add = page.get_by_role("button", name=re.compile("إضافة شخص مخوّل"))
+                await add.click()
+                await expect(page.get_by_role("button", name="إزالة")).to_have_count(1)
+                name = page.get_by_role("textbox", name="الاسم", exact=True).first
+                phone = page.get_by_role("textbox", name="رقم الهاتف", exact=True).first
+                await name.fill("جدة الطفل")
+                await phone.fill("0599444333")
+                await add.click()
+                await expect(page.get_by_role("button", name="إزالة")).to_have_count(2)
+                await expect(name).to_have_value("جدة الطفل")
+                await expect(phone).to_have_value("0599444333")
+                await page.get_by_role("button", name="إزالة").last.click()
+                await expect(page.get_by_role("button", name="إزالة")).to_have_count(1)
+                await expect(name).to_have_value("جدة الطفل")
+                await expect(phone).to_have_value("0599444333")
+
+                # The expander stays open following Streamlit reruns, and
+                # real computed styles (not HTML tokens) decide acceptance.
+                await expect(details).to_have_attribute("open", "")
+                style = await page.evaluate("""() => {
+                    const summary = [...document.querySelectorAll(
+                        '[data-testid="stExpander"] summary'
+                    )].find(el => el.textContent.includes('المخولون باستلام الطفل'));
+                    const details = summary.closest('details');
+                    const remove = [...details.querySelectorAll('button')].find(
+                        el => el.textContent.includes('إزالة'));
+                    const add = [...details.querySelectorAll('button')].find(
+                        el => el.textContent.includes('إضافة شخص مخوّل'));
+                    const colors = (item) => {
+                        const text = item.querySelector('p') || item;
+                        return {
+                            background: getComputedStyle(item).backgroundColor,
+                            color: getComputedStyle(text).color,
+                            kind: item.getAttribute('kind'),
+                            enabled: !item.disabled,
+                        };
+                    };
+                    return {
+                        header: colors(summary),
+                        add: colors(add), remove: colors(remove),
+                        expanded: details.open,
+                    };
+                }""")
+                assert style["expanded"] and style["add"]["enabled"] and style["remove"]["enabled"]
+                slug = f"pickup-open_{version}_{width}_{'night' if night else 'day'}"
+                root = summary.locator("xpath=../..")
+                await root.screenshot(path=str(OUT / (slug + ".png")),
+                                      animations="disabled")
+                await page.screenshot(path=str(OUT / (slug + "_full.png")),
+                                      full_page=True, animations="disabled")
+                if version == "after-fixes" and night:
+                    for component in ("header", "add", "remove"):
+                        data = style[component]
+                        ratio = _contrast_ratio(data["background"], data["color"])
+                        assert ratio >= 4.5, f"{slug}: {component} contrast {ratio:.2f}"
+                    assert style["remove"]["kind"] == "secondaryFormSubmit"
+                records.append({"version": version, "width": width, "night": night,
+                                "styles": style})
+                await context.close()
+    # Preserve light palette styles from the reviewed SHA exactly.
+    for width in (390, 1280):
+        baseline = next(r for r in records if r["version"] == "before-final-fixes"
+                        and r["width"] == width and not r["night"])
+        current = next(r for r in records if r["version"] == "after-fixes"
+                       and r["width"] == width and not r["night"])
+        for component in ("header", "add", "remove"):
+            for attribute in ("background", "color"):
+                assert baseline["styles"][component][attribute] == (
+                    current["styles"][component][attribute]), (
+                    f"Changed day-mode {component} {attribute} at {width}px")
+    (OUT / "pickup-open-contrast.json").write_text(
+        json.dumps(records, indent=2, ensure_ascii=False))
+    print("Pickup open: 390/1280 day and night, add/remove, contrast and photos passed")
+
+
 async def main():
     OUT.mkdir(exist_ok=True)
     seed()
     async with async_playwright() as playwright:
         browser = await playwright.chromium.launch(headless=True)
         await verify_double_submit_and_sibling(browser)
+        await verify_pickup_contrast(browser)
         await visualize(browser)
         await browser.close()
 
