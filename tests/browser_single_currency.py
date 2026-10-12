@@ -97,8 +97,14 @@ async def capture(page,locator,slug,manifest):
 
 async def select_account(page,name):
     await page.get_by_role("tab",name=re.compile("حسابات الأطفال")).click()
-    select=page.locator(".st-key-monthly_finance_child [data-baseweb='select']").first
-    await select.click()
+    select=page.locator(".st-key-monthly_finance_child")
+    if await select.count()==0:
+        await page.screenshot(path=str(OUT/"debug_missing_account_picker.png"),
+                              animations="disabled")
+        print("MISSING_ACCOUNT_PICKER_TEXT:",
+              (await page.locator(".stApp").inner_text())[-1700:],flush=True)
+        raise AssertionError("Accounts selectbox not rendered after selecting finance tab")
+    await select.get_by_role("combobox").first.click()
     await page.get_by_role("option",name=name,exact=True).click()
     await expect(page.get_by_text("💵 الرسوم والدفعات الشهرية",exact=False)).to_be_visible()
 
@@ -221,7 +227,7 @@ async def run():
 
         # Child without account: explicit date/status/confirmation and no cash.
         await page.get_by_role("tab",name=re.compile("حسابات الأطفال")).click()
-        await page.locator(".st-key-monthly_finance_child [data-baseweb='select']").first.click()
+        await page.locator(".st-key-monthly_finance_child").get_by_role("combobox").first.click()
         await page.get_by_role("option",name=unfunded_name,exact=True).click()
         await expect(page.get_by_text("تهيئة الحساب الشهري لهذا الطفل")).to_be_visible()
         await capture(page,page.get_by_text("تهيئة الحساب الشهري لهذا الطفل"),
