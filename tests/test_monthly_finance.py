@@ -317,3 +317,34 @@ class MonthlyFinanceDBTests(unittest.TestCase):
             c.execute("SELECT COUNT(*) AS n FROM monthly_periods WHERE student_id=%s AND starts>%s",
                       (sid,F.today()))
             self.assertEqual(c.fetchone()["n"],0)
+
+    def test_existing_mother_only_parent_name_used_for_first_cash_receipt_in_ui(self):
+        from streamlit.testing.v1 import AppTest
+        from tests.test_family_ui import SCRIPT
+        first = self.create(mode="regular", cash=0)
+        with self.admin.cursor() as c:
+            c.execute("""SELECT s.father_id,p.mother_name,p.mother_mobile
+                FROM students s JOIN parents p ON p.father_id=s.father_id
+                WHERE s.student_id=%s""",(first,))
+            parent=c.fetchone()
+        sibling="طفل لأم وحدها "+uuid.uuid4().hex[:7]
+        app=AppTest.from_string(SCRIPT).run(timeout=20)
+        self.assertEqual(len(app.exception),0)
+        app.text_input(key="kid_name").set_value(sibling)
+        app.checkbox(key="kid_use_existing").set_value(True).run(timeout=20)
+        label=f"{parent['mother_name']} — {parent['mother_mobile']}"
+        app.selectbox(key="kid_existing_family").set_value(
+            (parent["father_id"],label)).run(timeout=20)
+        app.segmented_control(key="kid_finance_mode").set_value("دفع").run(timeout=20)
+        app.number_input(key="kid_initial_amount").set_value(3000)
+        next(b for b in app.button if "حفظ بيانات الطفل والأهل" in b.label).click().run(timeout=20)
+        self.assertEqual(len(app.exception),0)
+        with self.admin.cursor() as c:
+            c.execute("""SELECT r.payer,p.mother_name,p.father_name FROM monthly_receipts r
+                JOIN students s ON s.student_id=r.student_id
+                JOIN parents p ON p.father_id=s.father_id
+                WHERE s.full_name=%s""",(sibling,))
+            result=c.fetchone()
+        self.assertIsNotNone(result)
+        self.assertEqual(result["payer"],parent["mother_name"])
+        self.assertIsNone(result["father_name"])
