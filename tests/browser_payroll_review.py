@@ -43,7 +43,10 @@ async def run():
         if not await nav.is_visible():
             await page.locator('[data-testid="stExpandSidebarButton"]').first.click()
         await nav.click()
-        await page.get_by_role("tab",name="➕ صرف راتب شهري").click()
+        await expect(page.get_by_role("tab",name="➕ صرف راتب شهري")).to_be_visible(timeout=20000)
+        if await nav.is_visible():
+            await page.locator('[data-testid="stSidebarCollapseButton"] button').first.click()
+        # The disbursement tab is selected by default.
         await select_teacher(page,".st-key-salary_teacher",name)
         button=page.get_by_role("button",name="🧾 تسجيل الصرف وطباعة قسيمة الراتب")
         await expect(button).to_be_enabled()
