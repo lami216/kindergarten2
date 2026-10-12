@@ -6,6 +6,8 @@ Supports full Paid/Debt status calculations, edit/delete actions, and asset scra
 import streamlit as st
 from datetime import datetime, date
 import ui
+import expense_finance as E
+import uuid
 
 EXPENSE_CATEGORIES = [
     "قرطاسية ومطبوعات", 
@@ -30,6 +32,7 @@ PAYMENT_STATUSES = ["مدفوع بالكامل", "آجل / دين (غير مدف
 def render(conn):
     ui.section_header("📦", "المصروفات والأصول", "إدارة المصروفات التشغيلية والديون وجرد حالة الأصول")
 
+    st.caption("رواتب المعلمات وسلفهن محسوبة تلقائياً في تقرير النقدية من سجل الصرف نفسه؛ لا تسجّل نسخة منها كمصروف مستقل.")
     main_tab1, main_tab2 = st.tabs(["💰 المصروفات والديون التشغيلية", "🧸 الأصول والتجهيزات"])
 
     # ==================================================================
@@ -149,33 +152,51 @@ def render(conn):
                         e_payee = st.text_input("المورد", value=exp_data["payee"] or "")
                         e_notes = st.text_area("ملاحظات", value=exp_data["notes"] or "", height=70)
 
-                        if st.form_submit_button("تحديث المصروف", type="primary", use_container_width=True):
-                            # Auto fix paid amount if marked as fully paid
-                            final_paid = e_amt if e_status == "مدفوع بالكامل" else e_paid
-                            with conn.cursor() as cur:
-                                cur.execute("""
-                                    UPDATE expenses 
-                                    SET expense_date = %s, category = %s, amount = %s, amount_paid = %s, 
-                                        payment_status = %s, payee = %s, notes = %s
-                                    WHERE expense_id = %s
-                                """, (e_date, e_cat, e_amt, final_paid, e_status, e_payee, e_notes, selected_id))
-                            st.success("✅ تم تحديث بيانات المصروف والدفع بنجاح!")
-                            st.rerun()
+                        st.caption("هذا تصحيح لقيد محفوظ، وليس تسوية أو استرداد نقد جديد.")
+                        correction_reason=st.text_input("سبب تصحيح القيد *")
+                        if st.form_submit_button("حفظ تصحيح القيد", type="primary", use_container_width=True):
+                            try:
+                                key=f"expense_correct_token_{selected_id}"
+                                st.session_state.setdefault(key,str(uuid.uuid4()))
+                                E.correct(selected_id,amount_total=e_amt,amount_paid=e_paid,
+                                    category=e_cat,expense_date=e_date,payee=e_payee,
+                                    notes=e_notes,reason=correction_reason,
+                                    actor=st.session_state.get("auth_user","مديرة الروضة"),
+                                    token=st.session_state[key])
+                                st.session_state[key]=str(uuid.uuid4())
+                                st.success("حُفظ التصحيح وسجل التدقيق دون اختلاق حركة نقدية اليوم.")
+                                st.rerun()
+                            except ValueError as error:
+                                st.error(str(error))
+                            except Exception:
+                                st.error("تعذّر تصحيح المصروف؛ لم تتغير الأدلة.")
 
                 with col_del:
                     st.markdown("##### 🚨 إجراءات الديون والحذف")
                     with st.container(border=True):
                         if remaining_debt > 0:
                             st.info(f"💡 المتبقي كدين لهذا المصروف: **{remaining_debt:,.2f} أوقية قديمة**")
-                            if st.button("💸 تسديد الدين بالكامل الآن", key=f"settle_{selected_id}", use_container_width=True):
-                                with conn.cursor() as cur:
-                                    cur.execute("""
-                                        UPDATE expenses 
-                                        SET amount_paid = amount, payment_status = 'مدفوع بالكامل'
-                                        WHERE expense_id = %s
-                                    """, (selected_id,))
-                                st.success("✅ تم تسديد الدين وتحديث حالة المصروف إلى (مدفوع بالكامل)!")
-                                st.rerun()
+                            with st.form(f"settle_expense_{selected_id}"):
+                                pay=st.number_input("مبلغ نقد صُرف فعلياً الآن",
+                                    min_value=0.0,max_value=float(remaining_debt),
+                                    value=0.0,step=10.0,format="%.2f")
+                                payment_date=st.date_input("تاريخ صرف النقد",value=date.today())
+                                settle_reason=st.text_input("سبب تسوية الدفع *")
+                                settle=st.form_submit_button("تسجيل تسوية نقدية فعلية")
+                            if settle:
+                                try:
+                                    key=f"expense_settle_token_{selected_id}"
+                                    st.session_state.setdefault(key,str(uuid.uuid4()))
+                                    E.settle(selected_id,pay,on_date=payment_date,
+                                        actor=st.session_state.get("auth_user","مديرة الروضة"),
+                                        reason=settle_reason,token=st.session_state[key])
+                                    st.session_state[key]=str(uuid.uuid4())
+                                    st.success("سُجل صرف النقد بتاريخ الدفع الفعلي، لا بتاريخ الفاتورة.")
+                                    st.rerun()
+                                except ValueError as error:
+                                    st.error(str(error))
+                                except Exception:
+                                    st.error("تعذّر حفظ التسوية؛ بقي الحساب كما هو.")
                             st.write("---")
 
                         st.warning("لا يمكن حذف مصروف سُجل له صرف نقدي؛ تُحفظ آثاره في سجل الحركة.")
