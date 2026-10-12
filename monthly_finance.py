@@ -741,8 +741,8 @@ def projection(conn, student, as_of=None, *, materialize=True):
             LEFT JOIN monthly_receipts r ON r.receipt_id=a.receipt_id
             WHERE f.student_id=%s GROUP BY f.fee_id ORDER BY f.kind""",
             (day,day,day,day,student))
-        fees={r["kind"]:{"price":int(r["price"]),"paid":int(r["paid"]),
-                         "waived":int(r["waived"])} for r in c.fetchall()}
+        fees={r["kind"]:{**{"price":int(r["price"]),"paid":int(r["paid"])},
+                         **({"waived":int(r.get("waived",0))} if int(r.get("waived",0)) else {})} for r in c.fetchall()}
         c.execute("""SELECT p.period_no,p.starts,p.ends,p.price,
             COALESCE(SUM(a.amount) FILTER (WHERE r.received_on<=%s
                AND (r.corrects_id IS NULL OR r.created_at::date<=%s)
@@ -755,7 +755,7 @@ def projection(conn, student, as_of=None, *, materialize=True):
             (day,day,day,day,student))
         periods=[{"no":r["period_no"],"start":r["starts"],"end":r["ends"],
                   "price":int(r["price"]),"paid":int(r["paid"]),
-                  "waived":int(r["waived"])} for r in c.fetchall()]
+                  **({"waived":int(r.get("waived",0))} if int(r.get("waived",0)) else {})} for r in c.fetchall()]
         c.execute("""SELECT receipt_id,amount,received_on,payer,created_by,state
                 FROM monthly_receipts WHERE student_id=%s ORDER BY receipt_id DESC""",(student,))
         receipts=[dict(row) for row in c.fetchall()]
@@ -767,12 +767,12 @@ def projection(conn, student, as_of=None, *, materialize=True):
         contiguous+=1
     charge_active = day >= account["start_date"]
     cutoff = min(day, account["departure_on"]) if account.get("departure_on") else day
-    currently_due=sum(max(0,p["price"]-p["paid"]-p["waived"]) for p in periods
+    currently_due=sum(max(0,p["price"]-p["paid"]-p.get("waived",0)) for p in periods
                       if p["start"]<=cutoff and charge_active)
     if charge_active:
-        currently_due+=sum(max(0,r["price"]-r["paid"]-r["waived"]) for r in fees.values())
-    not_yet_due=sum(max(0,p["price"]-p["paid"]-p["waived"]) for p in periods if p["start"]>cutoff)
-    unpaid=next((p for p in periods if p["paid"]+p["waived"]<p["price"]),None)
+        currently_due+=sum(max(0,r["price"]-r["paid"]-r.get("waived",0)) for r in fees.values())
+    not_yet_due=sum(max(0,p["price"]-p["paid"]-p.get("waived",0)) for p in periods if p["start"]>cutoff)
+    unpaid=next((p for p in periods if p["paid"]+p.get("waived",0)<p["price"]),None)
     next_start=(unpaid["start"] if unpaid else anniversary(account["start_date"],contiguous))
     return {"account":dict(account),"fees":fees,"periods":periods,"receipts":receipts,
             "paid_periods":paid_count,"paid_through":(anniversary(account["start_date"],contiguous)-timedelta(days=1)
@@ -902,10 +902,10 @@ def financial_report(conn, start, end):
             WHERE x.event_date BETWEEN %s AND %s
               AND e.teacher_payment_id IS NULL AND e.teacher_advance_id IS NULL""",(start,end))
         operational=c.fetchone()["n"]
-        c.execute("""SELECT COALESCE(SUM(cash_amount),0) AS n FROM teacher_payments
+        c.execute("""SELECT COALESCE(SUM(COALESCE(cash_amount,amount)),0) AS n FROM teacher_payments
                      WHERE payment_date BETWEEN %s AND %s""",(start,end))
         salaries=c.fetchone()["n"]
-        c.execute("""SELECT COALESCE(SUM(cash_amount),0) AS n FROM teacher_advances
+        c.execute("""SELECT COALESCE(SUM(COALESCE(cash_amount,amount)),0) AS n FROM teacher_advances
                      WHERE advance_date BETWEEN %s AND %s""",(start,end))
         advances=c.fetchone()["n"]
     outstanding=sum(projection(conn,s,end,materialize=False)["due_now"] for s in students)
