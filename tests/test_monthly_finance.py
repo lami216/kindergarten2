@@ -308,3 +308,12 @@ class MonthlyFinanceDBTests(unittest.TestCase):
             self.assertEqual(c.fetchone()["n"],old_cash)
             c.execute("SELECT COALESCE(SUM(amount_paid),0) AS n FROM expenses")
             self.assertEqual(c.fetchone()["n"],old_expenses)
+
+    def test_future_report_does_not_issue_unfunded_future_debt(self):
+        sid=self.create()
+        future=F.anniversary(F.today(),12)
+        F.financial_report(self.admin,date(2026,1,1),future)
+        with self.admin.cursor() as c:
+            c.execute("SELECT COUNT(*) AS n FROM monthly_periods WHERE student_id=%s AND starts>%s",
+                      (sid,F.today()))
+            self.assertEqual(c.fetchone()["n"],0)
