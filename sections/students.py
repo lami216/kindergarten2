@@ -176,7 +176,7 @@ def render(conn):
             a, b = st.columns(2)
             name = a.text_input("اسم الطفل *", key=_form_key("kid_name")).strip()
             birth = b.date_input("تاريخ الميلاد *", value=date(2022, 1, 1),
-                       min_value=date(1990, 1, 1), max_value=date.today(),
+                       min_value=date(1990, 1, 1), max_value=F.today(),
                        key=_form_key("kid_birth"))
             a, b = st.columns(2)
             gender = a.selectbox("الجنس *", H.GENDERS, key=_form_key("kid_gender"))
@@ -362,7 +362,7 @@ def render(conn):
                     old_date = pd.to_datetime(row["birth_date"], errors="coerce")
                     e_birth = b.date_input("تاريخ الميلاد",
                         value=old_date.date() if pd.notna(old_date) else date(2022, 1, 1),
-                        min_value=date(1990, 1, 1), max_value=date.today(),
+                        min_value=date(1990, 1, 1), max_value=F.today(),
                         key=f"edit_{sid}_birth")
                     original_gender = _text(row["gender"])
                     e_gender = c.selectbox("الجنس", H.GENDERS,
