@@ -141,6 +141,11 @@ async def run():
     exempt_sid=make_child(exempt_name,{"mode":"exempt","cash":0,
                      "registration":False,"gilet":False,"start_date":anchor.isoformat()})
     unfunded_sid=make_child(unfunded_name)
+    teacher_id="T"+uuid.uuid4().hex[:19]
+    with connection() as qa_conn:
+        with qa_conn.cursor() as cur:
+            cur.execute("INSERT INTO teachers(national_id,full_name,salary) VALUES(%s,%s,4000)",
+                        (teacher_id,"معلمة مالية للمتصفح "+prefix))
     assert read("SELECT COUNT(*) AS n FROM monthly_receipts WHERE student_id=%s",(unfunded_sid,))[0]["n"]==0
     manifest=[]
     async with async_playwright() as pw:
@@ -204,6 +209,17 @@ async def run():
                 await night_theme(page,night)
                 await capture(page,page.get_by_text("الباقي من المداخيل",exact=False).first,
                               f"finance_dashboard_{suffix}",manifest)
+                await open_section(page,"expenses")
+                await night_theme(page,night)
+                await capture(page,page.get_by_role("button",name="حفظ المصروف"),
+                              f"finance_expense_form_{suffix}",manifest)
+                await open_section(page,"salaries")
+                await night_theme(page,night)
+                await capture(page,page.get_by_role("button",name=re.compile("تسجيل الصرف وطباعة")),
+                              f"finance_salary_form_{suffix}",manifest)
+                await page.get_by_role("tab",name=re.compile("سلف المعلمات")).click()
+                await capture(page,page.get_by_role("button",name="💾 تسجيل السلفة المدفوعة"),
+                              f"finance_advance_form_{suffix}",manifest)
                 await context.close()
 
         # Mutable paths: verify browser-visible failure, success, account setup
