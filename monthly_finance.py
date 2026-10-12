@@ -153,6 +153,59 @@ def migrate(conn):
                 );
                 INSERT INTO finance_schema_versions(version) VALUES(3);
             """)
+
+        # Version 4: preserve an immutable-date cash-event projection for expenses.
+        # Legacy expense rows are backfilled only as labelled opening cash events;
+        # values and originals remain untouched. A later settlement is dated when
+        # the cash changes rather than silently backdated to the invoice date.
+        c.execute("""
+            ALTER TABLE expenses ADD COLUMN IF NOT EXISTS
+                teacher_payment_id INTEGER UNIQUE REFERENCES teacher_payments(payment_id) ON DELETE RESTRICT;
+            ALTER TABLE expenses ADD COLUMN IF NOT EXISTS
+                teacher_advance_id INTEGER UNIQUE REFERENCES teacher_advances(advance_id) ON DELETE RESTRICT;
+            CREATE TABLE IF NOT EXISTS expense_cash_events (
+                event_id BIGSERIAL PRIMARY KEY,
+                expense_id INTEGER NOT NULL REFERENCES expenses(expense_id) ON DELETE RESTRICT,
+                event_date DATE NOT NULL,
+                amount NUMERIC(12,2) NOT NULL CHECK (amount<>0),
+                source VARCHAR(20) NOT NULL CHECK (source IN ('opening','insert','adjustment')),
+                created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS expense_cash_opening_unique
+                ON expense_cash_events(expense_id) WHERE source='opening';
+            CREATE OR REPLACE FUNCTION record_expense_cash_event()
+            RETURNS trigger LANGUAGE plpgsql AS $
+            DECLARE delta NUMERIC(12,2);
+            BEGIN
+                IF TG_OP='INSERT' THEN
+                    delta := COALESCE(NEW.amount_paid,0);
+                    IF delta<>0 THEN
+                        INSERT INTO expense_cash_events(expense_id,event_date,amount,source)
+                        VALUES(NEW.expense_id, NEW.expense_date, delta,'insert');
+                    END IF;
+                ELSIF TG_OP='UPDATE' THEN
+                    delta := COALESCE(NEW.amount_paid,0)-COALESCE(OLD.amount_paid,0);
+                    IF delta<>0 THEN
+                        INSERT INTO expense_cash_events(expense_id,event_date,amount,source)
+                        VALUES(NEW.expense_id,CURRENT_DATE,delta,'adjustment');
+                    END IF;
+                END IF;
+                RETURN NEW;
+            END $
+            ;
+            DROP TRIGGER IF EXISTS expense_cash_projection_write ON expenses;
+            CREATE TRIGGER expense_cash_projection_write
+                AFTER INSERT OR UPDATE OF amount_paid ON expenses
+                FOR EACH ROW EXECUTE FUNCTION record_expense_cash_event();
+        """)
+        c.execute("""
+            INSERT INTO expense_cash_events(expense_id,event_date,amount,source)
+            SELECT e.expense_id,e.expense_date,e.amount_paid,'opening'
+            FROM expenses e WHERE e.amount_paid<>0
+            AND NOT EXISTS(SELECT 1 FROM expense_cash_events x WHERE x.expense_id=e.expense_id)
+            ON CONFLICT DO NOTHING
+        """)
+        c.execute("INSERT INTO finance_schema_versions(version) VALUES(4) ON CONFLICT DO NOTHING")
     if not conn.autocommit:
         conn.commit()
 
@@ -550,8 +603,82 @@ def projection(conn, student, as_of=None, *, materialize=True):
             "exempt":account["status"]=="exempt"}
 
 
+def _assert_date_range(start, end):
+    if not isinstance(start, date) or not isinstance(end, date) or start > end:
+        raise ValueError("الفترة المالية غير صالحة.")
+
+
+def account_setup_suggestion(conn, student):
+    """Only real enrollment/creation dates: never infer a registration from birth."""
+    with conn.cursor() as c:
+        c.execute("""
+            SELECT s.created_at::date AS created_on,
+                (SELECT MIN(r.registration_date) FROM registrations r
+                 WHERE r.student_id=s.student_id) AS registered_on,
+                EXISTS(SELECT 1 FROM monthly_accounts a
+                       WHERE a.student_id=s.student_id) AS already_set,
+                EXISTS(SELECT 1 FROM registrations r JOIN payments p
+                       ON p.registration_id=r.registration_id
+                       WHERE r.student_id=s.student_id) AS legacy_funded
+            FROM students s WHERE s.student_id=%s
+        """,(student,))
+        row=c.fetchone()
+    if not row:
+        raise ValueError("الطفل غير موجود.")
+    return dict(row)
+
+
+def initialize_existing_account(student, start_date, mode, confirmed, *, actor="مديرة الروضة"):
+    """Explicit, idempotent no-cash setup for an already enrolled/unfunded child."""
+    if not confirmed:
+        raise ValueError("يجب تأكيد تهيئة حساب الطفل.")
+    if mode not in ("regular", "exempt"):
+        raise ValueError("نوع الحساب غير صحيح.")
+    if isinstance(start_date,str):
+        start_date=date.fromisoformat(start_date)
+    if not isinstance(start_date,date) or start_date>today():
+        raise ValueError("اختر تاريخ تسجيل صحيحاً غير مستقبلي.")
+    connection=db.new_transaction_connection()
+    try:
+        with connection.cursor() as c:
+            # Serialize competing attempts per child and guard historical funds.
+            c.execute("SELECT student_id FROM students WHERE student_id=%s FOR UPDATE",(student,))
+            if not c.fetchone():
+                raise ValueError("الطفل غير موجود.")
+            c.execute("SELECT status,start_date FROM monthly_accounts WHERE student_id=%s",(student,))
+            previous=c.fetchone()
+            if previous:
+                if previous["status"]!=mode or previous["start_date"]!=start_date:
+                    raise ValueError("حساب الطفل مُهيأ من قبل بخيارات مختلفة؛ لا يمكن استبداله.")
+                return False
+            c.execute("""SELECT COUNT(*) AS n FROM registrations r JOIN payments p
+                ON r.registration_id=p.registration_id WHERE r.student_id=%s""",(student,))
+            if c.fetchone()["n"]:
+                raise ValueError("لهذا الطفل وصولات تاريخية؛ أوقف التهيئة واطلب مراجعة مالية.")
+            options={"mode":mode,"start_date":start_date,"cash":0,
+                     "registration":False,"gilet":False}
+            initialize_in_transaction(c,student,options,actor,str(uuid.uuid4()))
+            _audit(c,student,None,"existing_account_setup",actor,{},
+                   {"mode":mode,"start_date":start_date,"cash":0},
+                   "تهيئة مع تأكيد من الإدارة؛ لا إيصال سابق")
+        connection.commit()
+        return True
+    except Exception:
+        connection.rollback()
+        raise
+    finally:
+        connection.close()
+
+
 def financial_report(conn, start, end):
-    """Receipts counted once. Historical unclassified cash remains separate."""
+    """ONE old-ouguiya cash projection; allocations partition receipts, not extra cash.
+
+    Expenses use actual cash events; teacher payments and advances represent
+    distinct disbursements. Only explicitly linked expenses are excluded to
+    avoid double counting payroll events; equal amounts/names are not identity.
+    Student debt is a stock at the selected end date, not a cash expense.
+    """
+    _assert_date_range(start,end)
     with conn.cursor() as c:
         c.execute("SELECT student_id FROM monthly_accounts WHERE status='regular'")
         students=[r["student_id"] for r in c.fetchall()]
@@ -566,41 +693,48 @@ def financial_report(conn, start, end):
              JOIN monthly_fees f ON f.fee_id=a.fee_id
              WHERE a.active AND r.state='active' AND r.received_on BETWEEN %s AND %s
              GROUP BY f.kind""",(start,end))
-        fee_cash={r["kind"]:int(r["n"]) for r in c.fetchall()}
+        fees={r["kind"]:int(r["n"]) for r in c.fetchall()}
         c.execute("""SELECT COALESCE(SUM(a.amount),0) AS n FROM monthly_allocations a
              JOIN monthly_receipts r ON r.receipt_id=a.receipt_id
              JOIN monthly_periods p ON p.period_id=a.period_id
-             WHERE a.active AND r.state='active' AND r.received_on BETWEEN %s AND %s""",(start,end))
-        monthly_cash=int(c.fetchone()["n"])
+             WHERE a.active AND r.state='active'
+             AND r.received_on BETWEEN %s AND %s""",(start,end))
+        monthly=int(c.fetchone()["n"])
         c.execute("""SELECT COALESCE(SUM(a.amount),0) AS n FROM monthly_allocations a
              JOIN monthly_receipts r ON r.receipt_id=a.receipt_id
              JOIN monthly_periods p ON p.period_id=a.period_id
-             WHERE a.active AND r.state='active' AND r.received_on BETWEEN %s AND %s
-             AND p.starts > r.received_on""",(start,end))
+             WHERE a.active AND r.state='active'
+             AND r.received_on BETWEEN %s AND %s AND p.starts>r.received_on""",(start,end))
         prepaid=int(c.fetchone()["n"])
-        c.execute("""SELECT COUNT(*) AS n FROM monthly_fees f
-             WHERE f.kind='registration' AND f.price>0 AND
-              (SELECT COALESCE(SUM(a.amount),0) FROM monthly_allocations a
-               WHERE a.fee_id=f.fee_id AND a.active)=f.price""")
-        paid_regs=int(c.fetchone()["n"])
-        c.execute("""SELECT COUNT(*) AS n FROM monthly_fees f
-             WHERE f.kind='gilet' AND
-              (SELECT COALESCE(SUM(a.amount),0) FROM monthly_allocations a
-               WHERE a.fee_id=f.fee_id AND a.active)=f.price""")
-        paid_gilets=int(c.fetchone()["n"])
-        c.execute("SELECT COALESCE(SUM(amount),0) AS n FROM payments WHERE receipt_state='active' AND payment_date BETWEEN %s AND %s",(start,end))
-        old_cash=c.fetchone()["n"]
-        c.execute("SELECT COALESCE(SUM(amount_paid),0) AS n FROM expenses WHERE expense_date BETWEEN %s AND %s",(start,end))
-        expenses=c.fetchone()["n"]
-        c.execute("SELECT COALESCE(SUM(amount),0) AS n FROM teacher_payments WHERE payment_date BETWEEN %s AND %s",(start,end))
+        c.execute("""SELECT fully.kind,COUNT(DISTINCT fully.student_id) AS n FROM (
+            SELECT f.student_id,f.kind,f.price,MAX(r.received_on) AS completed_on,
+                   SUM(a.amount) AS paid
+            FROM monthly_fees f JOIN monthly_allocations a ON a.fee_id=f.fee_id
+            JOIN monthly_receipts r ON r.receipt_id=a.receipt_id
+            WHERE f.price>0 AND a.active AND r.state='active' AND r.received_on<=%s
+            GROUP BY f.fee_id
+            HAVING SUM(a.amount)=MAX(f.price)
+        ) fully WHERE fully.completed_on BETWEEN %s AND %s GROUP BY fully.kind""",
+                  (end,start,end))
+        counts={r["kind"]:int(r["n"]) for r in c.fetchall()}
+        c.execute("""SELECT COALESCE(SUM(x.amount),0) AS n
+            FROM expense_cash_events x JOIN expenses e ON e.expense_id=x.expense_id
+            WHERE x.event_date BETWEEN %s AND %s
+              AND e.teacher_payment_id IS NULL AND e.teacher_advance_id IS NULL""",(start,end))
+        operational=c.fetchone()["n"]
+        c.execute("""SELECT COALESCE(SUM(amount),0) AS n FROM teacher_payments
+                     WHERE payment_date BETWEEN %s AND %s""",(start,end))
         salaries=c.fetchone()["n"]
+        c.execute("""SELECT COALESCE(SUM(amount),0) AS n FROM teacher_advances
+                     WHERE advance_date BETWEEN %s AND %s""",(start,end))
+        advances=c.fetchone()["n"]
     outstanding=sum(projection(conn,s,end,materialize=False)["due_now"] for s in students)
-    # Legacy rows are denominated according to their original receipt currency
-    # (the existing UI describes shekels). Never add or subtract them from MRU.
-    total_cash=cash
-    outflow=expenses+salaries
-    return {"registration_children":paid_regs,"registration_cash":fee_cash.get("registration",0),
-            "gilet_count":paid_gilets,"gilet_cash":fee_cash.get("gilet",0),
-            "monthly_cash":monthly_cash,"prepaid_cash":prepaid,"new_cash":cash,
-            "historical_cash":old_cash,"total_cash":total_cash,
-            "expenses":outflow,"remaining_cash":None,"due_now":outstanding}
+    outflow=operational+salaries+advances
+    # An advance deducted later from salary is not another disbursement.
+    return {"registration_children":counts.get("registration",0),
+            "registration_cash":fees.get("registration",0),
+            "gilet_count":counts.get("gilet",0),"gilet_cash":fees.get("gilet",0),
+            "monthly_cash":monthly,"prepaid_cash":prepaid,
+            "new_cash":cash,"total_cash":cash,
+            "operational_cash":operational,"salary_cash":salaries,"advance_cash":advances,
+            "expenses":outflow,"remaining_cash":cash-outflow,"due_now":outstanding}
