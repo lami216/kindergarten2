@@ -65,7 +65,7 @@ def contact_validation_error(father_name, father_mobile, mother_name, mother_mob
     return None
 
 
-def _child_request_fingerprint(child, family, existing_parent_id):
+def _child_request_fingerprint(child, family, existing_parent_id, finance=None):
     """Hash the normalized data we actually persist, not a UI session identifier."""
     cleaned_child = {
         "full_name": child["full_name"].strip(),
@@ -90,12 +90,15 @@ def _child_request_fingerprint(child, family, existing_parent_id):
                 "mother_mobile", "contact_email")
         }}
     payload = {"child": cleaned_child, "family": cleaned_family}
+    if finance is not None:
+        payload["finance"] = finance
     encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True,
                          separators=(",", ":")).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
 
 
-def save_child_with_family(child, family, existing_parent_id, request_token):
+def save_child_with_family(child, family, existing_parent_id, request_token,
+                           finance=None, actor='مديرة الروضة'):
     """Persist family + child atomically; request_token makes repeated clicks idempotent.
 
     Returns (student_id, created). Existing family is only linked, never overwritten.
@@ -109,7 +112,7 @@ def save_child_with_family(child, family, existing_parent_id, request_token):
             family["mother_name"], family["mother_mobile"])
         if problem:
             raise ValueError(problem)
-    fingerprint = _child_request_fingerprint(child, family, existing_parent_id)
+    fingerprint = _child_request_fingerprint(child, family, existing_parent_id, finance)
     connection = new_transaction_connection()
     try:
         with connection.cursor() as cur:
@@ -160,6 +163,10 @@ def save_child_with_family(child, family, existing_parent_id, request_token):
                   child["allergies"].strip() or None, child["general_notes"].strip() or None,
                   json.dumps(child["authorized_pickups"], ensure_ascii=False),
                   parent_id, str(request_token), fingerprint))
+            if finance is not None:
+                import monthly_finance
+                monthly_finance.initialize_in_transaction(
+                    cur, student_id, finance, actor, request_token)
         connection.commit()
         return student_id, True
     except Exception:
@@ -345,3 +352,7 @@ def init_db():
             CREATE UNIQUE INDEX IF NOT EXISTS students_request_token_unique
               ON students(request_token);
         """)
+    # Existing annual values remain unchanged; only new accounts use the
+    # independent versioned monthly finance tables.
+    import monthly_finance
+    monthly_finance.migrate(conn)
