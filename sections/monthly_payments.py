@@ -34,6 +34,9 @@ def financial_panel(conn, student, *, payment=True):
                          "تهيئة حساب جديد قبل المراجعة المالية.")
                 return
             suggested=info["registered_on"] or info["created_on"] or F.today()
+        # A historical, timezone-naive timestamp may already have been stored
+        # as tomorrow by an older Berlin session; do not offer a future date.
+        suggested=min(suggested,F.today())
             label=("تاريخ تسجيل معروف" if info["registered_on"] else
                    "تاريخ إنشاء ملف الطفل؛ تاريخ مقترح قابل للتعديل")
             st.caption(label)
