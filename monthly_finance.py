@@ -7,7 +7,7 @@ import calendar
 import hashlib
 import json
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import db
@@ -518,7 +518,7 @@ def projection(conn, student, as_of=None, *, materialize=True):
     unpaid=next((p for p in periods if p["paid"]<p["price"]),None)
     next_start=(unpaid["start"] if unpaid else anniversary(account["start_date"],contiguous))
     return {"account":dict(account),"fees":fees,"periods":periods,"receipts":receipts,
-            "paid_periods":paid_count,"paid_through":(anniversary(account["start_date"],contiguous)
+            "paid_periods":paid_count,"paid_through":(anniversary(account["start_date"],contiguous)-timedelta(days=1)
                  if contiguous else None),"due_now":currently_due,
             "future_partial":not_yet_due,"next_unpaid":next_start,
             "exempt":account["status"]=="exempt"}
