@@ -447,10 +447,10 @@ def render(conn):
                         if mode=="pay":
                             st.caption("الدفعة الشهرية بالمبلغ فقط متاحة في الحساب أعلاه.")
                             unsettled=[(kind,row) for kind,row in remaining["fees"].items()
-                               if row["price"]-row["paid"]-row["waived"]>0]
+                               if row["price"]-row["paid"]-row.get("waived",0)>0]
                             if unsettled:
                                 fee_map={kind:("رسوم التسجيل" if kind=="registration" else "الجيليه")
-                                    +f" — {info['price']-info['paid']-info['waived']:,} أوقية قديمة"
+                                    +f" — {info['price']-info['paid']-info.get('waived',0):,} أوقية قديمة"
                                     for kind,info in unsettled}
                                 with st.form(f"student_item_collect_{sid}"):
                                     kind=st.selectbox("رسم مستحق للتحصيل النقدي",list(fee_map),
