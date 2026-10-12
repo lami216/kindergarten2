@@ -76,7 +76,7 @@ async def run():
         await page.get_by_role("textbox",name="سبب إلغاء الدين *").fill("قرار مديرة")
         await page.get_by_text("أؤكد إلغاء الدين دون قبض أي مبلغ",exact=False).click()
         await page.get_by_role("button",name="تأكيد قرار إلغاء الدين").click()
-        await expect(page.get_by_text("ألغي الدين",exact=False)).to_be_visible(timeout=20000)
+        await expect(page.get_by_text("ألغي الدين",exact=False).first).to_be_visible(timeout=20000)
         assert not sql("SELECT receipt_id FROM monthly_receipts WHERE student_id=%s",(sid,))
         rows=sql("SELECT amount,reason FROM monthly_waivers WHERE student_id=%s",(sid,))
         assert rows and sum(int(x["amount"]) for x in rows)==4000,rows
