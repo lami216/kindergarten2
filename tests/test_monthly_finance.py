@@ -97,7 +97,7 @@ class MonthlyFinanceDBTests(unittest.TestCase):
                           SUM(a.amount) AS amount FROM monthly_allocations a
                           LEFT JOIN monthly_fees f ON f.fee_id=a.fee_id
                           JOIN monthly_receipts r ON r.receipt_id=a.receipt_id
-                          WHERE r.student_id=%s AND a.active GROUP BY kind""",(sid,))
+                          WHERE r.student_id=%s AND a.active GROUP BY 1""",(sid,))
             total={x["kind"]:int(x["amount"]) for x in c.fetchall()}
         self.assertEqual(total,{"registration":1000,"gilet":2000,"month":9000})
 
