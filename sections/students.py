@@ -93,6 +93,10 @@ def _pickup_editor(owner, initial=None):
 
     people = []
     with st.expander("المخولون باستلام الطفل (اختياري)"):
+        st.markdown(
+            '<span class="pickup-style-anchor" aria-hidden="true" style="display:none"></span>',
+            unsafe_allow_html=True,
+        )
         for row_id in list(st.session_state[list_key]):
             a, b, c = st.columns([4, 4, 2])
             name = a.text_input("الاسم", key=f"{owner}_pickup_{row_id}_name")
@@ -203,16 +207,22 @@ def render(conn):
                 try:
                     if not name:
                         raise ValueError("يرجى كتابة اسم الطفل.")
-                    if any(len(v) > 100 for v in (
-                            name, place.strip(), family["father_name"], family["mother_name"])):
-                        raise ValueError("أحد الأسماء أو مكان الميلاد طويل جداً.")
-                    if any(len(v) > 20 for v in (
-                            family["father_mobile"], family["mother_mobile"])):
-                        raise ValueError("رقم الهاتف أطول من المسموح.")
-                    if len(family["contact_email"]) > 254 or (
-                        family["contact_email"] and ("@" not in family["contact_email"]
-                                                     or " " in family["contact_email"])):
-                        raise ValueError("يرجى كتابة بريد تواصل صحيح.")
+                    # Child validation applies in either family-selection mode.
+                    if len(name) > 100 or len(place.strip()) > 100:
+                        raise ValueError("اسم الطفل أو مكان الميلاد طويل جداً.")
+                    # Draft details of a *new* family are preserved when switching
+                    # to an existing guardian, but must not block that child save.
+                    if parent_id is None:
+                        if any(len(v) > 100 for v in (
+                                family["father_name"], family["mother_name"])):
+                            raise ValueError("أحد أسماء الأهل أطول من المسموح.")
+                        if any(len(v) > 20 for v in (
+                                family["father_mobile"], family["mother_mobile"])):
+                            raise ValueError("رقم الهاتف أطول من المسموح.")
+                        if len(family["contact_email"]) > 254 or (
+                            family["contact_email"] and ("@" not in family["contact_email"]
+                                                         or " " in family["contact_email"])):
+                            raise ValueError("يرجى كتابة بريد تواصل صحيح.")
                     child = dict(full_name=name, birth_date=birth, gender=gender,
                         birth_place=place, address=address, medical_details=medical,
                         allergies=allergy, general_notes=notes,
