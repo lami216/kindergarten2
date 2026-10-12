@@ -103,6 +103,7 @@ def render(conn):
                    COALESCE(r.annual_tuition, 3500.0) AS "الرسوم السنوية",
                    COALESCE((SELECT SUM(p.amount) FROM payments p
                              WHERE p.registration_id = r.registration_id
+                               AND p.receipt_state='active'
                                AND p.payment_for IN ('رسوم تسجيل', 'أقساط تعليمية')), 0) AS paid_toward_tuition
             FROM registrations r
             JOIN students s ON s.student_id = r.student_id
