@@ -520,7 +520,9 @@ def render(conn):
                    (c.class_type || ' ' || c.section) AS "الصف",
                    r.year_id AS "السنة الدراسية",
                    p.amount AS "المبلغ", p.payment_date AS "تاريخ الدفع",
-                   p.payer_name AS "اسم الدافع", p.payment_for AS "مقابل"
+                   p.payer_name AS "اسم الدافع", p.payment_for AS "مقابل",
+                   CASE WHEN p.receipt_state='cancelled' THEN 'ملغى'
+                        ELSE 'ساري' END AS "حالة الوصل"
             FROM payments p
             JOIN registrations r ON p.registration_id = r.registration_id
             JOIN students s ON r.student_id = s.student_id
@@ -546,7 +548,7 @@ def render(conn):
 
         if not result.empty:
             result.insert(0, "م", range(1, len(result) + 1))
-            total_collected = result['المبلغ'].sum()
+            total_collected = result.loc[result["حالة الوصل"] == "ساري", "المبلغ"].sum()
             meta_info = {
                 "الفترة": f"{date_from or 'البداية'} إلى {date_to or 'النهاية'}", 
                 "مقابل": reason_filter,
@@ -555,7 +557,7 @@ def render(conn):
             report_title_str = "سجل المقبوضات المالية"
             summary_metrics = {
                 "إجمالي المقبوضات": H.format_money(total_collected),
-                "عدد السندات": f"{len(result)} سند"
+                "عدد السندات السارية": f"{(result['حالة الوصل'] == 'ساري').sum()} سند"
             }
 
     # --------------------------------------------------------------------------
