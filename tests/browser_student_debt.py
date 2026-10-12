@@ -173,6 +173,18 @@ async def run():
             await page.wait_for_timeout(250)
         else:
             raise AssertionError("Archival did not commit after the UI click")
+        # Archived records are intentionally hidden from the active roster;
+        # explicitly enable retained history, then re-select the same child.
+        history_toggle=page.get_by_role("checkbox",
+            name="إظهار ملفات الأطفال المؤرشفين (السجل المالي محفوظ)")
+        if not await history_toggle.is_checked():
+            await history_toggle.click()
+        select=page.locator(".st-key-student_select_edit input[role='combobox']").first
+        await expect(select).to_be_visible()
+        if not await page.get_by_text("الطالب مؤرشف",exact=False).count():
+            await select.click()
+            await select.fill(name)
+            await page.get_by_text(name,exact=True).last.click(timeout=15000)
         await expect(page.get_by_text("الطالب مؤرشف",exact=False).first).to_be_visible(timeout=20000)
         metrics["history_light"]=await wait_for_real_theme(page,False)
         await snapshot(page,"student_debt_history_390_day.png")
