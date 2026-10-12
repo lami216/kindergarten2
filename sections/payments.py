@@ -16,6 +16,13 @@ import historical_finance as legacy
 from sections import monthly_payments
 
 
+def _remember_legacy_receipt():
+    """Form callback runs before widget-state cleanup on Streamlit rerun."""
+    chosen = st.session_state.get("payment_select_edit")
+    if chosen is not None:
+        st.session_state["legacy_restore_receipt"] = int(chosen)
+
+
 def _get_registration_tuition(conn, registration_id):
     """Fetches tuition directly from registrations database record."""
     try:
@@ -225,9 +232,11 @@ def _render_historical(conn):
                         audit_reason = st.text_input("سبب التصحيح أو الإلغاء *")
                         b1, b2 = st.columns(2)
                         save = b1.form_submit_button("💾 حفظ التصحيح", type="primary",
-                                                     use_container_width=True)
+                                                     use_container_width=True,
+                                                     on_click=_remember_legacy_receipt)
                         delete = b2.form_submit_button("إلغاء الوصل مع الاحتفاظ بالسجل",
-                                                       use_container_width=True)
+                                                       use_container_width=True,
+                                                       on_click=_remember_legacy_receipt)
                         if save or delete:
                             try:
                                 registration = legacy.change_receipt(
