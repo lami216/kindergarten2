@@ -163,6 +163,12 @@ def update_tariffs(registration, gilet, tuition, actor):
     try:
         with conn.cursor() as c:
             c.execute("SELECT pg_advisory_xact_lock(82416079)")
+            # Snapshot every already-started unpaid period at the OLD tariff,
+            # before updating prices. Future periods use the new tariff.
+            c.execute("SELECT student_id FROM monthly_accounts WHERE status='regular' ORDER BY student_id")
+            for row in c.fetchall():
+                locked=_lock(c,row["student_id"])
+                _due_started(c,row["student_id"],locked)
             c.execute("SELECT registration,gilet,tuition FROM monthly_tariffs WHERE id=1")
             old = c.fetchone()
             c.execute("""INSERT INTO monthly_tariffs(id,registration,gilet,tuition,changed_by)
@@ -563,10 +569,12 @@ def financial_report(conn, start, end):
         c.execute("SELECT COALESCE(SUM(amount),0) AS n FROM teacher_payments WHERE payment_date BETWEEN %s AND %s",(start,end))
         salaries=c.fetchone()["n"]
     outstanding=sum(projection(conn,s,end,materialize=False)["due_now"] for s in students)
-    total_cash=cash+int(old_cash)
+    # Legacy rows are denominated according to their original receipt currency
+    # (the existing UI describes shekels). Never add or subtract them from MRU.
+    total_cash=cash
     outflow=int(expenses)+int(salaries)
     return {"registration_children":paid_regs,"registration_cash":fee_cash.get("registration",0),
             "gilet_count":paid_gilets,"gilet_cash":fee_cash.get("gilet",0),
             "monthly_cash":monthly_cash,"prepaid_cash":prepaid,"new_cash":cash,
             "historical_cash":int(old_cash),"total_cash":total_cash,
-            "expenses":outflow,"remaining_cash":total_cash-outflow,"due_now":outstanding}
+            "expenses":outflow,"remaining_cash":None,"due_now":outstanding}
