@@ -48,7 +48,7 @@ class SingleCurrencyCashTests(unittest.TestCase):
 
     def register(self,*,cash=0,registration=False,gilet=False,mode="regular"):
         options=dict(mode=mode,cash=cash,registration=registration,gilet=gilet,
-                     start_date=self.day,payer="أم نقدية")
+                     start_date=self.day.isoformat(),payer="أم نقدية")
         with patch.object(F,"today",return_value=self.day):
             sid,_=db.save_child_with_family(self.child,self.family,None,
                 str(uuid.uuid4()),finance=options,actor="fixture")
