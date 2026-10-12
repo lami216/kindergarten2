@@ -189,7 +189,7 @@ async def run():
         await page.locator(".st-key-kid_initial_gilet label").first.click()
         await page.locator(".st-key-kid_initial_amount input").fill("2000")
         await page.get_by_role("button",name=re.compile("حفظ بيانات الطفل والأهل")).click()
-        error=page.get_by_text("المبلغ لا يغطي",exact=False)
+        error=page.get_by_test_id("stAlertContentError").get_by_text("المبلغ لا يغطي",exact=False).first
         await expect(error).to_be_visible()
         await expect(page.locator(".st-key-kid_name input")).to_have_value("فحص مبلغ ناقص "+prefix)
         assert not read("SELECT 1 FROM students WHERE full_name=%s",("فحص مبلغ ناقص "+prefix,))
