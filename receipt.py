@@ -302,7 +302,7 @@ RECEIPT_TEMPLATE = """
 
 
 def render_receipt(receipt_id, date, student_name, payer, amount, reason, remaining, reason_other="",
-                   currency="شيكل", remaining_label="المبلغ المتبقي لهذه السنة"):
+                   currency="أوقية قديمة", remaining_label="المتبقي المستحق الآن"):
     reason_full = f"{reason} ({reason_other})" if reason_other else reason
 
     logo_b64 = ui._logo_base64()
