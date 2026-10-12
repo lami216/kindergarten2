@@ -188,7 +188,7 @@ def _contrast_ratio(first, second):
         return value / 12.92 if value <= 0.04045 else ((value + 0.055) / 1.055) ** 2.4
 
     def luminance(css):
-        components = [float(v) for v in re.findall(r"[\\d.]+", css)[:3]]
+        components = [float(v) for v in re.findall(r"[\d.]+", css)[:3]]
         if len(components) != 3:
             raise AssertionError("Expected opaque RGB color: " + css)
         return sum(weight * channel(value) for weight, value in
