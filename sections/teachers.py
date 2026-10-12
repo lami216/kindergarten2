@@ -19,7 +19,7 @@ def render(conn):
             full_name = c2.text_input("الاسم الرباعي *").strip()
 
             c3, c4, c5 = st.columns(3)
-            salary = c3.number_input("الراتب الشهري الافتراضي (شيكل) *", min_value=0.0, value=2000.0, step=100.0)
+            salary = c3.number_input("الراتب الشهري الافتراضي (أوقية قديمة) *", min_value=0.0, value=2000.0, step=100.0)
             mobile = c4.text_input("رقم الجوال").strip()
             hire_date = c5.date_input("تاريخ التعيين")
 
@@ -81,7 +81,7 @@ def render(conn):
                 with st.form("edit_teacher_form"):
                     ec1, ec2 = st.columns(2)
                     e_name = ec1.text_input("الاسم الرباعي", value=t_row['full_name'])
-                    e_salary = ec2.number_input("الراتب الشهري الافتراضي (شيكل)", min_value=0.0, value=float(t_row['salary']), step=100.0)
+                    e_salary = ec2.number_input("الراتب الشهري الافتراضي (أوقية قديمة)", min_value=0.0, value=float(t_row['salary']), step=100.0)
 
                     ec3, ec4 = st.columns(2)
                     e_mobile = ec3.text_input("رقم الجوال", value=t_row['mobile'] or "")
