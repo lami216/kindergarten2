@@ -260,10 +260,8 @@ class RequiredFixesPostgresTest(unittest.TestCase):
             app.checkbox(key="kid_use_existing").set_value(True).run(timeout=20)
             self.assertEqual(app.text_input(key="kid_email").value, "invalid-email")
             self.assertEqual(app.text_input(key="kid_father_name").value, bad_name)
-            choices = [item for item in app.selectbox(key="kid_existing_family").options
-                       if item[0] == pid]
-            self.assertEqual(len(choices), 1)
-            app.selectbox(key="kid_existing_family").set_value(choices[0]).run(timeout=20)
+            chosen = (pid, f"ولي تجريبي موجود — {saved_phone}")
+            app.selectbox(key="kid_existing_family").set_value(chosen).run(timeout=20)
             self.assertEqual(app.text_input(key="kid_email").value, "invalid-email")
             app.checkbox(key="kid_use_existing").set_value(False).run(timeout=20)
             self.assertEqual(app.text_input(key="kid_father_phone").value, bad_phone)
@@ -281,7 +279,7 @@ class RequiredFixesPostgresTest(unittest.TestCase):
             self.assertEqual(app.text_input(key="kid_email").value, "invalid-email")
             app.checkbox(key="kid_use_existing").set_value(True).run(timeout=20)
             # Existing selection retained if Streamlit could preserve the option.
-            app.selectbox(key="kid_existing_family").set_value(choices[0]).run(timeout=20)
+            app.selectbox(key="kid_existing_family").set_value(chosen).run(timeout=20)
             submit().click().run(timeout=20)
             self.assertEqual(len(app.exception), 0)
             self.assertEqual(app.text_input(key="kid_name_v1").value, "")
@@ -307,9 +305,8 @@ class RequiredFixesPostgresTest(unittest.TestCase):
         app = AppTest.from_string(SCRIPT).run(timeout=20)
         app.text_input(key="kid_name").set_value("ط" * 101)
         app.checkbox(key="kid_use_existing").set_value(True).run(timeout=20)
-        choice = next(item for item in app.selectbox(key="kid_existing_family").options
-                      if item[0] == pid)
-        app.selectbox(key="kid_existing_family").set_value(choice).run(timeout=20)
+        app.selectbox(key="kid_existing_family").set_value(
+            (pid, "أم مسجلة — ")).run(timeout=20)
         next(b for b in app.button if "حفظ بيانات الطفل" in b.label).click().run(timeout=20)
         self.assertTrue(any("اسم الطفل" in e.value for e in app.error))
         self.assertEqual(_count(self.conn, "students"), before)
