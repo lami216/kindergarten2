@@ -463,6 +463,32 @@ SHELL_CSS = """
 [data-testid="stExpander"] [data-testid="stElementContainer"]:has(.pickup-style-anchor) {
     display:none !important;
 }
+/* Force BOTH native fee-choice buttons' actual text and backgrounds.
+   Current Streamlit uses a ButtonGroup rather than stSegmentedControl on some
+   installs; its selected data-baseweb buttons have no aria-pressed attribute. */
+[class*="st-key-kid_finance_mode"] button {
+    background:var(--card-bg) !important;
+    color:var(--text-main) !important;
+    border:1px solid var(--card-border) !important;
+}
+[class*="st-key-kid_finance_mode"] button :is(p,span,svg) {
+    color:var(--text-main) !important;
+}
+[class*="st-key-kid_finance_mode"] button:is(:hover,:focus-visible) {
+    background:var(--card-bg) !important;
+    color:var(--text-main) !important;
+    border-color:var(--primary) !important;
+}
+[class*="st-key-kid_finance_mode"] button:is([aria-pressed="true"],[aria-checked="true"],[data-state="on"],[data-selected="true"],[data-active="true"]),
+[class*="st-key-kid_finance_mode"] [data-baseweb="button-group"] button[aria-selected="true"] {
+    background:#006348 !important;
+    color:#fff !important;
+    border-color:#006348 !important;
+}
+[class*="st-key-kid_finance_mode"] button:is([aria-pressed="true"],[aria-checked="true"],[data-state="on"],[data-selected="true"],[data-active="true"]) :is(p,span,svg),
+[class*="st-key-kid_finance_mode"] [data-baseweb="button-group"] button[aria-selected="true"] :is(p,span,svg) {
+    color:#fff !important;
+}
 /* Native fee-mode choices: color the displayed descendants, not just wrapper.
    Covers versions of the existing Streamlit widget after successful saves. */
 [class*="st-key-kid_finance_mode"] [data-testid="stSegmentedControl"] button,
