@@ -9,6 +9,7 @@ import uuid
 from datetime import date
 from decimal import Decimal, InvalidOperation
 import db
+from monthly_finance import today as business_today
 
 
 def cash(value, zero=False):
@@ -125,8 +126,8 @@ def correct(expense_id, *, amount_total, amount_paid, category, expense_date,
 
 def settle(expense_id, amount, *, on_date=None, actor, reason, token=None):
     paid=cash(amount)
-    d=on_date if isinstance(on_date,date) else date.fromisoformat(str(on_date or date.today()))
-    if d>date.today():raise ValueError("تاريخ الصرف لا يكون مستقبلياً.")
+    d=on_date if isinstance(on_date,date) else date.fromisoformat(str(on_date or business_today()))
+    if d>business_today():raise ValueError("تاريخ الصرف لا يكون مستقبلياً.")
     payload={"amount":str(paid),"on_date":str(d),"reason":str(reason)}
     def action(c,old):
         remaining=cash(old["amount"])-cash(old["amount_paid"],zero=True)
