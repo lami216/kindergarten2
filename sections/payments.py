@@ -162,20 +162,23 @@ def _render_historical(conn):
             st.metric("💰 مجموع الدفعات السارية المعروضة", H.format_money(active_sum))
 
             st.markdown("---")
-            st.markdown("##### ⚙️ إدارة الوصل المحدد (إعادة طباعة / تعديل / حذف)")
+            st.markdown("##### ⚙️ إدارة الوصل المحدد (إعادة طباعة / تصحيح / إلغاء)")
 
-            pay_options = [
-                (int(row['رقم الوصل']), f"وصل #{int(row['رقم الوصل'])} — {row['اسم الطالب']} — {H.format_money(row['المبلغ'])} شيكل")
+            # Select by immutable receipt number: the displayed label changes
+            # after a correction, but the selection must remain stable on rerun.
+            pay_labels = {
+                int(row["رقم الوصل"]):
+                f"وصل #{int(row['رقم الوصل'])} — {row['اسم الطالب']} — {H.format_money(row['المبلغ'])} شيكل"
                 for _, row in payments.iterrows()
-            ]
+            }
             selected = st.selectbox(
-                "اختر الوصل للطباعة أو التعديل", options=pay_options,
-                format_func=lambda x: x[1] if x else "اختر...",
+                "اختر الوصل للطباعة أو التعديل", options=list(pay_labels),
+                format_func=lambda rid: pay_labels[rid],
                 index=None, placeholder="اختر وصل استلام...", key="payment_select_edit",
             )
 
-            if selected:
-                receipt_no = selected[0]
+            if selected is not None:
+                receipt_no = int(selected)
                 row = payments[payments['رقم الوصل'] == receipt_no].iloc[0]
                 reg_id_sel = int(row['registration_id'])
 
