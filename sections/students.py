@@ -7,6 +7,8 @@ import pandas as pd
 import streamlit as st
 
 import db
+import monthly_finance as F
+from sections.monthly_payments import financial_panel, actor
 import helpers as H
 import ui
 
@@ -14,7 +16,9 @@ import ui
 ADD_KEYS = ("kid_name", "kid_birth", "kid_gender", "kid_place", "kid_address",
             "kid_father_name", "kid_father_phone", "kid_mother_name",
             "kid_mother_phone", "kid_email", "kid_health", "kid_allergy",
-            "kid_notes", "kid_use_existing", "kid_existing_family")
+            "kid_notes", "kid_use_existing", "kid_existing_family",
+            "kid_finance_mode", "kid_initial_registration", "kid_initial_gilet",
+            "kid_initial_amount", "kid_finance_start")
 
 
 def _text(value):
@@ -79,7 +83,7 @@ def _reset_after_success():
         st.session_state["kid_request_token"] = str(uuid.uuid4())
 
 
-def _pickup_editor(owner, initial=None):
+def _pickup_editor(owner, initial=None, *, in_form=True):
     """Render ordinary paired widgets and add/remove submit buttons in a form."""
     list_key = owner + "_pickup_ids"
     if list_key not in st.session_state:
@@ -101,14 +105,14 @@ def _pickup_editor(owner, initial=None):
             a, b, c = st.columns([4, 4, 2])
             name = a.text_input("الاسم", key=f"{owner}_pickup_{row_id}_name")
             phone = b.text_input("رقم الهاتف", key=f"{owner}_pickup_{row_id}_phone")
-            remove = c.form_submit_button("إزالة",
+            remove = (c.form_submit_button if in_form else c.button)("إزالة",
                         key=f"{owner}_pickup_{row_id}_remove",
                         use_container_width=True)
             if remove:
                 st.session_state[list_key].remove(row_id)
                 st.rerun()
             people.append({"name": name, "phone": phone})
-        add = st.form_submit_button("＋ إضافة شخص مخوّل",
+        add = (st.form_submit_button if in_form else st.button)("＋ إضافة شخص مخوّل",
                   key=owner + "_pickup_add")
         if add:
             st.session_state[list_key].append(uuid.uuid4().hex[:12])
@@ -166,7 +170,7 @@ def render(conn):
         if family_choices:
             existing = st.checkbox("اختيار ولي أمر موجود", key=_form_key("kid_use_existing"))
         version = st.session_state["kid_form_version"]
-        with st.form(f"add_student_form_{version}", clear_on_submit=False):
+        with st.container():
             st.markdown("##### 🎒 بيانات الطفل")
             a, b = st.columns(2)
             name = a.text_input("اسم الطفل *", key=_form_key("kid_name")).strip()
@@ -199,9 +203,51 @@ def render(conn):
                 allergy = st.text_area("الحساسية", key=_form_key("kid_allergy"))
                 notes = st.text_area("ملاحظات عامة", key=_form_key("kid_notes"))
 
-            pickups = _pickup_editor(f"kid_add_{version}")
-            submitted = st.form_submit_button("💾 حفظ بيانات الطفل والأهل",
-                                              type="primary", use_container_width=True)
+            pickups = _pickup_editor(f"kid_add_{version}", in_form=False)
+
+            st.markdown("##### 💵 الرسوم والدفع")
+            # Unlike fields inside st.form, native segmented and amount controls
+            # trigger immediate reruns and therefore a live receipt breakdown.
+            mode = st.segmented_control("طريقة الرسوم", ["دفع", "معفي"],
+                selection_mode="single", default=None, key=_form_key("kid_finance_mode"),
+                help="اترك الخيار دون تحديد لتسجيل طفل عادي بلا دفعة.")
+            tariff = F.prices(conn)
+            start_date = F.today()
+            with st.expander("تاريخ بدء التسجيل"):
+                start_date = st.date_input("تاريخ بدء الاشتراك", value=F.today(),
+                    key=_form_key("kid_finance_start"))
+            reg_chosen = garment_chosen = False
+            initial_amount = 0
+            if mode == "معفي":
+                st.caption("يشمل الإعفاء التسجيل والجيليه والشهرية، دون قبض أي مبلغ.")
+            elif mode == "دفع":
+                if tariff:
+                    reg_price, garment_price = int(tariff["registration"]), int(tariff["gilet"])
+                    reg_chosen = st.checkbox(f"رسوم التسجيل — {reg_price:,} أوقية قديمة",
+                        key=_form_key("kid_initial_registration"))
+                    garment_chosen = st.checkbox(f"الجيليه — {garment_price:,} أوقية قديمة",
+                        key=_form_key("kid_initial_gilet"))
+                else:
+                    st.warning("لم تُضبط الأسعار بعد. افتح إعدادات الرسوم في صفحة الدفعات.")
+                initial_amount = st.number_input("المبلغ المدفوع", min_value=0,
+                    max_value=F.MAX_AMOUNT, step=1, value=0,
+                    key=_form_key("kid_initial_amount"))
+                if tariff:
+                    try:
+                        estimate = F.preview(int(initial_amount),reg_chosen,garment_chosen,tariff)
+                        st.caption(f"التسجيل {estimate['registration']:,} · الجيليه "
+                                   f"{estimate['gilet']:,} · للأشهر {estimate['monthly']:,} "
+                                   f"· أشهر مكتملة {estimate['full_months']}"
+                                   + (f" · دفعة للشهر التالي {estimate['next_partial']:,}"
+                                      if estimate["next_partial"] else ""))
+                    except ValueError as exc:
+                        st.warning(str(exc))
+            else:
+                st.caption("طفل عادي بلا دفعة أولى. تبقى رسوم التسجيل مستحقة، ولا يُطلب الجيليه.")
+
+            submitted = st.button("💾 حفظ بيانات الطفل والأهل",
+                                  type="primary", use_container_width=True,
+                                  key=f"kid_save_final_{version}")
             if submitted:
                 # Remove the preceding success notice only for a new valid attempt.
                 try:
@@ -227,8 +273,26 @@ def render(conn):
                         birth_place=place, address=address, medical_details=medical,
                         allergies=allergy, general_notes=notes,
                         authorized_pickups=_validate_pickups(pickups))
+                    if mode == "دفع" and not initial_amount:
+                        raise ValueError("أدخل المبلغ المدفوع أو اترك الخيار بلا دفع.")
+                    # This preview does not authorize the charge; PostgreSQL
+                    # re-reads current tariffs and allocates in the transaction.
+                    if mode == "دفع" and tariff:
+                        F.preview(int(initial_amount),reg_chosen,garment_chosen,tariff)
+                    payer = (str(parents.loc[parents["father_id"]==parent_id].iloc[0]["father_name"]
+                              or parents.loc[parents["father_id"]==parent_id].iloc[0]["mother_name"])
+                             if parent_id else family["father_name"] or family["mother_name"])
+                    if parent_id and (not payer or payer.lower()=="none"):
+                        payer = "ولي الأمر"
+                    finance = {"mode": "exempt" if mode=="معفي" else "regular",
+                               "start_date": str(start_date),
+                               "registration": bool(reg_chosen) if mode=="دفع" else False,
+                               "gilet": bool(garment_chosen) if mode=="دفع" else False,
+                               "cash": int(initial_amount) if mode=="دفع" else 0,
+                               "payer": payer}
                     _, created = db.save_child_with_family(
-                        child, family, parent_id, st.session_state["kid_request_token"])
+                        child, family, parent_id, st.session_state["kid_request_token"],
+                        finance=finance, actor=actor())
                     st.session_state["kid_last_saved"] = (
                         "✅ تم حفظ الطفل والأهل بنجاح. النموذج فارغ لإدخال طفل آخر."
                         if created else
@@ -271,6 +335,7 @@ def render(conn):
         if chosen:
             sid = chosen[0]
             row = students[students["student_id"] == sid].iloc[0]
+            financial_panel(conn, sid)
             with st.expander(f"⚙️ تعديل بيانات: {_text(row['full_name'])}", expanded=True):
                 with st.form(f"edit_student_form_{sid}"):
                     a, b, c = st.columns(3)
