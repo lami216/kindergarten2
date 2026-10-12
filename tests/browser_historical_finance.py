@@ -79,8 +79,13 @@ async def test_browser():
         # Click the matching visible menu item, then wait for Streamlit rerun.
         await page.get_by_text(f"وصل #{rid} —", exact=False).last.click(timeout=10000)
         await expect(combo).to_have_value(re.compile(f"وصل #{rid}"), timeout=15000)
-        details=page.get_by_text(f"تصحيح أو إلغاء الوصل #{rid}",exact=False)
-        await details.click()
+        summary=page.locator('[data-testid="stExpander"] summary').filter(
+            has_text=f"تصحيح أو إلغاء الوصل #{rid}").first
+        await expect(summary).to_be_visible(timeout=15000)
+        native=summary.locator("xpath=..")
+        if await native.get_attribute("open") is None:
+            await summary.click()
+        await expect(native).to_have_attribute("open", "")
         await page.get_by_role("spinbutton",name="المبلغ",exact=True).fill("90.25")
         await page.get_by_role("textbox",name="سبب التصحيح أو الإلغاء *").fill("تدقيق كروميوم")
         await page.screenshot(path=str(OUT/"legacy_receipt_before_correction_390.png"),
@@ -90,7 +95,9 @@ async def test_browser():
         r=query("SELECT amount,receipt_state FROM payments WHERE receipt_number=%s",(rid,))[0]
         assert r["amount"]==Decimal("90.25") and r["receipt_state"]=="active",r
 
-        await details.click()
+        if await native.get_attribute("open") is None:
+            await summary.click()
+        await expect(native).to_have_attribute("open", "")
         await page.get_by_role("textbox",name="سبب التصحيح أو الإلغاء *").fill("إلغاء اختبار")
         await page.get_by_role("button",name="إلغاء الوصل مع الاحتفاظ بالسجل").click()
         r=query("SELECT amount,receipt_state,cancel_reason FROM payments WHERE receipt_number=%s",(rid,))[0]
