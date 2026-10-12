@@ -12,6 +12,7 @@ import streamlit as st
 import ui
 import helpers as H
 import receipt
+import historical_finance as legacy
 from sections import monthly_payments
 
 
@@ -110,7 +111,7 @@ def _render_historical(conn):
                 cur.close()
             except Exception as e:
                 conn.rollback()
-                st.error(f"❌ حدث خطأ أثناء حفظ الدفعة: {e}")
+                st.error("تعذّر تسجيل الدفعة التاريخية؛ لم تُحفظ العملية.")
             else:
                 new_status = H.refresh_registration_status(conn, reg_id)
                 remaining_after = H.compute_remaining_balance(conn, reg_id)
@@ -134,7 +135,8 @@ def _render_historical(conn):
             SELECT p.receipt_number AS "رقم الوصل", s.full_name AS "اسم الطالب",
                    p.amount AS "المبلغ", p.payment_date AS "التاريخ",
                    p.payer_name AS "الدافع", p.payment_for AS "مقابل",
-                   p.payment_for_other AS "تفاصيل أخرى", p.registration_id
+                   p.payment_for_other AS "تفاصيل أخرى", p.registration_id,
+                   p.receipt_state AS "حالة الوصل"
             FROM payments p
             JOIN registrations r ON p.registration_id = r.registration_id
             JOIN students s ON r.student_id = s.student_id
@@ -149,8 +151,12 @@ def _render_historical(conn):
                 shown = shown[shown["اسم الطالب"].str.contains(search, na=False) |
                                shown["الدافع"].str.contains(search, na=False)]
             
-            ui.dataframe(shown.drop(columns=["registration_id", "تفاصيل أخرى"]), use_container_width=True, hide_index=True)
-            st.metric("💰 مجموع الدفعات المعروضة", H.format_money(shown["المبلغ"].sum()))
+            display = shown.drop(columns=["registration_id", "تفاصيل أخرى"]).copy()
+            display["حالة الوصل"] = display["حالة الوصل"].replace(
+                {"active": "ساري", "cancelled": "ملغى"})
+            ui.dataframe(display, use_container_width=True, hide_index=True)
+            active_sum = shown.loc[shown["حالة الوصل"] == "active", "المبلغ"].sum()
+            st.metric("💰 مجموع الدفعات السارية المعروضة", H.format_money(active_sum))
 
             st.markdown("---")
             st.markdown("##### ⚙️ إدارة الوصل المحدد (إعادة طباعة / تعديل / حذف)")
@@ -184,49 +190,43 @@ def _render_historical(conn):
                         reason_other=row['تفاصيل أخرى'] or "",
                     )
 
-                # ✏️ Edit & Delete Expander
-                with st.expander(f"✏️ تعديل بيانات الوصل #{receipt_no}", expanded=False):
+                if row["حالة الوصل"] == "cancelled":
+                    st.warning("هذا الوصل ملغى ومحفوظ للمراجعة؛ لا يمكن تعديله.")
+                    return
+
+                with st.expander(f"✏️ تصحيح أو إلغاء الوصل #{receipt_no}", expanded=False):
                     with st.form("edit_payment_form"):
                         c1, c2 = st.columns(2)
-                        e_amount = c1.number_input("المبلغ", min_value=0.0, value=float(row['المبلغ']), step=10.0)
-                        e_payer = c2.text_input("اسم الدافع", value=row['الدافع'])
-                        
+                        e_amount = c1.number_input("المبلغ", min_value=0.01,
+                                                   value=float(row["المبلغ"]), step=10.0)
+                        e_payer = c2.text_input("اسم الدافع", value=row["الدافع"] or "")
                         c3, c4 = st.columns(2)
                         e_reason = c3.selectbox(
                             "مقابل", H.PAYMENT_FOR,
-                            index=H.PAYMENT_FOR.index(row['مقابل']) if row['مقابل'] in H.PAYMENT_FOR else 0
+                            index=H.PAYMENT_FOR.index(row["مقابل"]) if row["مقابل"] in H.PAYMENT_FOR else 0
                         )
-                        e_other = c4.text_input("تفاصيل أخرى", value=row['تفاصيل أخرى'] or "")
-
+                        e_other = c4.text_input("تفاصيل أخرى", value=row["تفاصيل أخرى"] or "")
+                        audit_reason = st.text_input("سبب التصحيح أو الإلغاء *")
                         b1, b2 = st.columns(2)
-                        save = b1.form_submit_button("💾 حفظ التعديلات", type="primary", use_container_width=True)
-                        delete = b2.form_submit_button("🗑️ حذف الدفعة", use_container_width=True)
-
-                        if save:
+                        save = b1.form_submit_button("💾 حفظ التصحيح", type="primary",
+                                                     use_container_width=True)
+                        delete = b2.form_submit_button("إلغاء الوصل مع الاحتفاظ بالسجل",
+                                                       use_container_width=True)
+                        if save or delete:
                             try:
-                                cur = conn.cursor()
-                                cur.execute('''
-                                    UPDATE payments SET amount=%s, payer_name=%s, payment_for=%s, payment_for_other=%s
-                                    WHERE receipt_number=%s
-                                ''', (e_amount, e_payer, e_reason, e_other, receipt_no))
-                                conn.commit()
-                                cur.close()
-                                H.refresh_registration_status(conn, reg_id_sel)
-                                st.success("✅ تم حفظ التعديلات.")
+                                registration = legacy.change_receipt(
+                                    receipt_no,
+                                    actor=st.session_state.get("auth_user", ""),
+                                    reason=audit_reason, cancel=bool(delete),
+                                    new_amount=e_amount, payer=e_payer,
+                                    payment_for=e_reason, details=e_other)
+                                H.refresh_registration_status(conn, registration)
+                                if delete:
+                                    st.warning("أُلغي الوصل؛ حُفظت بياناته الأصلية وسبب الإلغاء.")
+                                else:
+                                    st.success("حُفظ التصحيح ونسخته السابقة في سجل المراجعة.")
                                 st.rerun()
-                            except Exception as e:
-                                conn.rollback()
-                                st.error(f"❌ حدث خطأ أثناء الحفظ: {e}")
-
-                        if delete:
-                            try:
-                                cur = conn.cursor()
-                                cur.execute("DELETE FROM payments WHERE receipt_number=%s", (receipt_no,))
-                                conn.commit()
-                                cur.close()
-                                H.refresh_registration_status(conn, reg_id_sel)
-                                st.warning("🗑️ تم حذف الدفعة بنجاح! تم تحديث حالة التسجيل والمبلغ المتبقي تلقائياً.")
-                                st.rerun()
-                            except Exception as e:
-                                conn.rollback()
-                                st.error(f"❌ حدث خطأ أثناء الحذف: {e}")
+                            except ValueError as exc:
+                                st.error(str(exc))
+                            except Exception:
+                                st.error("تعذّر حفظ العملية. لم تُحذف بيانات الوصل.")
