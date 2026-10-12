@@ -124,7 +124,7 @@ def render_settings(conn):
 
 
 def render_receipts(conn):
-    receipts=ui.df(conn,"""SELECT r.receipt_id AS "الوصل",s.full_name AS "الطفل",
+    receipts=ui.df(conn,"""SELECT r.student_id, r.receipt_id AS "الوصل",s.full_name AS "الطفل",
        r.amount AS "المبلغ",r.received_on AS "التاريخ",
        r.payer AS "الدافع",r.state AS "الحالة"
        FROM monthly_receipts r JOIN students s ON s.student_id=r.student_id
@@ -134,13 +134,23 @@ def render_receipts(conn):
         return
     display=receipts.copy()
     display["الحالة"]=display["الحالة"].replace({"active":"ساري","cancelled":"ملغى"})
-    ui.dataframe(display,hide_index=True,use_container_width=True)
+    ui.dataframe(display.drop(columns=["student_id"]),hide_index=True,use_container_width=True)
     choices=[(int(r["الوصل"]),str(r["الطفل"])) for _,r in receipts.iterrows()]
     chosen=st.selectbox("اختر الوصل",choices,index=None,
                         format_func=lambda x:f"وصل #{x[0]} — {x[1]}")
     if not chosen:
         return
     row=receipts[receipts["الوصل"]==chosen[0]].iloc[0]
+    if st.button("🖨️ عرض / طباعة الوصل"):
+        import receipt
+        status=F.projection(conn,row["student_id"],materialize=True)
+        receipt.render_receipt(
+            receipt_id=chosen[0],date=str(row["التاريخ"]),student_name=row["الطفل"],
+            payer=row["الدافع"],amount=f"{int(row['المبلغ']):,}",
+            reason="رسوم الروضة الشهرية" if row["الحالة"]=="active" else "وصل ملغى",
+            remaining=f"{status['due_now']:,}",
+            currency=F.CURRENCY,remaining_label="المتبقي المستحق الآن",
+        )
     if row["الحالة"]!="active":
         st.warning("وصل ملغى؛ محفوظ في سجل المراجعة ولا يضاف إلى المقبوضات.")
         return
