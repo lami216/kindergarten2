@@ -265,6 +265,34 @@ def migrate(conn):
                       table+"_teacher_retained_fk FOREIGN KEY ("+column+") REFERENCES "+
                       target+" ON DELETE RESTRICT")
         c.execute("INSERT INTO finance_schema_versions(version) VALUES(5) ON CONFLICT DO NOTHING")
+        # Version 6: debt waivers are ledger adjustments, not payments.
+        # No historical identity/obligation is dropped on archiving.
+        c.execute("""
+            ALTER TABLE students ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ;
+            ALTER TABLE students ADD COLUMN IF NOT EXISTS archived_by TEXT;
+            ALTER TABLE monthly_accounts ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ;
+            ALTER TABLE monthly_accounts ADD COLUMN IF NOT EXISTS departure_on DATE;
+            ALTER TABLE monthly_accounts ADD COLUMN IF NOT EXISTS archived_by TEXT;
+            CREATE TABLE IF NOT EXISTS monthly_waivers (
+                waiver_id BIGSERIAL PRIMARY KEY,
+                student_id VARCHAR(20) NOT NULL REFERENCES monthly_accounts(student_id)
+                    ON DELETE RESTRICT,
+                fee_id BIGINT REFERENCES monthly_fees(fee_id) ON DELETE RESTRICT,
+                period_id BIGINT REFERENCES monthly_periods(period_id) ON DELETE RESTRICT,
+                amount BIGINT NOT NULL CHECK(amount>0 AND amount<=1000000000),
+                effective_on DATE NOT NULL,
+                request_token UUID NOT NULL UNIQUE,
+                request_hash VARCHAR(64) NOT NULL,
+                actor TEXT NOT NULL,
+                reason TEXT NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                before_state JSONB NOT NULL, after_state JSONB NOT NULL,
+                CHECK ((fee_id IS NULL) <> (period_id IS NULL))
+            );
+            CREATE INDEX IF NOT EXISTS monthly_waiver_fee_idx ON monthly_waivers(fee_id);
+            CREATE INDEX IF NOT EXISTS monthly_waiver_period_idx ON monthly_waivers(period_id);
+        """)
+        c.execute("INSERT INTO finance_schema_versions(version) VALUES(6) ON CONFLICT DO NOTHING")
     if not conn.autocommit:
         conn.commit()
 
