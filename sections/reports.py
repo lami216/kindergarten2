@@ -264,6 +264,7 @@ def render(conn):
         "اختر نوع التقرير",
         [
             "📑 تقرير الإدارة العليا الشامل (التحليلي والمالي)",
+            "📅 تقرير الحسابات الشهرية (أوقية قديمة)",
             "🏫 كشف الطلاب حسب الصف (للحضور والغياب)",
             "💵 سجل المقبوضات المالية",
             "👨‍👩‍👧‍👦 قائمة الطلاب وأولياء الأمور",
@@ -291,6 +292,11 @@ def render(conn):
         FROM classes c
         ORDER BY c.class_type, c.section
     """)
+
+    if report_type == "📅 تقرير الحسابات الشهرية (أوقية قديمة)":
+        from sections.monthly_payments import render_report
+        render_report(conn)
+        return
 
     # --------------------------------------------------------------------------
     # 0. EXECUTIVE MANAGEMENT COMPREHENSIVE REPORT
