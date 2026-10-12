@@ -41,7 +41,7 @@ def render(conn):
         with st.form(f"disburse_salary_form_v{salary_version}"):
             col1, col2, col3 = st.columns(3)
             salary_month = col1.text_input("عن شهر (YYYY-MM) *", value=current_month, key=f"salary_month_v{salary_version}")
-            base_salary = col2.number_input("الراتب الأساسي (أوقية قديمة)", min_value=0.0, value=default_salary, step=50.0, key=f"salary_base_v{salary_version}")
+            base_salary = col2.number_input("الراتب الأساسي (أوقية قديمة)", min_value=0.0, value=default_salary, step=50.0, key=f"salary_base_v{salary_version}_{t_id or 'none'}")
             bonus = col3.number_input("مكافأة / إضافي (أوقية قديمة)", min_value=0.0, value=0.0, step=50.0, key=f"salary_bonus_v{salary_version}")
 
             col4, col5 = st.columns(2)
