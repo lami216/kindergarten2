@@ -10,6 +10,7 @@ import re
 import uuid
 from datetime import date
 from pathlib import Path
+from urllib.parse import urlparse
 from unittest.mock import patch
 
 import psycopg2
@@ -25,7 +26,12 @@ WIDTHS=(360,390,430,768,1280)
 
 
 def connection():
-    return psycopg2.connect(os.environ["TEST_POSTGRES_DSN"],cursor_factory=RealDictCursor)
+    dsn=os.environ["TEST_POSTGRES_DSN"]
+    parsed=urlparse(dsn)
+    if parsed.hostname not in ("localhost","127.0.0.1","::1") or (
+            parsed.path!="/kindergarten_test"):
+        raise RuntimeError("Browser QA refuses all databases except local kindergarten_test")
+    return psycopg2.connect(dsn,cursor_factory=RealDictCursor)
 
 
 def read(sql,params=()):
