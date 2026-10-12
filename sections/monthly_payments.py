@@ -18,8 +18,42 @@ def actor():
 def financial_panel(conn, student, *, payment=True):
     result=F.projection(conn,student)
     if not result:
-        st.caption("سجل سابق: هذا الطفل ليس ضمن الحسابات الشهرية الجديدة.")
+        info=F.account_setup_suggestion(conn,student)
+        with st.expander("تهيئة الحساب الشهري لهذا الطفل",expanded=True):
+            st.caption("هذه تهيئة لحساب طفل موجود دون وصل نقدي أو دين سنوي جديد. "
+                       "راجع تاريخ التسجيل وقم بتصحيحه إن لزم.")
+            if info["legacy_funded"]:
+                st.error("لهذا الطفل وصولات مالية تاريخية. لا يجوز افتراض عملتها أو "
+                         "تهيئة حساب جديد قبل المراجعة المالية.")
+                return
+            suggested=info["registered_on"] or info["created_on"] or F.today()
+            label=("تاريخ تسجيل معروف" if info["registered_on"] else
+                   "تاريخ إنشاء ملف الطفل؛ تاريخ مقترح قابل للتعديل")
+            st.caption(label)
+            with st.form(f"monthly_existing_setup_{student}"):
+                anchor=st.date_input("بداية حساب الطفل",value=suggested,
+                                     min_value=date(1990,1,1),max_value=F.today(),
+                                     key=f"existing_month_start_{student}")
+                kind=st.radio("حالة الرسوم",["عادي","معفي"],horizontal=True,
+                              key=f"existing_month_mode_{student}")
+                agree=st.checkbox("أؤكد التاريخ والحالة، ولا توجد دفعات سابقة غير مسجلة",
+                                  key=f"existing_month_confirm_{student}")
+                submit=st.form_submit_button("تأكيد تهيئة حساب الطفل",type="primary")
+            if submit:
+                try:
+                    F.initialize_existing_account(student,anchor,
+                      "exempt" if kind=="معفي" else "regular",agree,actor=actor())
+                    st.session_state[f"existing_month_saved_{student}"]=(
+                        "تم تهيئة الحساب دون إنشاء أي إيصال نقدي.")
+                    st.rerun()
+                except ValueError as error:
+                    st.error(str(error))
+                except Exception:
+                    st.error("تعذرت التهيئة؛ لم تُغيّر بيانات الطفل.")
         return
+    success=st.session_state.pop(f"existing_month_saved_{student}",None)
+    if success:
+        st.success(success)
     with st.expander("💵 الرسوم والدفعات الشهرية", expanded=True):
         if result["exempt"]:
             st.write("التسجيل: **معفي** · الجيليه: **معفي** · الشهرية: **معفي**")
@@ -93,12 +127,12 @@ def financial_panel(conn, student, *, payment=True):
 
 
 def render_accounts(conn):
-    st.caption("حساب الطفل الشهري مستقل عن التسجيل الدراسي القديم. المدفوع بالأوقية القديمة.")
-    children=ui.df(conn,"""SELECT a.student_id,s.full_name,a.status
-                   FROM monthly_accounts a JOIN students s ON s.student_id=a.student_id
-                   ORDER BY s.full_name,a.student_id""")
+    st.caption("الدفعات والأرصدة بالأوقية القديمة، ويمكن تهيئة الحساب للأطفال الموجودين.")
+    children=ui.df(conn,"""SELECT s.student_id,s.full_name,a.status
+                   FROM students s LEFT JOIN monthly_accounts a ON a.student_id=s.student_id
+                   ORDER BY s.full_name,s.student_id""")
     if children.empty:
-        ui.empty_state("لا توجد حسابات شهرية بعد. أضف طفلاً من صفحة الطلاب.")
+        ui.empty_state("لا يوجد أطفال بعد. أضف طفلاً من صفحة الطلاب.")
         return
     choices=[(r["student_id"],r["full_name"]) for _,r in children.iterrows()]
     chosen=st.selectbox("اختر الطفل",choices,format_func=lambda x:x[1],
@@ -186,34 +220,38 @@ def render_receipts(conn):
 
 
 def render_report(conn):
-    st.markdown("##### المقبوضات الشهرية والتسجيل والجيليه")
-    col1,col2=st.columns(2)
-    today=F.today()
-    start=col1.date_input("من تاريخ",value=date(today.year,today.month,1),
-                          key="monthly_report_start")
-    end=col2.date_input("إلى تاريخ",value=today,key="monthly_report_end")
+    """Date-bounded cash view shared by finance, dashboard and reports."""
+    st.markdown("##### حركة المقبوضات والمصروفات بالأوقية القديمة")
+    a,b=st.columns(2)
+    current=F.today()
+    start=a.date_input("من تاريخ",value=date(current.year,current.month,1),
+                       key="monthly_report_start")
+    end=b.date_input("إلى تاريخ",value=current,key="monthly_report_end")
     if start>end:
         st.error("تاريخ البداية بعد تاريخ النهاية.")
         return
     try:
         report=F.financial_report(conn,start,end)
-        st.caption("كل المبالغ الجديدة بالأوقية القديمة. المقبوضات السنوية القديمة "
-                   "تُعرض منفصلة بعملتها الأصلية ولا تُجمع مع الأوقية.")
         a,b,c=st.columns(3)
         a.metric("أطفال سددوا التسجيل",report["registration_children"])
-        b.metric("مشتريات جيليه مدفوعة",report["gilet_count"])
-        c.metric("الرسوم المستحقة الآن",fmt(report["due_now"]))
+        b.metric("جيليه مدفوعة",report["gilet_count"])
+        c.metric("الباقي على الطلاب",fmt(report["due_now"]))
+        a,b,c=st.columns(3)
+        a.metric("إجمالي المقبوضات",fmt(report["total_cash"]))
+        b.metric("إجمالي المصروفات",fmt(report["expenses"]))
+        c.metric("الباقي من المداخيل",fmt(report["remaining_cash"]))
         rows=[
-          {"البند":"رسوم التسجيل المقبوضة","المبلغ":fmt(report["registration_cash"])},
-          {"البند":"الجيليه المقبوض","المبلغ":fmt(report["gilet_cash"])},
-          {"البند":"الأشهر المقبوضة","المبلغ":fmt(report["monthly_cash"])},
-          {"البند":"منها مبالغ أشهر مقدمة (للتوضيح، لا تجمع مرة أخرى)","المبلغ":fmt(report["prepaid_cash"])},
-          {"البند":"مجموع المقبوضات الجديدة","المبلغ":fmt(report["new_cash"])},
+            {"البند":"قبض رسوم التسجيل","القيمة":fmt(report["registration_cash"])},
+            {"البند":"قبض الجيليه","القيمة":fmt(report["gilet_cash"])},
+            {"البند":"قبض الأقساط الشهرية","القيمة":fmt(report["monthly_cash"])},
+            {"البند":"منها أشهر مدفوعة مقدماً (ضمن القبض الشهري)","القيمة":fmt(report["prepaid_cash"])},
+            {"البند":"المصروفات التشغيلية النقدية","القيمة":fmt(report["operational_cash"])},
+            {"البند":"صافي الرواتب المدفوعة نقداً","القيمة":fmt(report["salary_cash"])},
+            {"البند":"السلف المدفوعة نقداً","القيمة":fmt(report["advance_cash"])},
         ]
-        ui.dataframe(__import__("pandas").DataFrame(rows),hide_index=True,use_container_width=True)
-        st.write(f"قبض تاريخي بعملة السجلات القديمة: **{report['historical_cash']}**"
-                 " (ليس جزءاً من مجموع الأوقية)")
-        st.write(f"مصروفات النظام القديم بعملته المسجلة: **{report['expenses']}**")
-        st.caption("لا يجوز طرح المصروفات التاريخية من الأوقية دون توحيد عملة موثّق.")
+        ui.dataframe(__import__("pandas").DataFrame(rows),
+                     hide_index=True,use_container_width=True)
+        st.caption("الباقي على الطلاب هو استحقاق مستقل ولا يُخصم من المقبوضات. "
+                   "السلف المصروفة تُحسب مرة عند صرفها، والخصم من الراتب ليس صرفاً جديداً.")
     except Exception:
-        st.error("تعذّر حساب التقرير المالي.")
+        st.error("تعذّر حساب حركة المالية.")
