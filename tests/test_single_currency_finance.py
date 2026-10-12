@@ -101,11 +101,11 @@ class SingleCurrencyCashTests(unittest.TestCase):
         self.assertEqual(first["registration_cash"]-baseline["registration_cash"],1000)
         self.assertEqual(first["monthly_cash"]-baseline["monthly_cash"],500)
         self.assertEqual(first["registration_children"]-baseline["registration_children"],1)
-        F.take_payment(sid,2500,as_of=self.tomorrow,actor="fixture")
+        F.take_payment(sid,3500,as_of=self.tomorrow,actor="fixture")
         day1=self.report(self.day,self.day)
         day2=self.report(self.tomorrow,self.tomorrow)
         self.assertEqual(day1["total_cash"]-baseline["total_cash"],1500)
-        self.assertGreaterEqual(day2["total_cash"],2500)
+        self.assertGreaterEqual(day2["total_cash"],3500)
         self.assertEqual(F.projection(self.admin,sid,self.tomorrow)["periods"][0]["paid"],3000)
         self.assertEqual(F.projection(self.admin,sid,self.tomorrow)["periods"][1]["paid"],1000)
 
