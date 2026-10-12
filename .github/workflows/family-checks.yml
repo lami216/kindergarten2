@@ -36,9 +36,7 @@ jobs:
           pip install pytest playwright
       - name: Python syntax
         run: python -m compileall -q app.py db.py ui.py style.py sections tests
-      - name: Integration and UI tests
-        run: python -m pytest -q tests/
-      - name: Full PostgreSQL suite with conflicting process and DB timezones
+      - name: Full PostgreSQL integration and UI tests across conflicting timezones
         env:
           TZ: Pacific/Honolulu
           PGOPTIONS: -c timezone=Europe/Berlin
