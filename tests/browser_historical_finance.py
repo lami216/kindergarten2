@@ -95,11 +95,14 @@ async def test_browser():
         r=query("SELECT amount,receipt_state FROM payments WHERE receipt_number=%s",(rid,))[0]
         assert r["amount"]==Decimal("90.25") and r["receipt_state"]=="active",r
 
+        # A corrected receipt must remain selected across the label change.
+        await expect(summary).to_be_visible(timeout=15000)
         if await native.get_attribute("open") is None:
             await summary.click()
         await expect(native).to_have_attribute("open", "")
         await page.get_by_role("textbox",name="سبب التصحيح أو الإلغاء *").fill("إلغاء اختبار")
         await page.get_by_role("button",name="إلغاء الوصل مع الاحتفاظ بالسجل").click()
+        await expect(page.get_by_text("أُلغي الوصل؛", exact=False)).to_be_visible(timeout=15000)
         r=query("SELECT amount,receipt_state,cancel_reason FROM payments WHERE receipt_number=%s",(rid,))[0]
         assert r["amount"]==Decimal("90.25") and r["receipt_state"]=="cancelled",r
         await page.screenshot(path=str(OUT/"legacy_receipt_cancelled_390.png"),
