@@ -126,6 +126,36 @@ async def run():
                     await expect(toggle).to_be_checked() if night else await expect(toggle).not_to_be_checked()
                 await view.screenshot(path=str(OUT/f"monthly_students_{width}_{'night' if night else 'day'}.png"),
                                        full_page=True,animations="disabled")
+                # Inspect the computed color of the actual visible descendant,
+                # not the color of a wrapper with an overridden child style.
+                for choice in ("دفع","معفي"):
+                    await view.get_by_text(choice,exact=True).first.click()
+                    for label in ("دفع","معفي"):
+                        visible=view.get_by_text(label,exact=True).first
+                        details=await visible.evaluate("""el => {
+                            const b=el.closest('button');
+                            if (!b) return null;
+                            const child=b.querySelector('p') || el;
+                            return {
+                                text:getComputedStyle(child).color,
+                                background:getComputedStyle(b).backgroundColor,
+                                selected:b.getAttribute('aria-pressed'),
+                                disabled:b.disabled
+                            };
+                        }""")
+                        assert details and not details["disabled"],(width,night,choice,label,details)
+                        def lum(css):
+                            channels=[int(float(v)) for v in re.findall(r"[0-9.]+",css)[:3]]
+                            assert len(channels)==3,(width,night,css)
+                            def linear(x):
+                                x/=255
+                                return x/12.92 if x<=0.04045 else ((x+0.055)/1.055)**2.4
+                            return sum(w*linear(x) for w,x in zip((0.2126,0.7152,0.0722),channels))
+                        t,b=sorted((lum(details["text"]),lum(details["background"])))
+                        ratio=(b+0.05)/(t+0.05)
+                        assert ratio>=4.5,("actual fee descendant text contrast",width,night,choice,label,details,ratio)
+                    await view.screenshot(path=str(OUT/f"monthly_fee_{choice}_{width}_{'night' if night else 'day'}.png"),
+                                          full_page=True,animations="disabled")
                 horizontal=await view.evaluate("document.documentElement.scrollWidth > innerWidth + 3")
                 assert not horizontal, f"Horizontal overflow at {width}"
                 await context2.close()
