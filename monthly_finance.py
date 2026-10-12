@@ -303,6 +303,57 @@ def migrate(conn):
             );
         """)
         c.execute("INSERT INTO finance_schema_versions(version) VALUES(6) ON CONFLICT DO NOTHING")
+        # Version 7: a clerical correction NEVER manufactures cash today.
+        # True additional settlement must explicitly create its own event.
+        c.execute("""
+            ALTER TABLE expense_cash_events
+                DROP CONSTRAINT IF EXISTS expense_cash_events_source_check;
+            ALTER TABLE expense_cash_events ADD CONSTRAINT expense_cash_events_source_check
+                CHECK(source IN ('opening','insert','adjustment','settlement'));
+            CREATE TABLE IF NOT EXISTS expense_cash_amendments (
+                amendment_id BIGSERIAL PRIMARY KEY,
+                event_id BIGINT NOT NULL REFERENCES expense_cash_events(event_id)
+                    ON DELETE RESTRICT,
+                expense_id INTEGER NOT NULL REFERENCES expenses(expense_id)
+                    ON DELETE RESTRICT,
+                delta NUMERIC(12,2) NOT NULL CHECK(delta<>0),
+                actor TEXT NOT NULL, reason TEXT NOT NULL,
+                corrected_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+            CREATE TABLE IF NOT EXISTS expense_audit (
+                audit_id BIGSERIAL PRIMARY KEY,
+                expense_id INTEGER NOT NULL REFERENCES expenses(expense_id)
+                    ON DELETE RESTRICT,
+                action TEXT NOT NULL, actor TEXT NOT NULL, reason TEXT NOT NULL,
+                occurred_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                before_state JSONB NOT NULL, after_state JSONB NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS expense_request_log (
+                request_token UUID PRIMARY KEY,
+                expense_id INTEGER NOT NULL REFERENCES expenses(expense_id)
+                    ON DELETE RESTRICT,
+                request_hash VARCHAR(64) NOT NULL,
+                action TEXT NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+            CREATE OR REPLACE FUNCTION record_expense_cash_event()
+            RETURNS trigger LANGUAGE plpgsql AS $cash_event$
+            BEGIN
+                IF TG_OP='INSERT' AND COALESCE(NEW.amount_paid,0)>0 THEN
+                    INSERT INTO expense_cash_events(expense_id,event_date,amount,source)
+                    VALUES(NEW.expense_id,NEW.expense_date,NEW.amount_paid,'insert');
+                END IF;
+                RETURN NEW;
+            END $cash_event$;
+            DROP TRIGGER IF EXISTS expense_cash_projection_write ON expenses;
+            CREATE TRIGGER expense_cash_projection_write
+                AFTER INSERT ON expenses
+                FOR EACH ROW EXECUTE FUNCTION record_expense_cash_event();
+            ALTER TABLE expenses DROP CONSTRAINT IF EXISTS expense_valid_amount_paid;
+            ALTER TABLE expenses ADD CONSTRAINT expense_valid_amount_paid
+                CHECK(amount>0 AND amount_paid>=0 AND amount_paid<=amount);
+        """)
+        c.execute("INSERT INTO finance_schema_versions(version) VALUES(7) ON CONFLICT DO NOTHING")
     if not conn.autocommit:
         conn.commit()
 
@@ -844,7 +895,9 @@ def financial_report(conn, start, end):
         ) fully WHERE fully.completed_on BETWEEN %s AND %s GROUP BY fully.kind""",
                   (end,start,end))
         counts={r["kind"]:int(r["n"]) for r in c.fetchall()}
-        c.execute("""SELECT COALESCE(SUM(x.amount),0) AS n
+        c.execute("""SELECT COALESCE(SUM(x.amount+
+                 COALESCE((SELECT SUM(am.delta) FROM expense_cash_amendments am
+                           WHERE am.event_id=x.event_id),0)),0) AS n
             FROM expense_cash_events x JOIN expenses e ON e.expense_id=x.expense_id
             WHERE x.event_date BETWEEN %s AND %s
               AND e.teacher_payment_id IS NULL AND e.teacher_advance_id IS NULL""",(start,end))
