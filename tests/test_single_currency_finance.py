@@ -149,8 +149,10 @@ class SingleCurrencyCashTests(unittest.TestCase):
             exp=c.fetchone()["expense_id"]
         self.assertEqual(self.report(day,day)["operational_cash"]-
                          before["operational_cash"],500)
-        with self.admin.cursor() as c:
-            c.execute("UPDATE expenses SET amount_paid=1500 WHERE expense_id=%s",(exp,))
+        # A later real settlement requires its own dated event, not UPDATE.
+        import expense_finance as E
+        E.settle(exp,1000,actor="fixture",reason="دفع نقدي إضافي",
+                 on_date=F.today(),token=str(uuid.uuid4()))
         self.assertEqual(self.report(day,day)["operational_cash"]-
                          before["operational_cash"],500)
         today_report=self.report(F.today(),F.today())
