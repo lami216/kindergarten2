@@ -66,12 +66,12 @@ def financial_panel(conn, student, *, payment=True):
         def item_state(fee):
             if fee is None:
                 return "**غير مطلوبة**"
-            if fee["waived"]:
+            if fee.get("waived",0):
                 return ("**ألغي الدين**" if not fee["paid"] else
                     "**مدفوع جزئياً والباقي ملغى**")
             if fee["paid"] >= fee["price"]:
                 return "**مدفوع بالكامل**"
-            return "**باقي** " + fmt(max(0,fee["price"]-fee["paid"]-fee["waived"]))
+            return "**باقي** " + fmt(max(0,fee["price"]-fee["paid"]-fee.get("waived",0)))
         st.write("التسجيل: " + item_state(registration))
         st.write("الجيليه: " + item_state(garment))
         st.write(f"الشهور المدفوعة بالكامل: **{result['paid_periods']}**"
@@ -85,9 +85,9 @@ def financial_panel(conn, student, *, payment=True):
         st.caption(f"أول شهر غير مكتمل أو موعد الدفعة القادمة: {result['next_unpaid']}")
         today=F.today()
         rows=[{"الفترة":f"{period['start']} إلى {period['end']-timedelta(days=1)}",
-               "المطلوب":fmt(period["price"]),"المدفوع":fmt(period["paid"]),"الملغى":fmt(period["waived"]),
-               "الحالة":("ألغي الدين" if period["waived"] and not period["paid"]
-                        else "مدفوع جزئياً والباقي ملغى" if period["waived"]
+               "المطلوب":fmt(period["price"]),"المدفوع":fmt(period["paid"]),"الملغى":fmt(period.get("waived",0)),
+               "الحالة":("ألغي الدين" if period.get("waived",0) and not period["paid"]
+                        else "مدفوع جزئياً والباقي ملغى" if period.get("waived",0)
                         else "مدفوع مقدماً" if period["paid"]==period["price"] and period["start"]>today
                         else "مدفوع" if period["paid"]==period["price"]
                         else "دفعة مقدمة جزئية" if period["start"]>today and period["paid"]
