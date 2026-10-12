@@ -1,14 +1,21 @@
 """Simple operator-facing month-based finance panels; one projection for every view."""
 import uuid
 from datetime import date, timedelta
+from decimal import Decimal
 
 import streamlit as st
 import ui
 import monthly_finance as F
 
 
+def money_number(value):
+    """Keep actual fractional cash; never silently truncate payroll/expenses."""
+    exact=Decimal(str(value))
+    return f"{exact:,.0f}" if exact == exact.to_integral_value() else f"{exact:,.2f}"
+
+
 def fmt(value):
-    return f"{int(value):,} {F.CURRENCY}"
+    return f"{money_number(value)} {F.CURRENCY}"
 
 
 def actor():
@@ -251,6 +258,7 @@ def render_receipts(conn):
 def render_report(conn):
     """Date-bounded cash view shared by finance, dashboard and reports."""
     st.markdown("##### حركة المقبوضات والمصروفات بالأوقية القديمة")
+    st.caption("جميع الأرقام في هذه الصفحة بالأوقية القديمة؛ القيم النقدية تظهر دون اقتطاع كسور فعلية.")
     a,b=st.columns(2)
     current=F.today()
     start=a.date_input("من تاريخ",value=date(current.year,current.month,1),
@@ -264,11 +272,11 @@ def render_report(conn):
         a,b,c=st.columns(3)
         a.metric("أطفال سددوا التسجيل",report["registration_children"])
         b.metric("جيليه مدفوعة",report["gilet_count"])
-        c.metric("الباقي على الطلاب",fmt(report["due_now"]))
+        c.metric("الباقي على الطلاب",money_number(report["due_now"]))
         a,b,c=st.columns(3)
-        a.metric("إجمالي المقبوضات",fmt(report["total_cash"]))
-        b.metric("إجمالي المصروفات",fmt(report["expenses"]))
-        c.metric("الباقي من المداخيل",fmt(report["remaining_cash"]))
+        a.metric("إجمالي المقبوضات",money_number(report["total_cash"]))
+        b.metric("إجمالي المصروفات",money_number(report["expenses"]))
+        c.metric("الباقي من المداخيل",money_number(report["remaining_cash"]))
         rows=[
             {"البند":"قبض رسوم التسجيل","القيمة":fmt(report["registration_cash"])},
             {"البند":"قبض الجيليه","القيمة":fmt(report["gilet_cash"])},
