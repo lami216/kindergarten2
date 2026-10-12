@@ -278,7 +278,7 @@ def _fund_months(c, receipt, account, money, *, as_of=None):
 
 def _issue(c, account, cash, payer, actor, token, fingerprint,
            selected_registration=False, selected_gilet=False,
-           *, as_of=None, corrects_id=None):
+           *, as_of=None, schedule_as_of=None, corrects_id=None):
     amount(cash)
     c.execute("SELECT receipt_id,request_hash,state FROM monthly_receipts WHERE request_token=%s",
               (str(token),))
@@ -298,7 +298,7 @@ def _issue(c, account, cash, payer, actor, token, fingerprint,
         remain = _fund_fee(c,receipt,account["student_id"],"registration",remain)
     if selected_gilet:
         remain = _fund_fee(c,receipt,account["student_id"],"gilet",remain)
-    _fund_months(c,receipt,account,remain,as_of=day)
+    _fund_months(c,receipt,account,remain,as_of=schedule_as_of or day)
     c.execute("SELECT COALESCE(SUM(amount),0) AS total FROM monthly_allocations WHERE receipt_id=%s AND active",
               (receipt,))
     if int(c.fetchone()["total"]) != cash:
@@ -361,7 +361,7 @@ def initialize_in_transaction(c, student, options, actor, token):
     receipt,_=_issue(c,account,cash,options.get("payer","ولي الأمر"),actor,
          uuid.uuid5(uuid.UUID(str(token)),"initial"),_hash(options),
          selected_registration=bool(options.get("registration")),
-         selected_gilet=buy_gilet,as_of=anchor)
+         selected_gilet=buy_gilet,as_of=today(),schedule_as_of=anchor)
     return receipt
 
 
