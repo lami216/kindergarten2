@@ -435,6 +435,9 @@ def render(conn):
                 if st.session_state.get("student_pending_debt")==sid:
                     remaining=D.waiver_preview(conn,sid)
                     due=int(remaining["due_now"]) if remaining else 0
+                    completed_waiver=st.session_state.get(f"student_waiver_success_{sid}")
+                    if completed_waiver and not due:
+                        st.success(f"أُلغي دين {completed_waiver:,} دون إنشاء قبض. يمكن الآن أرشفة الطالب.")
                     if due:
                         st.error(f"لا يمكن حذف الطالب؛ عليه مبلغ {due:,} أوقية قديمة.")
                         st.caption("القرار بيد المديرة: قبض فعلي أو إلغاء دين موثّق. لا يصدر وصل عند إلغاء الدين.")
@@ -484,7 +487,7 @@ def render(conn):
                                         actor=st.session_state.get("auth_user","مديرة الروضة"),
                                         token=st.session_state[key])
                                     st.session_state[key]=str(uuid.uuid4())
-                                    st.success(f"أُلغي دين {written:,} دون إنشاء قبض. يمكن الآن أرشفة الطالب.")
+                                    st.session_state[f"student_waiver_success_{sid}"]=written
                                     st.rerun()
                                 except ValueError as error:
                                     st.error(str(error))
