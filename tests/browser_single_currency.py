@@ -104,8 +104,12 @@ async def select_account(page,name):
         print("MISSING_ACCOUNT_PICKER_TEXT:",
               (await page.locator(".stApp").inner_text())[-1700:],flush=True)
         raise AssertionError("Accounts selectbox not rendered after selecting finance tab")
-    await select.get_by_role("combobox").first.click()
-    await page.get_by_role("option",name=name,exact=True).click()
+    combo=select.get_by_role("combobox").first
+    await combo.click()
+    await combo.fill(name)
+    # BaseWeb's virtualized search options aren't necessarily exposed with
+    # role=option at all widths, but their visible label is stable.
+    await page.get_by_text(name,exact=True).last.click(timeout=15000)
     await expect(page.get_by_text("💵 الرسوم والدفعات الشهرية",exact=False)).to_be_visible()
 
 
@@ -227,8 +231,10 @@ async def run():
 
         # Child without account: explicit date/status/confirmation and no cash.
         await page.get_by_role("tab",name=re.compile("حسابات الأطفال")).click()
-        await page.locator(".st-key-monthly_finance_child").get_by_role("combobox").first.click()
-        await page.get_by_role("option",name=unfunded_name,exact=True).click()
+        combo=page.locator(".st-key-monthly_finance_child").get_by_role("combobox").first
+        await combo.click()
+        await combo.fill(unfunded_name)
+        await page.get_by_text(unfunded_name,exact=True).last.click()
         await expect(page.get_by_text("تهيئة الحساب الشهري لهذا الطفل")).to_be_visible()
         await capture(page,page.get_by_text("تهيئة الحساب الشهري لهذا الطفل"),
                       "finance_legacy_setup_before_390",manifest)
