@@ -67,7 +67,7 @@ async def wait_for_real_theme(page, dark, *, form=False):
         const actual=getComputedStyle(main).backgroundColor;
         const formColor=waiver && getComputedStyle(waiver).backgroundColor;
         return actual===canvas && (!requireForm || formColor===form);
-    }""",{"canvas":expected_canvas,"form":expected_form,"requireForm":form},timeout=25000)
+    }""",arg={"canvas":expected_canvas,"form":expected_form,"requireForm":form},timeout=25000)
     # A rerun can briefly expose a correct CSS state before widget hydration.
     await expect(page.locator(".st-key-night_mode [role='switch']")).to_be_visible()
     if form:
