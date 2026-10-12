@@ -136,7 +136,7 @@ def _render_historical(conn):
                    p.amount AS "المبلغ", p.payment_date AS "التاريخ",
                    p.payer_name AS "الدافع", p.payment_for AS "مقابل",
                    p.payment_for_other AS "تفاصيل أخرى", p.registration_id,
-                   p.receipt_state AS "حالة الوصل"
+                   p.receipt_state AS "حالة الوصل", p.cancel_reason AS "سبب الإلغاء"
             FROM payments p
             JOIN registrations r ON p.registration_id = r.registration_id
             JOIN students s ON r.student_id = s.student_id
@@ -151,7 +151,7 @@ def _render_historical(conn):
                 shown = shown[shown["اسم الطالب"].str.contains(search, na=False) |
                                shown["الدافع"].str.contains(search, na=False)]
             
-            display = shown.drop(columns=["registration_id", "تفاصيل أخرى"]).copy()
+            display = shown.drop(columns=["registration_id", "تفاصيل أخرى", "سبب الإلغاء"]).copy()
             display["حالة الوصل"] = display["حالة الوصل"].replace(
                 {"active": "ساري", "cancelled": "ملغى"})
             ui.dataframe(display, use_container_width=True, hide_index=True)
@@ -185,9 +185,13 @@ def _render_historical(conn):
                         student_name=row['اسم الطالب'],
                         payer=row['الدافع'],
                         amount=H.format_money(row['المبلغ']),
-                        reason=row['مقابل'],
+                        reason=("وصل ملغى — " + str(row["مقابل"])
+                                if row["حالة الوصل"] == "cancelled" else row["مقابل"]),
                         remaining=H.format_money(rem_bal),
-                        reason_other=row['تفاصيل أخرى'] or "",
+                        reason_other=((row["تفاصيل أخرى"] or "") +
+                            (" — سبب الإلغاء: " + str(row["سبب الإلغاء"] or ""))
+                            if row["حالة الوصل"] == "cancelled" else
+                            (row["تفاصيل أخرى"] or "")),
                     )
 
                 if row["حالة الوصل"] == "cancelled":
