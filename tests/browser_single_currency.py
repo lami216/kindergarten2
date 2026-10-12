@@ -101,7 +101,7 @@ async def capture(page,locator,slug,manifest):
                      "geometry":region,"metrics":metrics})
 
 
-async def select_account(page,name):
+async def select_account(page,name,*,has_account=True):
     await page.get_by_role("tab",name=re.compile("حسابات الأطفال")).click()
     select=page.locator(".st-key-monthly_finance_child")
     if await select.count()==0:
@@ -116,7 +116,10 @@ async def select_account(page,name):
     # BaseWeb's virtualized search options aren't necessarily exposed with
     # role=option at all widths, but their visible label is stable.
     await page.get_by_text(name,exact=True).last.click(timeout=15000)
-    await expect(page.get_by_text("💵 الرسوم والدفعات الشهرية",exact=False)).to_be_visible()
+    if has_account:
+        await expect(page.get_by_text("💵 الرسوم والدفعات الشهرية",exact=False)).to_be_visible()
+    else:
+        await expect(page.get_by_text("تهيئة الحساب الشهري لهذا الطفل")).to_be_visible()
 
 
 async def run():
@@ -130,6 +133,8 @@ async def run():
     unfunded_name="مالي قديم "+prefix
     sid=make_child(regular_name,{"mode":"regular","cash":12000,"registration":True,
          "gilet":True,"start_date":anchor.isoformat(),"payer":"أم فحص"})
+    first_receipt=read("SELECT receipt_id FROM monthly_receipts WHERE student_id=%s "
+                       "ORDER BY receipt_id LIMIT 1",(sid,))[0]["receipt_id"]
     # An ordinary payment fills half of the earliest unpaid period.
     with patch.object(db,"new_transaction_connection",side_effect=connection):
         F.take_payment(sid,1500,actor="chromium")
@@ -160,6 +165,11 @@ async def run():
                 await amount.press("Tab")
                 await expect(page.get_by_text(re.compile("أشهر مكتملة 3"))).to_be_visible()
                 await capture(page,amount,f"finance_choice_filled_{suffix}",manifest)
+                await amount.fill("2000")
+                await amount.press("Tab")
+                await capture(page,page.get_by_test_id("stAlertContentWarning")
+                    .get_by_text("المبلغ لا يغطي",exact=False).first,
+                    f"finance_insufficient_preview_{suffix}",manifest)
                 await page.get_by_text("معفي",exact=True).first.click()
                 await expect(page.get_by_text("يشمل الإعفاء التسجيل",exact=False)).to_be_visible()
                 await capture(page,page.get_by_text("يشمل الإعفاء التسجيل",exact=False),
@@ -170,12 +180,26 @@ async def run():
                 await select_account(page,regular_name)
                 await capture(page,page.get_by_text("أول شهر غير مكتمل أو موعد الدفعة القادمة",exact=False),
                               f"finance_account_partial_{suffix}",manifest)
+                await select_account(page,exempt_name)
+                await capture(page,page.get_by_text("الإعفاء يشمل الرسوم الثلاث",exact=False),
+                              f"finance_exempt_saved_{suffix}",manifest)
+                await select_account(page,unfunded_name,has_account=False)
+                await capture(page,page.get_by_role("button",name="تأكيد تهيئة حساب الطفل"),
+                              f"finance_existing_setup_{suffix}",manifest)
                 await page.get_by_role("tab",name=re.compile("إعدادات الرسوم")).click()
                 await capture(page,page.get_by_role("button",name="حفظ الأسعار"),
                               f"finance_tariffs_{suffix}",manifest)
                 await page.get_by_role("tab",name=re.compile("تقرير النقدية")).click()
                 await capture(page,page.get_by_text("الباقي من المداخيل",exact=False).first,
                               f"finance_cash_report_{suffix}",manifest)
+                await page.get_by_role("tab",name=re.compile("الوصولات")).click()
+                picker=page.get_by_role("combobox",name="اختر الوصل").first
+                await picker.click()
+                await picker.fill(str(first_receipt))
+                await page.get_by_text(re.compile(f"وصل #{first_receipt}")).last.click()
+                await page.get_by_text("تصحيح أو إلغاء الوصل").click()
+                await capture(page,page.get_by_role("button",name="حفظ التصحيح"),
+                              f"finance_receipt_edit_{suffix}",manifest)
                 await open_section(page,"dashboard")
                 await night_theme(page,night)
                 await capture(page,page.get_by_text("الباقي من المداخيل",exact=False).first,
