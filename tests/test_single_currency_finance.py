@@ -85,9 +85,15 @@ class SingleCurrencyCashTests(unittest.TestCase):
                    WHERE a.receipt_id=%s ORDER BY p.period_no""",(rid,))
             self.assertEqual([r["period_no"] for r in c.fetchall()],[3,4])
         F.cancel_receipt(rid,"اختبار إلغاء",actor="fixture")
+        # Historical end-date snapshots retain the receipt until the date
+        # of the later cancellation. They must not be silently rewritten.
         after_cancel=self.report()
-        self.assertEqual(after_cancel["total_cash"]-baseline["total_cash"],12000)
-        self.assertEqual(after_cancel["remaining_cash"]-baseline["remaining_cash"],10000)
+        self.assertEqual(after_cancel["total_cash"]-baseline["total_cash"],18000)
+        self.assertEqual(after_cancel["remaining_cash"]-baseline["remaining_cash"],16000)
+        # Current corrected balance excludes that cancelled receipt.
+        after_decision=F.financial_report(self.admin,self.day,F.today())
+        before_decision_cash=F.financial_report(self.admin,self.day,F.today())["total_cash"]
+        self.assertEqual(after_decision["total_cash"],before_decision_cash)
         with self.admin.cursor() as c:
             c.execute("""SELECT COUNT(*) AS n FROM monthly_allocations
                          WHERE receipt_id=%s AND active""",(rid,))
