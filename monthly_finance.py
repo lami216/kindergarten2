@@ -781,10 +781,10 @@ def financial_report(conn, start, end):
             WHERE x.event_date BETWEEN %s AND %s
               AND e.teacher_payment_id IS NULL AND e.teacher_advance_id IS NULL""",(start,end))
         operational=c.fetchone()["n"]
-        c.execute("""SELECT COALESCE(SUM(amount),0) AS n FROM teacher_payments
+        c.execute("""SELECT COALESCE(SUM(cash_amount),0) AS n FROM teacher_payments
                      WHERE payment_date BETWEEN %s AND %s""",(start,end))
         salaries=c.fetchone()["n"]
-        c.execute("""SELECT COALESCE(SUM(amount),0) AS n FROM teacher_advances
+        c.execute("""SELECT COALESCE(SUM(cash_amount),0) AS n FROM teacher_advances
                      WHERE advance_date BETWEEN %s AND %s""",(start,end))
         advances=c.fetchone()["n"]
     outstanding=sum(projection(conn,s,end,materialize=False)["due_now"] for s in students)
