@@ -96,6 +96,22 @@ def financial_panel(conn, student, *, payment=True):
         if rows:
             ui.dataframe(__import__("pandas").DataFrame(rows),hide_index=True,
                          use_container_width=True)
+        with conn.cursor() as cur:
+            cur.execute("""SELECT w.waiver_id,w.effective_on,w.amount,w.actor,w.reason,
+                    COALESCE(f.kind, 'month ' || p.period_no::text) AS item
+                    FROM monthly_waivers w
+                    LEFT JOIN monthly_fees f ON f.fee_id=w.fee_id
+                    LEFT JOIN monthly_periods p ON p.period_id=w.period_id
+                    WHERE w.student_id=%s ORDER BY w.waiver_id DESC""",(student,))
+            waivers=[dict(x) for x in cur.fetchall()]
+        if waivers:
+            st.markdown("##### قرارات إلغاء الدين (بدون قبض)")
+            ui.dataframe(__import__("pandas").DataFrame([
+                {"البند":r["item"],"أُلغي من الدين":fmt(r["amount"]),
+                 "تاريخ القرار":r["effective_on"],"المسؤول":r["actor"],
+                 "السبب":r["reason"]} for r in waivers
+            ]),hide_index=True,use_container_width=True)
+            st.caption("الرسوم الأصلية محفوظة؛ هذه القرارات ليست إيصالات ولا مبالغ مدفوعة.")
         receipts=result["receipts"]
         if receipts:
             st.markdown("##### 🧾 آخر الدفعات")
