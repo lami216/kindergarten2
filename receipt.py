@@ -235,10 +235,10 @@ RECEIPT_TEMPLATE = """
                     <div class="receipt-row"><span>التاريخ:</span><b>{date}</b></div>
                     <div class="receipt-row full-width"><span>اسم الطالب:</span><b>{student_name}</b></div>
                     <div class="receipt-row full-width"><span>وصلنا من السيد/ة:</span><b>{payer}</b></div>
-                    <div class="receipt-row"><span>مبلغ وقدره:</span><b>{amount} شيكل</b></div>
+                    <div class="receipt-row"><span>مبلغ وقدره:</span><b>{amount} {currency}</b></div>
                     <div class="receipt-row"><span>طريقة الدفع:</span><b>كاش 💵</b></div>
                     <div class="receipt-row full-width"><span>مقابل:</span><b>{reason}</b></div>
-                    <div class="receipt-row full-width balance"><span>المبلغ المتبقي لهذه السنة:</span><b>{remaining} شيكل</b></div>
+                    <div class="receipt-row full-width balance"><span>{remaining_label}:</span><b>{remaining} {currency}</b></div>
                 </div>
             </div>
 
@@ -276,10 +276,10 @@ RECEIPT_TEMPLATE = """
                     <div class="receipt-row"><span>التاريخ:</span><b>{date}</b></div>
                     <div class="receipt-row full-width"><span>اسم الطالب:</span><b>{student_name}</b></div>
                     <div class="receipt-row full-width"><span>وصلنا من السيد/ة:</span><b>{payer}</b></div>
-                    <div class="receipt-row"><span>مبلغ وقدره:</span><b>{amount} شيكل</b></div>
+                    <div class="receipt-row"><span>مبلغ وقدره:</span><b>{amount} {currency}</b></div>
                     <div class="receipt-row"><span>طريقة الدفع:</span><b>كاش 💵</b></div>
                     <div class="receipt-row full-width"><span>مقابل:</span><b>{reason}</b></div>
-                    <div class="receipt-row full-width balance"><span>المبلغ المتبقي لهذه السنة:</span><b>{remaining} شيكل</b></div>
+                    <div class="receipt-row full-width balance"><span>{remaining_label}:</span><b>{remaining} {currency}</b></div>
                 </div>
             </div>
 
@@ -301,7 +301,8 @@ RECEIPT_TEMPLATE = """
 """
 
 
-def render_receipt(receipt_id, date, student_name, payer, amount, reason, remaining, reason_other=""):
+def render_receipt(receipt_id, date, student_name, payer, amount, reason, remaining, reason_other="",
+                   currency="شيكل", remaining_label="المبلغ المتبقي لهذه السنة"):
     reason_full = f"{reason} ({reason_other})" if reason_other else reason
 
     logo_b64 = ui._logo_base64()
@@ -316,5 +317,7 @@ def render_receipt(receipt_id, date, student_name, payer, amount, reason, remain
         amount=amount,
         reason=reason_full,
         remaining=remaining,
+        currency=currency,
+        remaining_label=remaining_label,
     )
     components.html(html, height=1050, scrolling=True)
