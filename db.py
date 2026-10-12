@@ -256,7 +256,7 @@ def init_db():
                 year_id VARCHAR(20) REFERENCES academic_years(year_id) ON DELETE RESTRICT,
                 status VARCHAR(50) NOT NULL,
                 registration_date DATE DEFAULT CURRENT_DATE,
-                annual_tuition NUMERIC(10, 2) DEFAULT 3500.00,
+                annual_tuition NUMERIC(10, 2) DEFAULT 0.00,
                 UNIQUE(student_id, year_id)
             );
 
@@ -274,7 +274,11 @@ def init_db():
             );
 
             ALTER TABLE registrations 
-            ADD COLUMN IF NOT EXISTS annual_tuition NUMERIC(10, 2) DEFAULT 3500.00;
+            ADD COLUMN IF NOT EXISTS annual_tuition NUMERIC(10, 2) DEFAULT 0.00;
+            -- Existing historic amounts remain untouched; change only the
+            -- implicit value of future academic-year registrations.
+            ALTER TABLE registrations
+            ALTER COLUMN annual_tuition SET DEFAULT 0.00;
 
             CREATE TABLE IF NOT EXISTS payments (
                 receipt_number SERIAL PRIMARY KEY,
