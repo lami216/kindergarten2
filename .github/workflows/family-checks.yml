@@ -45,7 +45,7 @@ jobs:
         run: |
           mkdir -p .streamlit
           printf '[postgres]\nurl = "%s"\n' "$TEST_POSTGRES_DSN" > .streamlit/secrets.toml
-          git worktree add --detach /tmp/pr1-baseline b99d9acb80f30acabea5d8e535ac7f0cb3e9f0ec
+          git worktree add --detach /tmp/pr1-baseline 6fb700c279b5a0b077f50bfdc7000d7f2907f3e6
           mkdir -p /tmp/pr1-baseline/tests /tmp/pr1-baseline/.streamlit
           cp tests/qa_browser_app.py /tmp/pr1-baseline/tests/qa_browser_app.py
           cp .streamlit/secrets.toml /tmp/pr1-baseline/.streamlit/secrets.toml
