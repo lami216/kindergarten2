@@ -75,8 +75,9 @@ async def test_browser():
         combo = select.locator('input[role="combobox"]').first
         await combo.click()
         await combo.fill(f"وصل #{rid}")
-        await combo.press("ArrowDown")
-        await combo.press("Enter")
+        # A value in the searchable input is not yet a committed selection.
+        # Click the matching visible menu item, then wait for Streamlit rerun.
+        await page.get_by_text(f"وصل #{rid} —", exact=False).last.click(timeout=10000)
         await expect(combo).to_have_value(re.compile(f"وصل #{rid}"), timeout=15000)
         details=page.get_by_text(f"تصحيح أو إلغاء الوصل #{rid}",exact=False)
         await details.click()
