@@ -59,8 +59,10 @@ jobs:
             done
             if [ "$ready" != 1 ]; then cat /tmp/qa-after.log /tmp/qa-before.log; exit 1; fi
           done
-      - name: Chromium historical receipt audit and PostgreSQL readback
-        run: PYTHONPATH=. python tests/browser_historical_finance.py
+      # Historical receipt code/audit is retained and tested by pytest, but the
+      # old annual-payment operator tab is intentionally no longer reachable.
+      - name: Chromium single-currency operator and scrolled finance acceptance
+        run: PYTHONPATH=. python tests/browser_single_currency.py
       - name: Chromium regression and same-data screenshots
         run: python tests/browser_pr1.py
       - name: Actual Chromium monthly/exempt receipt PostgreSQL readback
