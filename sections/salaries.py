@@ -18,7 +18,8 @@ def render(conn):
         ui.empty_state("لا توجد معلمات مسجلات بعد. قم بإضافة معلمات أولاً من قسم «المعلمون».")
         return
 
-    tab_pay, tab_log = st.tabs(["➕ صرف راتب شهري", "📋 سجل الرواتب والإعادة"])
+    tab_pay, tab_log, tab_advance = st.tabs([
+        "➕ صرف راتب شهري", "📋 سجل الرواتب والإعادة", "💰 سلف المعلمات"])
 
     teacher_map = {f"{r.full_name} ({r.national_id})": (r.national_id, float(r.salary), r.full_name) for r in teachers_df.itertuples()}
 
@@ -34,15 +35,15 @@ def render(conn):
         with st.form("disburse_salary_form"):
             col1, col2, col3 = st.columns(3)
             salary_month = col1.text_input("عن شهر (YYYY-MM) *", value=current_month)
-            base_salary = col2.number_input("الراتب الأساسي (شيكل)", min_value=0.0, value=default_salary, step=50.0)
-            bonus = col3.number_input("مكافأة / إضافي (شيكل)", min_value=0.0, value=0.0, step=50.0)
+            base_salary = col2.number_input("الراتب الأساسي (أوقية قديمة)", min_value=0.0, value=default_salary, step=50.0)
+            bonus = col3.number_input("مكافأة / إضافي (أوقية قديمة)", min_value=0.0, value=0.0, step=50.0)
 
             col4, col5 = st.columns(2)
-            deductions = col4.number_input("خصومات (شيكل)", min_value=0.0, value=0.0, step=50.0)
+            deductions = col4.number_input("خصومات (أوقية قديمة)", min_value=0.0, value=0.0, step=50.0)
             notes = col5.text_input("ملاحظات إضافية (اختياري)")
 
             net_salary = max(0.0, base_salary + bonus - deductions)
-            st.info(f"💵 **صافي الراتب المستحق للصرف:** {H.format_money(net_salary)} شيكل")
+            st.info(f"💵 **صافي الراتب المستحق للصرف:** {H.format_money(net_salary)} أوقية قديمة")
 
             pay_submitted = st.form_submit_button("🧾 تسجيل الصرف وطباعة قسيمة الراتب", type="primary", use_container_width=True)
 
@@ -101,7 +102,7 @@ def render(conn):
 
             display_df = shown.drop(columns=['payment_id', 'national_id'])
             ui.dataframe(display_df, use_container_width=True, hide_index=True)
-            st.metric("💰 مجموع الرواتب المدفوعة المعروضة", f"{H.format_money(shown['الصافي المدفوع'].sum())} شيكل")
+            st.metric("💰 مجموع الرواتب المدفوعة المعروضة", f"{H.format_money(shown['الصافي المدفوع'].sum())} أوقية قديمة")
 
             st.markdown("---")
             st.markdown("##### ⚙️ إدارة القسيمة المحددة (إعادة طباعة / تعديل / حذف)")
@@ -109,7 +110,7 @@ def render(conn):
             sal_options = [
                 (
                     int(row['payment_id']),
-                    f"قسيمة #{int(row['payment_id'])} — {row['المعلمة']} — شهر {row['عن شهر']} — صافي: {H.format_money(row['الصافي المدفوع'])} شيكل"
+                    f"قسيمة #{int(row['payment_id'])} — {row['المعلمة']} — شهر {row['عن شهر']} — صافي: {H.format_money(row['الصافي المدفوع'])} أوقية قديمة"
                 )
                 for _, row in salary_logs.iterrows()
             ]
@@ -155,7 +156,7 @@ def render(conn):
                         e_notes = ec5.text_input("ملاحظات", value=sal_row['ملاحظات'] or "")
 
                         e_net = max(0.0, e_base + e_bonus - e_deductions)
-                        st.caption(f"💡 صافي الراتب الجديد بعد التعديل: **{H.format_money(e_net)} شيكل**")
+                        st.caption(f"💡 صافي الراتب الجديد بعد التعديل: **{H.format_money(e_net)} أوقية قديمة**")
 
                         btn1, btn2 = st.columns(2)
                         save_edit = btn1.form_submit_button("💾 حفظ التعديلات", type="primary", use_container_width=True)
@@ -188,3 +189,40 @@ def render(conn):
                             except Exception as e:
                                 conn.rollback()
                                 st.error(f"❌ حدث خطأ أثناء الحذف: {e}")
+    # An advance is a cash event when paid. Later deductions in a salary slip
+    # affect its NET salary amount; no second expense is generated for the advance.
+    with tab_advance:
+        st.caption("السلفة المصروفة تُسجل مرة عند الدفع، ولا تُحسب ثانية عند خصمها من الراتب.")
+        with st.form("teacher_cash_advance_form", clear_on_submit=True):
+            teacher=st.selectbox("المعلمة",list(teacher_map.keys()),key="teacher_advance_choice")
+            advance_month=st.text_input("تُخصم عن شهر (YYYY-MM)",
+                                       value=datetime.now().strftime("%Y-%m"))
+            advance_day=st.date_input("تاريخ صرف السلفة")
+            advance_amount=st.number_input("مبلغ السلفة (أوقية قديمة)",
+                min_value=0.0,step=1.0,format="%.2f")
+            advance_note=st.text_input("ملاحظات (اختياري)")
+            submitted=st.form_submit_button("💾 تسجيل السلفة المدفوعة",type="primary")
+        if submitted:
+            if advance_amount<=0 or not __import__("re").fullmatch(r"\d{4}-(0[1-9]|1[0-2])",advance_month):
+                st.error("أدخل مبلغاً موجباً وشهر خصم صحيحاً.")
+            else:
+                try:
+                    tid=teacher_map[teacher][0]
+                    with conn.cursor() as cur:
+                        cur.execute("""INSERT INTO teacher_advances
+                            (national_id,amount,advance_date,salary_month,notes)
+                            VALUES(%s,%s,%s,%s,%s)""",
+                            (tid,advance_amount,advance_day,advance_month,advance_note))
+                    st.success("تم حفظ السلفة كصرف نقدي مستقل.")
+                    st.rerun()
+                except Exception:
+                    conn.rollback()
+                    st.error("تعذّر تسجيل السلفة.")
+        advances=ui.df(conn,"""SELECT a.advance_id AS "رقم السلفة",
+               t.full_name AS "المعلمة",a.advance_date AS "تاريخ الصرف",
+               a.salary_month AS "شهر الخصم",a.amount AS "المبلغ",
+               a.is_deducted AS "خُصمت",a.notes AS "ملاحظات"
+            FROM teacher_advances a JOIN teachers t ON t.national_id=a.national_id
+            ORDER BY a.advance_id DESC""")
+        if not advances.empty:
+            ui.dataframe(advances,hide_index=True,use_container_width=True)
