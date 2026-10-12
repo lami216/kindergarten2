@@ -572,9 +572,9 @@ def financial_report(conn, start, end):
     # Legacy rows are denominated according to their original receipt currency
     # (the existing UI describes shekels). Never add or subtract them from MRU.
     total_cash=cash
-    outflow=int(expenses)+int(salaries)
+    outflow=expenses+salaries
     return {"registration_children":paid_regs,"registration_cash":fee_cash.get("registration",0),
             "gilet_count":paid_gilets,"gilet_cash":fee_cash.get("gilet",0),
             "monthly_cash":monthly_cash,"prepaid_cash":prepaid,"new_cash":cash,
-            "historical_cash":int(old_cash),"total_cash":total_cash,
+            "historical_cash":old_cash,"total_cash":total_cash,
             "expenses":outflow,"remaining_cash":None,"due_now":outstanding}
