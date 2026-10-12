@@ -545,6 +545,32 @@ div[data-testid="stForm"], [data-testid="stDialog"] [role="dialog"],
     background:var(--card-bg) !important; color:var(--text-main) !important;
     border:1px solid var(--card-border) !important;
 }
+/* Only pickup editor expanders, and only when night mode is active.
+   Streamlit's secondaryFormSubmit buttons are distinct from secondary buttons. */
+[data-testid="stExpander"]:has(.pickup-style-anchor) details > summary,
+[data-testid="stExpander"]:has(.pickup-style-anchor) details > summary:hover,
+[data-testid="stExpander"]:has(.pickup-style-anchor) details > summary:focus-visible {
+    background:var(--card-bg) !important;
+    color:var(--text-main) !important;
+    border-color:var(--card-border) !important;
+}
+[data-testid="stExpander"]:has(.pickup-style-anchor) details > summary
+    [data-testid="stMarkdownContainer"],
+[data-testid="stExpander"]:has(.pickup-style-anchor) details > summary
+    [data-testid="stMarkdownContainer"] p,
+[data-testid="stExpander"]:has(.pickup-style-anchor) details > summary svg {
+    color:var(--text-main) !important;
+}
+[data-testid="stExpander"]:has(.pickup-style-anchor)
+    button[kind="secondaryFormSubmit"] {
+    background:var(--card-bg) !important;
+    color:var(--text-main) !important;
+    border:1px solid var(--card-border) !important;
+}
+[data-testid="stExpander"]:has(.pickup-style-anchor)
+    button[kind="secondaryFormSubmit"] :is(p, span, svg) {
+    color:var(--text-main) !important;
+}
 [data-testid="stDialog"] p, [data-testid="stDialog"] label,
 [data-testid="stDialog"] [data-testid="stMarkdownContainer"] {
     color:var(--text-main) !important;
