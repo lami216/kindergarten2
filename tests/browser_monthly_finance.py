@@ -98,8 +98,12 @@ async def run():
         assert len(sql("SELECT receipt_id FROM monthly_receipts WHERE student_id=%s",(sid,)))==1
 
         # Exempt account: no receipt and no charge.
-        await page.reload()
-        await page.locator(".st-key-kid_name input").wait_for()
+        await context.close()
+        # A browser reload preserves Streamlit session widget generation;
+        # use a distinct operator session for the exempt-account scenario.
+        context=await browser.new_context(viewport={"width":390,"height":850})
+        page=await context.new_page()
+        await open_students(page)
         exempt_name="طفل معفى "+uuid.uuid4().hex[:8]
         await fill_family(page,exempt_name)
         await page.get_by_text("معفي",exact=True).first.click()
