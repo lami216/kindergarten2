@@ -69,8 +69,11 @@ async def test_browser():
         await page.get_by_role("tab",name="📋 سجل الدفعات والإعادة").click()
         select=page.locator(".st-key-payment_select_edit")
         await expect(select).to_be_visible(timeout=15000)
+        # The just-seeded receipt is first in descending receipt order.
+        # Streamlit's BaseWeb select sometimes has no explicit role=option.
         await select.click()
-        await page.locator('[role="option"]').filter(has_text=f"وصل #{rid}").first.click()
+        await page.keyboard.press("ArrowDown")
+        await page.keyboard.press("Enter")
         details=page.get_by_text(f"تصحيح أو إلغاء الوصل #{rid}",exact=False)
         await details.click()
         await page.get_by_role("spinbutton",name="المبلغ",exact=True).fill("90.25")
