@@ -10,6 +10,7 @@ import uuid
 from datetime import date
 from decimal import Decimal, InvalidOperation
 import db
+from monthly_finance import today as business_today
 
 
 def _cash(value):
@@ -108,14 +109,14 @@ def save_salary(national_id, month, base, bonus=0, deductions=0,
         raise ValueError("قيمة الراتب أو الخصم غير صحيحة.")
     total=_cash(base+bonus-deductions)
     return _insert("teacher_payments",str(national_id),
-        {"amount":total,"date":str(on_date or date.today()),"month":_month(month),
+        {"amount":total,"date":str(on_date or business_today()),"month":_month(month),
          "base":base,"bonus":bonus,"deductions":deductions,"notes":str(notes or "")},
         actor=actor,token=token)
 
 
 def save_advance(national_id, month, cash, notes="", *, actor, token=None,on_date=None):
     return _insert("teacher_advances",str(national_id),
-        {"amount":_cash(cash),"date":str(on_date or date.today()),"month":_month(month),
+        {"amount":_cash(cash),"date":str(on_date or business_today()),"month":_month(month),
          "notes":str(notes or "")},actor=actor,token=token)
 
 
