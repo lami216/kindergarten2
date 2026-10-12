@@ -103,6 +103,17 @@ class BusinessTimezonePG(TestCase):
                 self.assertEqual(result["local_day"],day.date())
                 self.assertEqual(result["db_day"],day.date()+timedelta(days=1))
 
+    def test_naive_student_creation_timestamp_default_uses_business_day(self):
+        # students.created_at is TIMESTAMP WITHOUT TIME ZONE. Its future
+        # default is the business wall-clock, not the Berlin session wall-clock.
+        student=self.child(self.day)
+        suggestion=F.account_setup_suggestion(self.admin,student)
+        self.assertEqual(suggestion["created_on"],self.day)
+        with self.admin.cursor() as cursor:
+            cursor.execute("SELECT created_at::date AS raw_day FROM students WHERE student_id=%s",
+                           (student,))
+            self.assertEqual(cursor.fetchone()["raw_day"],self.day)
+
     def test_cancel_4000_restores_debt_and_removes_cash_then_waiver_allows_archive(self):
         student=self.child(self.day)
         before=F.financial_report(self.admin,self.day,self.day)
