@@ -200,7 +200,7 @@ def migrate(conn):
                     delta := COALESCE(NEW.amount_paid,0)-COALESCE(OLD.amount_paid,0);
                     IF delta<>0 THEN
                         INSERT INTO expense_cash_events(expense_id,event_date,amount,source)
-                        VALUES(NEW.expense_id,CURRENT_DATE,delta,'adjustment');
+                        VALUES(NEW.expense_id,(NOW() AT TIME ZONE 'Africa/Nouakchott')::date,delta,'adjustment');
                     END IF;
                 END IF;
                 RETURN NEW;
@@ -868,7 +868,7 @@ def financial_report(conn, start, end):
     with conn.cursor() as c:
         c.execute("""SELECT COALESCE(SUM(amount),0) AS n FROM monthly_receipts
                      WHERE (state='active' OR (cancelled_at AT TIME ZONE 'Africa/Nouakchott')::date>%s)
-                     AND (corrects_id IS NULL OR created_at::date<=%s)
+                     AND (corrects_id IS NULL OR (created_at AT TIME ZONE 'Africa/Nouakchott')::date<=%s)
                      AND received_on BETWEEN %s AND %s""",(end,end,start,end))
         cash=int(c.fetchone()["n"])
         c.execute("""SELECT f.kind,COALESCE(SUM(a.amount),0) AS n
