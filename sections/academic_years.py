@@ -54,7 +54,7 @@ def render(conn):
         if years.empty:
             ui.empty_state("لا توجد سنوات دراسية بعد.")
         else:
-            st.dataframe(years.rename(columns={
+            ui.dataframe(years.rename(columns={
                 'year_id': 'السنة الدراسية', 'start_date': 'تاريخ البداية',
                 'end_date': 'تاريخ النهاية', 'cohort_name': 'اسم الفوج'
             }), use_container_width=True, hide_index=True)

@@ -109,7 +109,7 @@ def render(conn):
                 if df_exp.empty:
                     ui.empty_state("لا توجد مصروفات مسجلة حتى الآن.")
                 else:
-                    st.dataframe(df_exp, use_container_width=True, hide_index=True)
+                    ui.dataframe(df_exp, use_container_width=True, hide_index=True)
 
         # --------------------------------------------------------------
         # SUB TAB 2: Edit & Settle Debts
@@ -239,7 +239,7 @@ def render(conn):
                 if df_ast.empty:
                     ui.empty_state("لا توجد أصول أو ألعاب مسجلة حتى الآن.")
                 else:
-                    st.dataframe(df_ast, use_container_width=True, hide_index=True)
+                    ui.dataframe(df_ast, use_container_width=True, hide_index=True)
 
         # --------------------------------------------------------------
         # SUB TAB 2: Edit & Scrap Asset

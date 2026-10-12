@@ -1,173 +1,349 @@
-"""
-sections/students.py — إدارة الطلاب
-
-Add, search, edit and delete student records. Follows the same
-reliability/UX pattern as parents.py: writes are wrapped in try/except
-with conn.rollback() on failure (required under Postgres — a failed
-statement otherwise leaves the connection in an aborted-transaction
-state that breaks every query after it), record pickers use
-(id, label) tuples with format_func instead of splitting strings, and
-the edit form lives in a collapsible expander.
-"""
+"""Child + parent intake and student editing; academic enrollment remains separate."""
+from datetime import date
+import json
+import uuid
 
 import pandas as pd
 import streamlit as st
 
-import ui
+import db
 import helpers as H
+import ui
+
+
+ADD_KEYS = ("kid_name", "kid_birth", "kid_gender", "kid_place", "kid_address",
+            "kid_father_name", "kid_father_phone", "kid_mother_name",
+            "kid_mother_phone", "kid_email", "kid_health", "kid_allergy",
+            "kid_notes", "kid_use_existing", "kid_existing_family")
+
+
+def _text(value):
+    """No pandas NA/NaN/None representation may enter a text widget."""
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return "" if value.strip().lower() in ("nan", "none", "<na>") else value
+    if not isinstance(value, (list, tuple, dict)):
+        try:
+            if bool(pd.isna(value)):
+                return ""
+        except (TypeError, ValueError):
+            pass
+    return str(value)
+
+
+def _pickups_from_db(value):
+    if isinstance(value, list):
+        return [{"name": _text(v.get("name")), "phone": _text(v.get("phone"))}
+                for v in value if isinstance(v, dict)]
+    return []
+
+
+def _validate_pickups(rows):
+    """Optional structured inputs; reject half-filled rows without discarding them."""
+    clean = []
+    for item in rows:
+        name, phone = _text(item["name"]).strip(), _text(item["phone"]).strip()
+        if not name and not phone:
+            continue
+        if not name or not phone:
+            raise ValueError("يرجى إدخال اسم ورقم هاتف لكل شخص مخوّل بالاستلام.")
+        if len(name) > 100 or len(phone) > 20:
+            raise ValueError("اسم المخوّل أو رقم هاتفه أطول من المسموح.")
+        clean.append({"name": name, "phone": phone})
+    return clean
+
+
+def _form_key(base):
+    version = st.session_state.get("kid_form_version", 0)
+    return base if not version else f"{base}_v{version}"
+
+
+def _reset_after_success():
+    """Clear and rotate widgets only while building the next visible form.
+
+    Rotating form/widget identities ensures the browser cannot carry old values
+    across a successful save, even if it queues a second click while rerunning.
+    Validation or database errors never trigger this path.
+    """
+    if st.session_state.pop("kid_saved_reset", False):
+        previous = st.session_state.get("kid_form_version", 0)
+        suffix = "" if previous == 0 else f"_v{previous}"
+        for base in ADD_KEYS:
+            st.session_state.pop(base + suffix, None)
+        prefix = f"kid_add_{previous}"
+        for row_id in st.session_state.pop(prefix + "_pickup_ids", []):
+            for part in ("name", "phone"):
+                st.session_state.pop(f"{prefix}_pickup_{row_id}_{part}", None)
+        st.session_state["kid_form_version"] = previous + 1
+        st.session_state["kid_request_token"] = str(uuid.uuid4())
+
+
+def _pickup_editor(owner, initial=None):
+    """Render ordinary paired widgets and add/remove submit buttons in a form."""
+    list_key = owner + "_pickup_ids"
+    if list_key not in st.session_state:
+        row_ids = []
+        for item in initial or []:
+            row_id = uuid.uuid4().hex[:12]
+            row_ids.append(row_id)
+            st.session_state[f"{owner}_pickup_{row_id}_name"] = _text(item.get("name"))
+            st.session_state[f"{owner}_pickup_{row_id}_phone"] = _text(item.get("phone"))
+        st.session_state[list_key] = row_ids
+
+    people = []
+    with st.expander("المخولون باستلام الطفل (اختياري)"):
+        st.markdown(
+            '<span class="pickup-style-anchor" aria-hidden="true" style="display:none"></span>',
+            unsafe_allow_html=True,
+        )
+        for row_id in list(st.session_state[list_key]):
+            a, b, c = st.columns([4, 4, 2])
+            name = a.text_input("الاسم", key=f"{owner}_pickup_{row_id}_name")
+            phone = b.text_input("رقم الهاتف", key=f"{owner}_pickup_{row_id}_phone")
+            remove = c.form_submit_button("إزالة",
+                        key=f"{owner}_pickup_{row_id}_remove",
+                        use_container_width=True)
+            if remove:
+                st.session_state[list_key].remove(row_id)
+                st.rerun()
+            people.append({"name": name, "phone": phone})
+        add = st.form_submit_button("＋ إضافة شخص مخوّل",
+                  key=owner + "_pickup_add")
+        if add:
+            st.session_state[list_key].append(uuid.uuid4().hex[:12])
+            st.rerun()
+    return people
+
+
+def _parent_fields(family):
+    """Keep these widgets mounted even while a saved family is selected."""
+    a, b = st.columns(2)
+    family["father_name"] = a.text_input("اسم الأب",
+        key=_form_key("kid_father_name")).strip()
+    family["father_mobile"] = a.text_input("هاتف الأب",
+        key=_form_key("kid_father_phone")).strip()
+    family["mother_name"] = b.text_input("اسم الأم",
+        key=_form_key("kid_mother_name")).strip()
+    family["mother_mobile"] = b.text_input("هاتف الأم",
+        key=_form_key("kid_mother_phone")).strip()
+    family["contact_email"] = st.text_input("بريد التواصل (اختياري)",
+        key=_form_key("kid_email")).strip()
+
+
+def _medical_flag(old_details, old_flag, new_details, clear_legacy=False):
+    """New/removed notes update the flag; note-less legacy flags are protected."""
+    if _text(new_details).strip():
+        return 1
+    if _text(old_details).strip():
+        return 0
+    return int(bool(old_flag) and not clear_legacy)
 
 
 def render(conn):
+    _reset_after_success()
+    if "kid_form_version" not in st.session_state:
+        st.session_state["kid_form_version"] = 0
+    if "kid_request_token" not in st.session_state:
+        st.session_state["kid_request_token"] = str(uuid.uuid4())
+
     ui.section_header("🎒", "إدارة الطلاب", "إضافة وتعديل ومتابعة بيانات الأطفال")
-
     tab_add, tab_view = st.tabs(["➕ إضافة طالب جديد", "📋 عرض / تعديل / حذف"])
+    parents = ui.df(conn, """
+        SELECT father_id, father_name, mother_name, father_mobile, mother_mobile
+        FROM parents ORDER BY COALESCE(father_name, mother_name)
+    """)
+    family_choices = []
+    for _, row in parents.iterrows():
+        names = " / ".join(x for x in (_text(row["father_name"]), _text(row["mother_name"])) if x)
+        phones = " / ".join(x for x in (_text(row["father_mobile"]), _text(row["mother_mobile"])) if x)
+        family_choices.append((row["father_id"], f"{names} — {phones}"))
 
-    parents_df = ui.df(conn, "SELECT father_id, father_name, mother_name FROM parents")
-    parent_options = {
-        f"{r.father_name} ({r.father_id}) — الأم: {r.mother_name}": r.father_id
-        for r in parents_df.itertuples()
-    }
-
-    # -------------------------------------------------- TAB 1: ADD STUDENT --
     with tab_add:
-        if parents_df.empty:
-            ui.empty_state("يجب إضافة ولي أمر واحد على الأقل قبل تسجيل طالب. انتقل إلى صفحة «أولياء الأمور».")
-        else:
-            with st.form("add_student_form", clear_on_submit=True):
-                c1, c2, c3 = st.columns(3)
-                student_id = c1.text_input("رقم هوية الطالب *", key="s_id").strip()
-                full_name = c2.text_input("اسم الطالب الرباعي *", key="s_name").strip()
-                birth_date = c3.date_input("تاريخ الميلاد *", key="s_bd", min_value=pd.Timestamp("2005-01-01"))
+        if st.session_state.get("kid_last_saved"):
+            st.success(st.session_state["kid_last_saved"])
+        existing = False
+        if family_choices:
+            existing = st.checkbox("اختيار ولي أمر موجود", key=_form_key("kid_use_existing"))
+        version = st.session_state["kid_form_version"]
+        with st.form(f"add_student_form_{version}", clear_on_submit=False):
+            st.markdown("##### 🎒 بيانات الطفل")
+            a, b = st.columns(2)
+            name = a.text_input("اسم الطفل *", key=_form_key("kid_name")).strip()
+            birth = b.date_input("تاريخ الميلاد *", value=date(2022, 1, 1),
+                       min_value=date(1990, 1, 1), max_value=date.today(),
+                       key=_form_key("kid_birth"))
+            a, b = st.columns(2)
+            gender = a.selectbox("الجنس *", H.GENDERS, key=_form_key("kid_gender"))
+            place = b.text_input("مكان الميلاد (اختياري)", key=_form_key("kid_place"))
+            address = st.text_input("العنوان (اختياري)", key=_form_key("kid_address"))
+            family = dict(father_name="", father_mobile="", mother_name="",
+                          mother_mobile="", contact_email="")
+            parent_id = None
+            st.markdown("##### 👨‍👩‍👧 بيانات الأهل")
+            if existing:
+                selected = st.selectbox("ولي الأمر الموجود", family_choices,
+                    format_func=lambda option: option[1],
+                    key=_form_key("kid_existing_family"))
+                parent_id = selected[0]
+                st.caption("بيانات الأهل المشتركة تُعدّل من صفحة أولياء الأمور.")
+                # Streamlit destroys an unrendered widget's state on rerun.
+                # Keep fields mounted in a closed expander when switching modes.
+                with st.expander("بيانات أهل جديدة محفوظة (اختياري)"):
+                    _parent_fields(family)
+            else:
+                _parent_fields(family)
 
-                c4, c5, c6 = st.columns(3)
-                birth_place = c4.text_input("مكان الميلاد *", key="s_bp").strip()
-                gender = c5.selectbox("الجنس *", H.GENDERS, key="s_gender")
-                id_type = c6.selectbox("نوع الهوية *", H.STUDENT_ID_TYPES, key="s_idtype")
+            with st.expander("تفاصيل اختيارية"):
+                medical = st.text_area("ملاحظات صحية", key=_form_key("kid_health"))
+                allergy = st.text_area("الحساسية", key=_form_key("kid_allergy"))
+                notes = st.text_area("ملاحظات عامة", key=_form_key("kid_notes"))
 
-                c7, c8 = st.columns(2)
-                nat_choice = c7.selectbox("الجنسية *", H.NATIONALITIES, key="s_nat")
-                nationality = c7.text_input("حدد الجنسية", key="s_nat_other").strip() if nat_choice == "أخرى" else nat_choice
-                father = c8.selectbox("ولي الأمر *", list(parent_options.keys()), key="s_parent")
+            pickups = _pickup_editor(f"kid_add_{version}")
+            submitted = st.form_submit_button("💾 حفظ بيانات الطفل والأهل",
+                                              type="primary", use_container_width=True)
+            if submitted:
+                # Remove the preceding success notice only for a new valid attempt.
+                try:
+                    if not name:
+                        raise ValueError("يرجى كتابة اسم الطفل.")
+                    # Child validation applies in either family-selection mode.
+                    if len(name) > 100 or len(place.strip()) > 100:
+                        raise ValueError("اسم الطفل أو مكان الميلاد طويل جداً.")
+                    # Draft details of a *new* family are preserved when switching
+                    # to an existing guardian, but must not block that child save.
+                    if parent_id is None:
+                        if any(len(v) > 100 for v in (
+                                family["father_name"], family["mother_name"])):
+                            raise ValueError("أحد أسماء الأهل أطول من المسموح.")
+                        if any(len(v) > 20 for v in (
+                                family["father_mobile"], family["mother_mobile"])):
+                            raise ValueError("رقم الهاتف أطول من المسموح.")
+                        if len(family["contact_email"]) > 254 or (
+                            family["contact_email"] and ("@" not in family["contact_email"]
+                                                         or " " in family["contact_email"])):
+                            raise ValueError("يرجى كتابة بريد تواصل صحيح.")
+                    child = dict(full_name=name, birth_date=birth, gender=gender,
+                        birth_place=place, address=address, medical_details=medical,
+                        allergies=allergy, general_notes=notes,
+                        authorized_pickups=_validate_pickups(pickups))
+                    _, created = db.save_child_with_family(
+                        child, family, parent_id, st.session_state["kid_request_token"])
+                    st.session_state["kid_last_saved"] = (
+                        "✅ تم حفظ الطفل والأهل بنجاح. النموذج فارغ لإدخال طفل آخر."
+                        if created else
+                        "✅ تم حفظ هذا الطلب سابقاً دون إنشاء طفل أو أسرة مكررين.")
+                    st.session_state["kid_saved_reset"] = True
+                    st.rerun()
+                except ValueError as exc:
+                    st.error(str(exc))
+                except Exception:
+                    st.error("تعذّر حفظ البيانات. لم تُحفظ الأسرة جزئياً؛ راجع البيانات وحاول مجدداً.")
 
-                medical = st.checkbox("هل يوجد حالة طبية؟", key="s_medical")
-                medical_details = st.text_area("تفاصيل الحالة الطبية (اختياري)", key="s_med_details") if medical else ""
-
-                submitted = st.form_submit_button("💾 حفظ بيانات الطالب", type="primary", use_container_width=True)
-
-                if submitted:
-                    if not student_id or not full_name or not birth_place:
-                        st.warning("⚠️ يرجى تعبئة جميع الحقول الأساسية (*).")
-                    else:
-                        existing = ui.df(conn, "SELECT 1 FROM students WHERE student_id = %s", (student_id,))
-                        if not existing.empty:
-                            st.error("❌ رقم هوية الطالب مسجل مسبقاً. يرجى التحقق أو استخدام تبويب التعديل.")
-                        else:
-                            try:
-                                cur = conn.cursor()
-                                cur.execute('''
-                                    INSERT INTO students
-                                    (student_id, full_name, birth_date, birth_place, gender, id_type,
-                                     nationality, has_medical_condition, medical_details, father_id, created_at)
-                                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                                ''', (student_id, full_name, str(birth_date), birth_place, gender, id_type,
-                                      nationality, 1 if medical else 0, medical_details,
-                                      parent_options[father], H.now_str()))
-                                conn.commit()
-                                cur.close()
-                                st.success(f"✅ تم تسجيل الطالب «{full_name}» بنجاح! 🎉")
-                                st.rerun()
-                            except Exception as e:
-                                conn.rollback()
-                                st.error(f"❌ حدث خطأ أثناء الحفظ: {e}")
-
-    # ------------------------------------------- TAB 2: VIEW / EDIT / DELETE --
     with tab_view:
         students = ui.df(conn, """
-            SELECT s.student_id, s.full_name, s.birth_date, s.gender, s.id_type,
-                   s.nationality, s.has_medical_condition, s.medical_details,
-                   s.father_id, p.father_name
-            FROM students s JOIN parents p ON s.father_id = p.father_id
+            SELECT s.student_id, s.full_name, s.birth_date, s.gender, s.birth_place,
+                   s.address, s.medical_details, s.has_medical_condition,
+                   s.allergies, s.general_notes, s.authorized_pickups, s.father_id,
+                   COALESCE(p.father_name, p.mother_name) AS parent_name
+            FROM students s JOIN parents p ON p.father_id=s.father_id
             ORDER BY s.created_at DESC
         """)
         if students.empty:
             ui.empty_state("لا يوجد طلاب مسجلون بعد.")
-        else:
-            search = st.text_input("🔍 ابحث بالاسم أو رقم الهوية")
-            shown = students.copy()
-            if search:
-                shown = shown[shown['full_name'].str.contains(search, na=False) |
-                               shown['student_id'].str.contains(search, na=False)]
-            shown['العمر'] = shown['birth_date'].apply(H.calculate_age)
-            display_cols = shown.rename(columns={
-                'student_id': 'رقم الهوية', 'full_name': 'الاسم', 'birth_date': 'تاريخ الميلاد',
-                'gender': 'الجنس', 'id_type': 'نوع الهوية', 'nationality': 'الجنسية',
-                'father_name': 'ولي الأمر'
-            })[['رقم الهوية', 'الاسم', 'العمر', 'تاريخ الميلاد', 'الجنس', 'نوع الهوية', 'الجنسية', 'ولي الأمر']]
-            st.dataframe(display_cols, use_container_width=True, hide_index=True)
-
-            st.markdown("---")
-            st.markdown("##### ✏️ تعديل أو حذف طالب")
-
-            student_options = [
-                (row['student_id'], f"{row['full_name']} — [هوية: {row['student_id']}]")
-                for _, row in students.iterrows()
-            ]
-            selected = st.selectbox(
-                "اختر الطالب", options=student_options,
-                format_func=lambda x: x[1] if x else "اختر...",
-                index=None, placeholder="ابحث عن طالب...", key="student_select_edit",
-            )
-
-            if selected:
-                sid = selected[0]
-                row = students[students['student_id'] == sid].iloc[0]
-
-                with st.expander(f"⚙️ تعديل بيانات: {row['full_name']}", expanded=True):
-                    with st.form("edit_student_form"):
-                        c1, c2, c3 = st.columns(3)
-                        e_name = c1.text_input("اسم الطالب", value=row['full_name'])
-                        e_bd = c2.date_input("تاريخ الميلاد", value=pd.to_datetime(row['birth_date']))
-                        e_gender = c3.selectbox("الجنس", H.GENDERS, index=H.GENDERS.index(row['gender']))
-
-                        c4, c5 = st.columns(2)
-                        e_idtype = c4.selectbox(
-                            "نوع الهوية", H.STUDENT_ID_TYPES,
-                            index=H.STUDENT_ID_TYPES.index(row['id_type']) if row['id_type'] in H.STUDENT_ID_TYPES else 0
-                        )
-                        e_nat = c5.text_input("الجنسية", value=row['nationality'])
-
-                        e_medical = st.checkbox("يوجد حالة طبية", value=bool(row['has_medical_condition']))
-                        e_med_details = st.text_area("تفاصيل الحالة الطبية", value=row['medical_details'] or "")
-
-                        b1, b2 = st.columns(2)
-                        save = b1.form_submit_button("💾 حفظ التعديلات", type="primary", use_container_width=True)
-                        delete = b2.form_submit_button("🗑️ حذف الطالب", use_container_width=True)
-
-                        if save:
-                            try:
-                                cur = conn.cursor()
-                                cur.execute('''
-                                    UPDATE students SET full_name=%s, birth_date=%s, gender=%s, id_type=%s,
-                                        nationality=%s, has_medical_condition=%s, medical_details=%s
-                                    WHERE student_id=%s
-                                ''', (e_name, str(e_bd), e_gender, e_idtype, e_nat,
-                                      1 if e_medical else 0, e_med_details, sid))
-                                conn.commit()
-                                cur.close()
-                                st.success("✅ تم حفظ التعديلات.")
-                                st.rerun()
-                            except Exception as e:
-                                conn.rollback()
-                                st.error(f"❌ حدث خطأ أثناء الحفظ: {e}")
-
-                        if delete:
-                            try:
-                                cur = conn.cursor()
+            return
+        search = st.text_input("🔍 ابحث باسم الطفل").strip()
+        shown = students[students["full_name"].str.contains(
+            search, case=False, na=False, regex=False)] if search else students
+        display = shown.copy()
+        display["العمر"] = display["birth_date"].apply(H.calculate_age)
+        ui.dataframe(display.rename(columns={
+            "full_name": "الاسم", "birth_date": "تاريخ الميلاد",
+            "gender": "الجنس", "parent_name": "ولي الأمر"})[
+            ["الاسم", "العمر", "تاريخ الميلاد", "الجنس", "ولي الأمر"]],
+            use_container_width=True, hide_index=True)
+        st.markdown("---")
+        st.markdown("##### ✏️ تعديل أو حذف طالب")
+        options = [(row["student_id"], row["full_name"]) for _, row in students.iterrows()]
+        chosen = st.selectbox("اختر الطفل", options,
+            format_func=lambda x: x[1], index=None, placeholder="ابحث عن طفل...",
+            key="student_select_edit")
+        if chosen:
+            sid = chosen[0]
+            row = students[students["student_id"] == sid].iloc[0]
+            with st.expander(f"⚙️ تعديل بيانات: {_text(row['full_name'])}", expanded=True):
+                with st.form(f"edit_student_form_{sid}"):
+                    a, b, c = st.columns(3)
+                    e_name = a.text_input("اسم الطفل", value=_text(row["full_name"]),
+                                          key=f"edit_{sid}_name")
+                    old_date = pd.to_datetime(row["birth_date"], errors="coerce")
+                    e_birth = b.date_input("تاريخ الميلاد",
+                        value=old_date.date() if pd.notna(old_date) else date(2022, 1, 1),
+                        min_value=date(1990, 1, 1), max_value=date.today(),
+                        key=f"edit_{sid}_birth")
+                    original_gender = _text(row["gender"])
+                    e_gender = c.selectbox("الجنس", H.GENDERS,
+                        index=H.GENDERS.index(original_gender) if original_gender in H.GENDERS else 0,
+                        key=f"edit_{sid}_gender")
+                    a, b = st.columns(2)
+                    e_place = a.text_input("مكان الميلاد (اختياري)",
+                                 value=_text(row["birth_place"]), key=f"edit_{sid}_place")
+                    e_address = b.text_input("العنوان (اختياري)",
+                                 value=_text(row["address"]), key=f"edit_{sid}_address")
+                    old_medical = _text(row["medical_details"])
+                    old_flag = bool(row["has_medical_condition"]) if pd.notna(row["has_medical_condition"]) else False
+                    with st.expander("تفاصيل اختيارية"):
+                        e_medical = st.text_area("ملاحظات صحية", value=old_medical,
+                                               key=f"edit_{sid}_health")
+                        e_allergy = st.text_area("الحساسية", value=_text(row["allergies"]),
+                                               key=f"edit_{sid}_allergy")
+                        e_notes = st.text_area("ملاحظات عامة", value=_text(row["general_notes"]),
+                                             key=f"edit_{sid}_notes")
+                        clear_legacy = False
+                        if old_flag and not old_medical.strip():
+                            st.caption("هذا السجل يحمل علامة صحية تاريخية دون ملاحظات.")
+                            clear_legacy = st.checkbox("إزالة علامة الحالة الصحية القديمة",
+                                                       key=f"edit_{sid}_clear_health")
+                    pickups = _pickup_editor(f"edit_{sid}",
+                                              initial=_pickups_from_db(row["authorized_pickups"]))
+                    a, b = st.columns(2)
+                    save = a.form_submit_button("💾 حفظ التعديلات", type="primary",
+                                                use_container_width=True)
+                    delete = b.form_submit_button("🗑️ حذف الطالب",
+                                                   use_container_width=True)
+                    if save:
+                        try:
+                            people = _validate_pickups(pickups)
+                            if not e_name.strip() or len(e_name.strip()) > 100:
+                                raise ValueError("يرجى كتابة اسم طفل صحيح.")
+                            if len(e_place.strip()) > 100:
+                                raise ValueError("مكان الميلاد أطول من المسموح.")
+                            with conn.cursor() as cur:
+                                cur.execute("""
+                                    UPDATE students SET full_name=%s, birth_date=%s,
+                                        gender=%s, birth_place=%s, address=%s,
+                                        medical_details=%s, has_medical_condition=%s,
+                                        allergies=%s, general_notes=%s,
+                                        authorized_pickups=%s::jsonb WHERE student_id=%s
+                                """, (e_name.strip(), e_birth, e_gender,
+                                      e_place.strip() or None, e_address.strip() or None,
+                                      e_medical.strip() or None,
+                                      _medical_flag(old_medical, old_flag, e_medical, clear_legacy),
+                                      e_allergy.strip() or None, e_notes.strip() or None,
+                                      json.dumps(people, ensure_ascii=False), sid))
+                            st.success("تم حفظ التعديلات.")
+                            st.rerun()
+                        except ValueError as exc:
+                            st.error(str(exc))
+                        except Exception:
+                            conn.rollback()
+                            st.error("تعذّر حفظ التعديلات؛ يرجى المحاولة مرة أخرى.")
+                    if delete:
+                        try:
+                            with conn.cursor() as cur:
                                 cur.execute("DELETE FROM students WHERE student_id=%s", (sid,))
-                                conn.commit()
-                                cur.close()
-                                st.warning("🗑️ تم حذف الطالب بنجاح!")
-                                st.rerun()
-                            except Exception as e:
-                                conn.rollback()
-                                st.error(f"❌ حدث خطأ أثناء الحذف: {e}")
+                            st.warning("تم حذف الطالب.")
+                            st.rerun()
+                        except Exception:
+                            conn.rollback()
+                            st.error("تعذّر الحذف؛ يرجى مراجعة ارتباطات الطفل.")

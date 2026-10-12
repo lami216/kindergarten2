@@ -3,6 +3,10 @@ db.py — Database initialization and connection management.
 Uses st.cache_resource to maintain a persistent connection to PostgreSQL/Supabase.
 """
 
+import hashlib
+import json
+import uuid
+
 import psycopg2
 from psycopg2.extras import RealDictCursor
 import streamlit as st
@@ -32,6 +36,137 @@ def get_connection():
     
     conn.autocommit = True
     return conn
+
+
+
+def new_transaction_connection():
+    """Independent transaction: never mutate the cached autocommit connection."""
+    if "postgres" in st.secrets:
+        connection = psycopg2.connect(st.secrets["postgres"]["url"], cursor_factory=RealDictCursor)
+    else:
+        connection = psycopg2.connect(
+            host="YOUR_SUPABASE_HOST", database="postgres", user="postgres",
+            password="YOUR_PASSWORD", port="5432", cursor_factory=RealDictCursor
+        )
+    connection.autocommit = False
+    return connection
+
+
+def contact_validation_error(father_name, father_mobile, mother_name, mother_mobile):
+    """A complete name/phone pair for at least one parent; no fabricated father."""
+    father_name, father_mobile = father_name.strip(), father_mobile.strip()
+    mother_name, mother_mobile = mother_name.strip(), mother_mobile.strip()
+    if bool(father_name) != bool(father_mobile):
+        return "يرجى إدخال اسم الأب ورقم هاتفه معاً."
+    if bool(mother_name) != bool(mother_mobile):
+        return "يرجى إدخال اسم الأم ورقم هاتفها معاً."
+    if not ((father_name and father_mobile) or (mother_name and mother_mobile)):
+        return "يلزم اسم ورقم هاتف الأب أو الأم على الأقل."
+    return None
+
+
+def _child_request_fingerprint(child, family, existing_parent_id):
+    """Hash the normalized data we actually persist, not a UI session identifier."""
+    cleaned_child = {
+        "full_name": child["full_name"].strip(),
+        "birth_date": str(child["birth_date"]),
+        "gender": child["gender"],
+        "birth_place": child["birth_place"].strip(),
+        "address": child["address"].strip(),
+        "medical_details": child["medical_details"].strip(),
+        "allergies": child["allergies"].strip(),
+        "general_notes": child["general_notes"].strip(),
+        "authorized_pickups": [
+            {"name": item["name"].strip(), "phone": item["phone"].strip()}
+            for item in child["authorized_pickups"]
+        ],
+    }
+    if existing_parent_id:
+        cleaned_family = {"mode": "existing", "parent_id": str(existing_parent_id)}
+    else:
+        cleaned_family = {"mode": "new", **{
+            key: family[key].strip() for key in (
+                "father_name", "father_mobile", "mother_name",
+                "mother_mobile", "contact_email")
+        }}
+    payload = {"child": cleaned_child, "family": cleaned_family}
+    encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True,
+                         separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def save_child_with_family(child, family, existing_parent_id, request_token):
+    """Persist family + child atomically; request_token makes repeated clicks idempotent.
+
+    Returns (student_id, created). Existing family is only linked, never overwritten.
+    No secrets or raw database exception messages are passed to the UI.
+    """
+    if not child["full_name"].strip():
+        raise ValueError("اسم الطفل مطلوب.")
+    if not existing_parent_id:
+        problem = contact_validation_error(
+            family["father_name"], family["father_mobile"],
+            family["mother_name"], family["mother_mobile"])
+        if problem:
+            raise ValueError(problem)
+    fingerprint = _child_request_fingerprint(child, family, existing_parent_id)
+    connection = new_transaction_connection()
+    try:
+        with connection.cursor() as cur:
+            # Serialize retries under the same token before checking the payload.
+            cur.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))",
+                        (str(request_token),))
+            cur.execute("""
+                SELECT student_id, request_fingerprint FROM students
+                WHERE request_token=%s
+            """, (str(request_token),))
+            already = cur.fetchone()
+            if already:
+                if already["request_fingerprint"] != fingerprint:
+                    raise ValueError(
+                        "تعارض طلب الحفظ: استُخدم رمز هذا الطلب لبيانات مختلفة. "
+                        "احتفظنا بمدخلاتك؛ ابدأ نموذجاً جديداً قبل تسجيل طفل آخر.")
+                connection.commit()
+                return already["student_id"], False
+            if existing_parent_id:
+                cur.execute("SELECT father_id FROM parents WHERE father_id=%s FOR KEY SHARE",
+                            (existing_parent_id,))
+                if not cur.fetchone():
+                    raise ValueError("ولي الأمر المحدد غير موجود، حدّث الصفحة واختر مجدداً.")
+                parent_id = existing_parent_id
+            else:
+                parent_id = "P" + uuid.uuid4().hex[:19]
+                cur.execute("""
+                    INSERT INTO parents (father_id, father_name, father_mobile,
+                                         mother_name, mother_mobile, contact_email)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                """, (parent_id, family["father_name"].strip() or None,
+                      family["father_mobile"].strip() or None,
+                      family["mother_name"].strip() or None,
+                      family["mother_mobile"].strip() or None,
+                      family["contact_email"].strip() or None))
+            student_id = "S" + uuid.uuid4().hex[:19]
+            cur.execute("""
+                INSERT INTO students
+                    (student_id, full_name, birth_date, gender, birth_place, address,
+                     medical_details, has_medical_condition, allergies, general_notes,
+                     authorized_pickups, father_id, request_token, request_fingerprint)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s)
+            """, (student_id, child["full_name"].strip(), child["birth_date"],
+                  child["gender"], child["birth_place"].strip() or None,
+                  child["address"].strip() or None,
+                  child["medical_details"].strip() or None,
+                  int(bool(child["medical_details"].strip())),
+                  child["allergies"].strip() or None, child["general_notes"].strip() or None,
+                  json.dumps(child["authorized_pickups"], ensure_ascii=False),
+                  parent_id, str(request_token), fingerprint))
+        connection.commit()
+        return student_id, True
+    except Exception:
+        connection.rollback()
+        raise
+    finally:
+        connection.close()
 
 
 def init_db():
@@ -197,4 +332,16 @@ def init_db():
 
             -- Migration to ensure teacher_payments supports advance deductions
             ALTER TABLE teacher_payments ADD COLUMN IF NOT EXISTS advance NUMERIC(10, 2) DEFAULT 0.00;
+
+            -- Additive migration: preserve old identity, jobs and payment references.
+            ALTER TABLE parents ALTER COLUMN father_name DROP NOT NULL;
+            ALTER TABLE parents ADD COLUMN IF NOT EXISTS contact_email VARCHAR(254);
+            ALTER TABLE students ADD COLUMN IF NOT EXISTS address TEXT;
+            ALTER TABLE students ADD COLUMN IF NOT EXISTS allergies TEXT;
+            ALTER TABLE students ADD COLUMN IF NOT EXISTS general_notes TEXT;
+            ALTER TABLE students ADD COLUMN IF NOT EXISTS authorized_pickups JSONB NOT NULL DEFAULT '[]'::jsonb;
+            ALTER TABLE students ADD COLUMN IF NOT EXISTS request_token UUID;
+            ALTER TABLE students ADD COLUMN IF NOT EXISTS request_fingerprint VARCHAR(64);
+            CREATE UNIQUE INDEX IF NOT EXISTS students_request_token_unique
+              ON students(request_token);
         """)

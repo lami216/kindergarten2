@@ -100,7 +100,7 @@ def render(conn):
                               shown["عن شهر"].str.contains(search, na=False)]
 
             display_df = shown.drop(columns=['payment_id', 'national_id'])
-            st.dataframe(display_df, use_container_width=True, hide_index=True)
+            ui.dataframe(display_df, use_container_width=True, hide_index=True)
             st.metric("💰 مجموع الرواتب المدفوعة المعروضة", f"{H.format_money(shown['الصافي المدفوع'].sum())} شيكل")
 
             st.markdown("---")

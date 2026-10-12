@@ -1,0 +1,35 @@
+"""Disposable QA entrypoint: same production CSS/sidebar/sections, no production auth.
+
+Runs ONLY when TEST_POSTGRES_DSN is configured, with synthetic PostgreSQL data.
+"""
+import os
+
+import psycopg2
+from psycopg2.extras import RealDictCursor
+import streamlit as st
+
+from style import apply_style
+import sidebar
+from sections import students, parents
+
+if not os.environ.get("TEST_POSTGRES_DSN"):
+    raise RuntimeError("QA browser app requires isolated TEST_POSTGRES_DSN")
+
+st.set_page_config(page_title="QA — الروضة", layout="wide", initial_sidebar_state="expanded")
+apply_style()
+
+@st.cache_resource
+def _connection():
+    conn = psycopg2.connect(os.environ["TEST_POSTGRES_DSN"],
+                            cursor_factory=RealDictCursor)
+    conn.autocommit = True
+    return conn
+
+conn = _connection()
+section = sidebar.render(conn)
+if section == "students":
+    students.render(conn)
+elif section == "parents":
+    parents.render(conn)
+else:
+    st.info("بيئة فحص نموذج الأهل والطلاب فقط.")
