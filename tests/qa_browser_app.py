@@ -36,8 +36,11 @@ elif section == "parents":
 elif section == "payments":
     from sections import payments
     payments.render(conn)
-elif section == "reports":
-    from sections import reports
-    reports.render(conn)
+elif section in ("reports","dashboard","expenses","salaries","registration"):
+    from sections import reports, dashboard, expenses, salaries, registration
+    routes={"reports":reports.render,"dashboard":dashboard.render,
+            "expenses":expenses.render,"salaries":salaries.render,
+            "registration":registration.render}
+    routes[section](conn)
 else:
-    st.info("بيئة فحص نموذج الأهل والطلاب فقط.")
+    st.info("صفحة ليست ضمن مسارات اختبار المالية.")
