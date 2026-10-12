@@ -37,19 +37,29 @@ def render(conn):
         student_options = {r.full_name + " — " + r.student_id: r.student_id for r in students_df.itertuples()}
         class_options = {r.label: r.class_id for r in classes_df.itertuples()}
 
+        # Guardian/payment selection stays in the student's existing monthly
+        # record; academic placement never asks that operator for annual dues.
+        student_label = st.selectbox("الطالب *", list(student_options.keys()),
+                                     key="registration_student_choice")
+        student_monthly = not ui.df(conn,
+            "SELECT 1 FROM monthly_accounts WHERE student_id=%s",
+            (student_options[student_label],)).empty
         with st.form("add_registration_form", clear_on_submit=True):
-            c1, c2, c3, c4 = st.columns(4)
-            student_label = c1.selectbox("الطالب *", list(student_options.keys()))
+            c1, c2, c3 = st.columns(3)
+            c1.caption(f"الطفل: {student_label.split(' — ')[0]}")
             class_label = c2.selectbox("الصف والشعبة *", list(class_options.keys()))
             year_label = c3.selectbox("السنة الدراسية *", years_df['year_id'])
-            
-            # Input field for dynamic annual tuition fee per registration
-            annual_tuition = c4.number_input(
-                "الرسوم السنوية (شيكل) *", 
-                min_value=0.0, 
-                value=float(getattr(H, 'ANNUAL_TUITION', 3500.0)), 
-                step=100.0
-            )
+
+            if student_monthly:
+                annual_tuition = 0
+                st.caption("هذا الطفل لديه حساب شهري؛ لن تصدر عليه رسوم سنوية إضافية.")
+            else:
+                annual_tuition = st.number_input(
+                    "الرسوم السنوية للسجلات القديمة (شيكل) *",
+                    min_value=0.0,
+                    value=float(getattr(H, 'ANNUAL_TUITION', 3500.0)),
+                    step=100.0
+                )
 
             submitted = st.form_submit_button("💾 تسجيل الطالب", type="primary", use_container_width=True)
 
@@ -145,8 +155,9 @@ def render(conn):
                         current_idx = class_label_options.index(current_label.iloc[0]) if not current_label.empty else 0
                         new_class_label = c_edit1.selectbox("نقل إلى صف", class_label_options, index=current_idx)
 
+                        # This field edits historical yearly tuition only.
                         new_tuition = c_edit2.number_input(
-                            "الرسوم السنوية (شيكل)", 
+                            "الرسوم السنوية للسجلات القديمة (شيكل)", 
                             min_value=0.0, 
                             value=float(row["الرسوم السنوية"]), 
                             step=100.0
