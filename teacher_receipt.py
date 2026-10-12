@@ -258,10 +258,10 @@ TEACHER_SLIP_TEMPLATE = """
                     </thead>
                     <tbody>
                         <tr style="text-align: center;">
-                            <td>{base_salary} شيكل</td>
-                            <td>+{bonus} شيكل</td>
-                            <td>-{deductions} شيكل</td>
-                            <td class="amount-highlight">{net_amount} شيكل</td>
+                            <td>{base_salary} أوقية قديمة</td>
+                            <td>+{bonus} أوقية قديمة</td>
+                            <td>-{deductions} أوقية قديمة</td>
+                            <td class="amount-highlight">{net_amount} أوقية قديمة</td>
                         </tr>
                     </tbody>
                 </table>
@@ -318,10 +318,10 @@ TEACHER_SLIP_TEMPLATE = """
                     </thead>
                     <tbody>
                         <tr style="text-align: center;">
-                            <td>{base_salary} شيكل</td>
-                            <td>+{bonus} شيكل</td>
-                            <td>-{deductions} شيكل</td>
-                            <td class="amount-highlight">{net_amount} شيكل</td>
+                            <td>{base_salary} أوقية قديمة</td>
+                            <td>+{bonus} أوقية قديمة</td>
+                            <td>-{deductions} أوقية قديمة</td>
+                            <td class="amount-highlight">{net_amount} أوقية قديمة</td>
                         </tr>
                     </tbody>
                 </table>
