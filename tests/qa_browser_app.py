@@ -31,5 +31,11 @@ if section == "students":
     students.render(conn)
 elif section == "parents":
     parents.render(conn)
+elif section == "payments":
+    from sections import payments
+    payments.render(conn)
+elif section == "reports":
+    from sections import reports
+    reports.render(conn)
 else:
     st.info("بيئة فحص نموذج الأهل والطلاب فقط.")
