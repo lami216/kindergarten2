@@ -230,6 +230,11 @@ async def verify_pickup_contrast(browser):
                 await expect(page.get_by_role("button", name="إزالة")).to_have_count(1)
                 await expect(name).to_have_value("جدة الطفل")
                 await expect(phone).to_have_value("0599444333")
+                # Remove transient hover styles caused by the last remove click.
+                # Identical layouts can otherwise have different button colors
+                # solely because the pointer rests over a different element.
+                await page.mouse.move(2, 2)
+                await page.wait_for_timeout(300)
 
                 # The expander stays open following Streamlit reruns, and
                 # real computed styles (not HTML tokens) decide acceptance.
