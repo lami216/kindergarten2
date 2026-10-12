@@ -84,16 +84,21 @@ class SingleCurrencyCashTests(unittest.TestCase):
                    JOIN monthly_periods p ON p.period_id=a.period_id
                    WHERE a.receipt_id=%s ORDER BY p.period_no""",(rid,))
             self.assertEqual([r["period_no"] for r in c.fetchall()],[3,4])
+        # Check the currently active financial view before cancellation so
+        # this test cannot pass merely by comparing a report to itself.
+        active_before=F.financial_report(self.admin,self.day,F.today())
         F.cancel_receipt(rid,"اختبار إلغاء",actor="fixture")
-        # Historical end-date snapshots retain the receipt until the date
-        # of the later cancellation. They must not be silently rewritten.
+        # Old as-of snapshots retain receipts that were still active then.
         after_cancel=self.report()
         self.assertEqual(after_cancel["total_cash"]-baseline["total_cash"],18000)
         self.assertEqual(after_cancel["remaining_cash"]-baseline["remaining_cash"],16000)
-        # Current corrected balance excludes that cancelled receipt.
+        # The decision-time view excludes the voided 6000, including its
+        # allocations and debt effect, but does not remove the first 12000.
         after_decision=F.financial_report(self.admin,self.day,F.today())
-        before_decision_cash=F.financial_report(self.admin,self.day,F.today())["total_cash"]
-        self.assertEqual(after_decision["total_cash"],before_decision_cash)
+        self.assertEqual(after_decision["total_cash"],active_before["total_cash"]-6000)
+        self.assertEqual(after_decision["monthly_cash"],active_before["monthly_cash"]-6000)
+        self.assertEqual(after_decision["remaining_cash"],active_before["remaining_cash"]-6000)
+        self.assertEqual(after_decision["expenses"],active_before["expenses"])
         with self.admin.cursor() as c:
             c.execute("""SELECT COUNT(*) AS n FROM monthly_allocations
                          WHERE receipt_id=%s AND active""",(rid,))
