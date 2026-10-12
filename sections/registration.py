@@ -87,8 +87,11 @@ def render(conn):
                         ''', (sid, cid, year_label, H.STATUS_NEW, H.today_str(), billed_tuition))
                         conn.commit()
                         cur.close()
-                        st.success(f"✅ تم تسجيل «{student_label.split(' — ')[0]}» بنجاح! الرسوم المقررة: {H.format_money(annual_tuition)} شيكل. "
-                                   "توجّه إلى صفحة «الدفعات المالية» لتحصيل رسوم التسجيل.")
+                        if monthly:
+                            st.success("✅ تم تسجيل الطالب دراسيًا. حسابه الشهري مستمر دون إصدار دين سنوي.")
+                        else:
+                            st.success(f"✅ تم تسجيل «{student_label.split(' — ')[0]}» بنجاح! "
+                                       f"الرسوم السنوية: {H.format_money(annual_tuition)} شيكل.")
                         st.rerun()
                     except Exception as e:
                         conn.rollback()
