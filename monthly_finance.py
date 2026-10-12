@@ -864,36 +864,49 @@ def financial_report(conn, start, end):
         ensure_started(student,as_of=end)
     with conn.cursor() as c:
         c.execute("""SELECT COALESCE(SUM(amount),0) AS n FROM monthly_receipts
-                     WHERE state='active' AND received_on BETWEEN %s AND %s""",(start,end))
+                     WHERE (state='active' OR cancelled_at::date>%s)
+                     AND (corrects_id IS NULL OR created_at::date<=%s)
+                     AND received_on BETWEEN %s AND %s""",(end,end,start,end))
         cash=int(c.fetchone()["n"])
         c.execute("""SELECT f.kind,COALESCE(SUM(a.amount),0) AS n
              FROM monthly_allocations a JOIN monthly_receipts r ON r.receipt_id=a.receipt_id
              JOIN monthly_fees f ON f.fee_id=a.fee_id
-             WHERE a.active AND r.state='active' AND r.received_on BETWEEN %s AND %s
-             GROUP BY f.kind""",(start,end))
+             WHERE (a.active OR r.cancelled_at::date>%s)
+               AND (r.state='active' OR r.cancelled_at::date>%s)
+               AND (r.corrects_id IS NULL OR r.created_at::date<=%s)
+               AND r.received_on BETWEEN %s AND %s
+             GROUP BY f.kind""",(end,end,end,start,end))
         fees={r["kind"]:int(r["n"]) for r in c.fetchall()}
         c.execute("""SELECT COALESCE(SUM(a.amount),0) AS n FROM monthly_allocations a
              JOIN monthly_receipts r ON r.receipt_id=a.receipt_id
              JOIN monthly_periods p ON p.period_id=a.period_id
-             WHERE a.active AND r.state='active'
-             AND r.received_on BETWEEN %s AND %s""",(start,end))
+             WHERE (a.active OR r.cancelled_at::date>%s)
+             AND (r.state='active' OR r.cancelled_at::date>%s)
+             AND (r.corrects_id IS NULL OR r.created_at::date<=%s)
+             AND r.received_on BETWEEN %s AND %s""",(end,end,end,start,end))
         monthly=int(c.fetchone()["n"])
         c.execute("""SELECT COALESCE(SUM(a.amount),0) AS n FROM monthly_allocations a
              JOIN monthly_receipts r ON r.receipt_id=a.receipt_id
              JOIN monthly_periods p ON p.period_id=a.period_id
-             WHERE a.active AND r.state='active'
-             AND r.received_on BETWEEN %s AND %s AND p.starts>r.received_on""",(start,end))
+             WHERE (a.active OR r.cancelled_at::date>%s)
+             AND (r.state='active' OR r.cancelled_at::date>%s)
+             AND (r.corrects_id IS NULL OR r.created_at::date<=%s)
+             AND r.received_on BETWEEN %s AND %s AND p.starts>r.received_on""",
+             (end,end,end,start,end))
         prepaid=int(c.fetchone()["n"])
         c.execute("""SELECT fully.kind,COUNT(DISTINCT fully.student_id) AS n FROM (
             SELECT f.student_id,f.kind,f.price,MAX(r.received_on) AS completed_on,
                    SUM(a.amount) AS paid
             FROM monthly_fees f JOIN monthly_allocations a ON a.fee_id=f.fee_id
             JOIN monthly_receipts r ON r.receipt_id=a.receipt_id
-            WHERE f.price>0 AND a.active AND r.state='active' AND r.received_on<=%s
+            WHERE f.price>0 AND (a.active OR r.cancelled_at::date>%s)
+              AND (r.state='active' OR r.cancelled_at::date>%s)
+              AND (r.corrects_id IS NULL OR r.created_at::date<=%s)
+              AND r.received_on<=%s
             GROUP BY f.fee_id
             HAVING SUM(a.amount)=MAX(f.price)
         ) fully WHERE fully.completed_on BETWEEN %s AND %s GROUP BY fully.kind""",
-                  (end,start,end))
+                  (end,end,end,end,start,end))
         counts={r["kind"]:int(r["n"]) for r in c.fetchall()}
         c.execute("""SELECT COALESCE(SUM(x.amount+
                  COALESCE((SELECT SUM(am.delta) FROM expense_cash_amendments am
