@@ -7,6 +7,7 @@ import streamlit as st
 import ui
 import helpers as H
 import plotly.express as px
+from monthly_finance import today as business_today
 from datetime import datetime
 
 
@@ -33,7 +34,7 @@ def _get_scalar(conn, query, params=()):
 def render(conn):
     ui.section_header("📊", "الرئيسية", "نظرة سريعة وشاملة على أداء الروضة والمالية والسيولة")
 
-    current_month = datetime.now().strftime("%Y-%m")
+    current_month = business_today().strftime("%Y-%m")
 
     # ------------------------------------------------------------------
     # Data Queries
