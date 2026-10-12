@@ -302,6 +302,24 @@ def _issue(c, account, cash, payer, actor, token, fingerprint,
     return receipt,True
 
 
+def preview(cash, registration, gilet, settings):
+    """Pure UI preview; canonical prices are re-read under lock when saving."""
+    amount(cash,zero=True)
+    if not settings:
+        raise ValueError("لم تُضبط الرسوم بعد. افتح إعدادات الرسوم في صفحة الدفعات.")
+    reg=int(settings["registration"]) if registration else 0
+    garment=int(settings["gilet"]) if gilet else 0
+    if cash < reg+garment:
+        raise ValueError("المبلغ لا يغطي رسوم التسجيل والجيليه المختارة.")
+    remainder=cash-reg-garment
+    monthly=int(settings["tuition"])
+    if monthly<=0:
+        raise ValueError("الرسوم الشهرية غير مضبوطة.")
+    full,partial=divmod(remainder,monthly)
+    return {"registration":reg,"gilet":garment,"monthly":remainder,
+            "full_months":full,"next_partial":partial}
+
+
 def initialize_in_transaction(c, student, options, actor, token):
     """Called inside the existing atomic family+student transaction."""
     mode = options.get("mode","regular")
