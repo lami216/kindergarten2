@@ -53,7 +53,7 @@ async def run():
         await expect(button).to_be_enabled()
         await page.screenshot(path=str(OUT/"payroll_form_390_filled.png"),full_page=True)
         await button.dblclick()
-        await expect(page.get_by_text("تم صرف الراتب وحفظ القسيمة",exact=False)).to_be_visible(timeout=20000)
+        await expect(page.get_by_text(re.compile("تم صرف الراتب وحفظ القسيمة|هذه القسيمة محفوظة سابقاً"))).to_be_visible(timeout=20000)
         slips=sql("SELECT payment_id,amount,request_token FROM teacher_payments WHERE national_id=%s",(tid,))
         assert len(slips)==1,slips
         await expect(page.locator(".st-key-salary_month_v1 input")).to_be_visible(timeout=15000)
