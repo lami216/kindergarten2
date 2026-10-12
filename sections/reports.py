@@ -307,13 +307,13 @@ def render(conn):
         total_students = int(_get_scalar(conn, "SELECT COUNT(*) FROM students"))
         total_teachers = int(_get_scalar(conn, "SELECT COUNT(*) FROM teachers"))
         total_classes = int(_get_scalar(conn, "SELECT COUNT(*) FROM classes"))
-        total_revenue = float(_get_scalar(conn, "SELECT COALESCE(SUM(amount), 0) FROM payments"))
+        total_revenue = float(_get_scalar(conn, "SELECT COALESCE(SUM(amount), 0) FROM payments WHERE receipt_state='active'"))
         total_expenses_paid = float(_get_scalar(conn, "SELECT COALESCE(SUM(amount_paid), 0) FROM expenses"))
         total_supplier_debts = float(_get_scalar(conn, "SELECT COALESCE(SUM(amount - amount_paid), 0) FROM expenses"))
         total_assets = float(_get_scalar(conn, "SELECT COALESCE(SUM(total_cost), 0) FROM assets"))
         
         monthly_student_income = float(_get_scalar(conn, """
-            SELECT COALESCE(SUM(amount), 0) FROM payments WHERE TO_CHAR(payment_date::date, 'YYYY-MM') = %s
+            SELECT COALESCE(SUM(amount), 0) FROM payments WHERE receipt_state='active' AND TO_CHAR(payment_date::date, 'YYYY-MM') = %s
         """, (current_month,)))
         
         monthly_salaries_paid = float(_get_scalar(conn, """
@@ -349,6 +349,7 @@ def render(conn):
                 rev = ui.df(conn, """
                     SELECT TO_CHAR(payment_date::date, 'YYYY-MM') AS "الشهر", SUM(amount) AS "المبلغ"
                     FROM payments
+                    WHERE receipt_state='active'
                     GROUP BY TO_CHAR(payment_date::date, 'YYYY-MM')
                     ORDER BY TO_CHAR(payment_date::date, 'YYYY-MM') DESC
                     LIMIT 6
