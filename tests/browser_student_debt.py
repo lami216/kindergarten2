@@ -129,7 +129,10 @@ async def run():
                        page.locator('[data-testid="stForm"]').last)
         reason=page.get_by_role("textbox",name="سبب إلغاء الدين *")
         await reason.fill("قرار مديرة موثق دون قبض نقدي")
-        await page.get_by_text("أؤكد إلغاء الدين دون قبض أي مبلغ",exact=False).click()
+        checkbox=page.get_by_role("checkbox",name="أؤكد إلغاء الدين دون قبض أي مبلغ")
+        if not await checkbox.is_checked():
+            await checkbox.click()
+        await expect(checkbox).to_be_checked()
         await expect(reason).to_have_value("قرار مديرة موثق دون قبض نقدي")
         await snapshot(page,"student_debt_confirm_390_day.png",
                        page.locator('[data-testid="stForm"]').last)
@@ -140,7 +143,10 @@ async def run():
         await expect(page.get_by_role("button",name="إلغاء الدين",exact=True)).to_be_visible()
         await snapshot(page,"student_debt_choices_390_night.png")
         await reason.fill("قرار مديرة موثق دون قبض نقدي")
-        await page.get_by_text("أؤكد إلغاء الدين دون قبض أي مبلغ",exact=False).click()
+        checkbox=page.get_by_role("checkbox",name="أؤكد إلغاء الدين دون قبض أي مبلغ")
+        if not await checkbox.is_checked():
+            await checkbox.click()
+        await expect(checkbox).to_be_checked()
         await expect(reason).to_have_value("قرار مديرة موثق دون قبض نقدي")
         metrics["confirm_dark"]=await wait_for_real_theme(page,True,form=True)
         await snapshot(page,"student_debt_waiver_390_night.png",
