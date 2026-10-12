@@ -279,11 +279,12 @@ def render(conn):
                     # re-reads current tariffs and allocates in the transaction.
                     if mode == "دفع" and tariff:
                         F.preview(int(initial_amount),reg_chosen,garment_chosen,tariff)
-                    payer = (str(parents.loc[parents["father_id"]==parent_id].iloc[0]["father_name"]
-                              or parents.loc[parents["father_id"]==parent_id].iloc[0]["mother_name"])
-                             if parent_id else family["father_name"] or family["mother_name"])
-                    if parent_id and (not payer or payer.lower()=="none"):
-                        payer = "ولي الأمر"
+                    if parent_id:
+                        stored_parent = parents.loc[parents["father_id"] == parent_id].iloc[0]
+                        payer = (_text(stored_parent["father_name"]).strip() or
+                                 _text(stored_parent["mother_name"]).strip() or "ولي الأمر")
+                    else:
+                        payer = family["father_name"] or family["mother_name"]
                     finance = {"mode": "exempt" if mode=="معفي" else "regular",
                                "start_date": str(start_date),
                                "registration": bool(reg_chosen) if mode=="دفع" else False,
