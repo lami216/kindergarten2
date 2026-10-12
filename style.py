@@ -459,6 +459,10 @@ div[data-testid="stStatusWidget"] {display: none !important;}
 
 SHELL_CSS = """
 <style>
+/* The internal pickup selector must not create its own layout row. */
+[data-testid="stExpander"] [data-testid="stElementContainer"]:has(.pickup-style-anchor) {
+    display:none !important;
+}
 /* Native controls remain visible and use the existing palette. */
 .st-key-appearance_control {
     position:fixed; top:8px; left:12px; width:150px !important;
