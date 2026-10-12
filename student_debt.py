@@ -182,3 +182,35 @@ def archive_student(student, *, actor):
         raise
     finally:
         conn.close()
+
+
+def remove_guardian_if_unlinked(guardian_id):
+    """Server-side FK-safe guardian removal; never unlink siblings or debts."""
+    conn=db.new_transaction_connection()
+    try:
+        with conn.cursor() as c:
+            c.execute("SELECT father_id FROM parents WHERE father_id=%s FOR UPDATE",(guardian_id,))
+            if not c.fetchone():
+                raise ValueError("ولي الأمر غير موجود.")
+            c.execute("""SELECT student_id,full_name FROM students WHERE father_id=%s
+                         ORDER BY student_id FOR UPDATE""",(guardian_id,))
+            children=c.fetchall()
+            if children:
+                # Real child identities must remain linked, even when archived.
+                child=children[0]
+                c.execute("""SELECT student_id,status,start_date,departure_on FROM monthly_accounts
+                             WHERE student_id=%s FOR UPDATE""",(child["student_id"],))
+                account=c.fetchone()
+                if account and account["status"]=="regular":
+                    F._due_started(c,child["student_id"],account)
+                    due=sum(max(0,x["remaining"]) for x in _debt(c,child["student_id"],F.today()))
+                    if due:
+                        raise ValueError(f"لا يمكن حذف ولي الأمر؛ الطفل {child['full_name']} عليه مبلغ {due:,} أوقية قديمة.")
+                raise ValueError("لا يمكن حذف ولي الأمر؛ ما زالت به ملفات أطفال مرتبطة، بما فيها المؤرشفة.")
+            c.execute("DELETE FROM parents WHERE father_id=%s",(guardian_id,))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
