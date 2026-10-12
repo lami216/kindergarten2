@@ -367,6 +367,8 @@ def _due_started(c, student, account, as_of=None):
     # A report may ask for a future end date; this must NOT issue an
     # unfunded future monthly obligation.
     as_of = min(as_of, today())
+    if account.get("departure_on"):
+        as_of = min(as_of,account["departure_on"])
     anchor = account["start_date"]
     if as_of < anchor:
         return
@@ -386,7 +388,9 @@ def _due_started(c, student, account, as_of=None):
 def _fee(c, student, kind):
     c.execute("""SELECT f.fee_id,f.price,
         COALESCE((SELECT SUM(a.amount) FROM monthly_allocations a
-                  WHERE a.fee_id=f.fee_id AND a.active),0) AS paid
+                  WHERE a.fee_id=f.fee_id AND a.active),0) AS paid,
+        COALESCE((SELECT SUM(w.amount) FROM monthly_waivers w
+                  WHERE w.fee_id=f.fee_id),0) AS waived
         FROM monthly_fees f WHERE f.student_id=%s AND f.kind=%s FOR UPDATE""",
         (student,kind))
     return c.fetchone()
@@ -396,7 +400,7 @@ def _fund_fee(c, receipt, student, kind, budget):
     row = _fee(c,student,kind)
     if not row:
         raise ValueError("الرسم غير متاح لهذا الطفل.")
-    due = int(row["price"])-int(row["paid"])
+    due = int(row["price"])-int(row["paid"])-int(row["waived"])
     if due < 0:
         raise ValueError("تجاوز في رصيد الرسم.")
     if due > budget:
@@ -413,7 +417,9 @@ def _fund_months(c, receipt, account, money, *, as_of=None):
         return
     _due_started(c,student,account,as_of=as_of)
     c.execute("""SELECT p.period_id,p.period_no,p.price,
-        COALESCE(SUM(a.amount) FILTER(WHERE a.active),0) AS paid
+        COALESCE(SUM(a.amount) FILTER(WHERE a.active),0) AS paid,
+        COALESCE((SELECT SUM(w.amount) FROM monthly_waivers w
+                  WHERE w.period_id=p.period_id),0) AS waived
         FROM monthly_periods p LEFT JOIN monthly_allocations a ON a.period_id=p.period_id
         WHERE p.student_id=%s GROUP BY p.period_id ORDER BY p.period_no""",(student,))
     rows = {row["period_no"]:row for row in c.fetchall()}
@@ -430,8 +436,8 @@ def _fund_months(c, receipt, account, money, *, as_of=None):
                 (student,index,anniversary(anchor,index),
                  anniversary(anchor,index+1),settings["tuition"]))
             row = {"period_id":c.fetchone()["period_id"],"price":settings["tuition"],
-                   "paid":0,"period_no":index}
-        remaining = int(row["price"])-int(row["paid"])
+                   "paid":0,"waived":0,"period_no":index}
+        remaining = int(row["price"])-int(row["paid"])-int(row["waived"])
         if remaining < 0:
             raise ValueError("تجاوز في تمويل الفترة.")
         take = min(remaining,money)
@@ -656,17 +662,37 @@ def projection(conn, student, as_of=None, *, materialize=True):
     if account["status"]=="regular" and materialize:
         ensure_started(student,as_of=as_of)
     day=as_of or today()
+    if isinstance(day,str):
+        day=date.fromisoformat(day)
     with conn.cursor() as c:
-        c.execute("""SELECT f.kind,f.price,COALESCE(SUM(a.amount) FILTER(WHERE a.active),0) AS paid
+        # A receipt correction/void affects snapshots on its ACTUAL decision
+        # date; earlier snapshots retain the original historical allocation.
+        # Ordinary payments use received_on, even if registered later.
+        c.execute("""SELECT f.kind,f.price,
+            COALESCE(SUM(a.amount) FILTER (WHERE r.received_on<=%s
+               AND (r.corrects_id IS NULL OR r.created_at::date<=%s)
+               AND (r.state='active' OR r.cancelled_at::date>%s)),0) AS paid,
+            COALESCE((SELECT SUM(w.amount) FROM monthly_waivers w
+                      WHERE w.fee_id=f.fee_id AND w.effective_on<=%s),0) AS waived
             FROM monthly_fees f LEFT JOIN monthly_allocations a ON a.fee_id=f.fee_id
-            WHERE f.student_id=%s GROUP BY f.fee_id ORDER BY f.kind""",(student,))
-        fees={r["kind"]:{"price":int(r["price"]),"paid":int(r["paid"])} for r in c.fetchall()}
+            LEFT JOIN monthly_receipts r ON r.receipt_id=a.receipt_id
+            WHERE f.student_id=%s GROUP BY f.fee_id ORDER BY f.kind""",
+            (day,day,day,day,student))
+        fees={r["kind"]:{"price":int(r["price"]),"paid":int(r["paid"]),
+                         "waived":int(r["waived"])} for r in c.fetchall()}
         c.execute("""SELECT p.period_no,p.starts,p.ends,p.price,
-                  COALESCE(SUM(a.amount) FILTER(WHERE a.active),0) AS paid
-             FROM monthly_periods p LEFT JOIN monthly_allocations a ON a.period_id=p.period_id
-             WHERE p.student_id=%s GROUP BY p.period_id ORDER BY p.period_no""",(student,))
+            COALESCE(SUM(a.amount) FILTER (WHERE r.received_on<=%s
+               AND (r.corrects_id IS NULL OR r.created_at::date<=%s)
+               AND (r.state='active' OR r.cancelled_at::date>%s)),0) AS paid,
+            COALESCE((SELECT SUM(w.amount) FROM monthly_waivers w
+                      WHERE w.period_id=p.period_id AND w.effective_on<=%s),0) AS waived
+            FROM monthly_periods p LEFT JOIN monthly_allocations a ON a.period_id=p.period_id
+            LEFT JOIN monthly_receipts r ON r.receipt_id=a.receipt_id
+            WHERE p.student_id=%s GROUP BY p.period_id ORDER BY p.period_no""",
+            (day,day,day,day,student))
         periods=[{"no":r["period_no"],"start":r["starts"],"end":r["ends"],
-                  "price":int(r["price"]),"paid":int(r["paid"])} for r in c.fetchall()]
+                  "price":int(r["price"]),"paid":int(r["paid"]),
+                  "waived":int(r["waived"])} for r in c.fetchall()]
         c.execute("""SELECT receipt_id,amount,received_on,payer,created_by,state
                 FROM monthly_receipts WHERE student_id=%s ORDER BY receipt_id DESC""",(student,))
         receipts=[dict(row) for row in c.fetchall()]
@@ -676,12 +702,14 @@ def projection(conn, student, as_of=None, *, materialize=True):
         if p["no"]!=contiguous or p["paid"]<p["price"]:
             break
         contiguous+=1
-    currently_due=sum(max(0,p["price"]-p["paid"]) for p in periods
-                      if p["start"]<=day)
-    currently_due+=sum(max(0,r["price"]-r["paid"]) for r in fees.values()
-                       if r is not None)
-    not_yet_due=sum(max(0,p["price"]-p["paid"]) for p in periods if p["start"]>day)
-    unpaid=next((p for p in periods if p["paid"]<p["price"]),None)
+    charge_active = day >= account["start_date"]
+    cutoff = min(day, account["departure_on"]) if account.get("departure_on") else day
+    currently_due=sum(max(0,p["price"]-p["paid"]-p["waived"]) for p in periods
+                      if p["start"]<=cutoff and charge_active)
+    if charge_active:
+        currently_due+=sum(max(0,r["price"]-r["paid"]-r["waived"]) for r in fees.values())
+    not_yet_due=sum(max(0,p["price"]-p["paid"]-p["waived"]) for p in periods if p["start"]>cutoff)
+    unpaid=next((p for p in periods if p["paid"]+p["waived"]<p["price"]),None)
     next_start=(unpaid["start"] if unpaid else anniversary(account["start_date"],contiguous))
     return {"account":dict(account),"fees":fees,"periods":periods,"receipts":receipts,
             "paid_periods":paid_count,"paid_through":(anniversary(account["start_date"],contiguous)-timedelta(days=1)
