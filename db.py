@@ -7,9 +7,30 @@ import hashlib
 import json
 import uuid
 
+# All application sessions use the same civil business date, regardless of
+# PostgreSQL server TimeZone or the host process TZ.
+BUSINESS_TIMEZONE = "Africa/Nouakchott"
+
 import psycopg2
 from psycopg2.extras import RealDictCursor
 import streamlit as st
+
+
+def _pin_business_timezone(conn, *, autocommit):
+    """Pin and verify each PostgreSQL session before its first financial query.
+
+    SET is executed outside a transaction so a later rollback cannot undo it.
+    Neither the server-wide timezone nor another database is changed.
+    """
+    conn.autocommit = True
+    with conn.cursor() as cursor:
+        cursor.execute("SELECT set_config('TimeZone', %s, false) AS timezone", (BUSINESS_TIMEZONE,))
+        zone = cursor.fetchone()["timezone"]
+    if zone != BUSINESS_TIMEZONE:
+        conn.close()
+        raise RuntimeError("Could not pin the PostgreSQL business timezone")
+    conn.autocommit = autocommit
+    return conn
 
 
 @st.cache_resource
@@ -34,8 +55,7 @@ def get_connection():
             cursor_factory=RealDictCursor
         )
     
-    conn.autocommit = True
-    return conn
+    return _pin_business_timezone(conn, autocommit=True)
 
 
 
@@ -48,8 +68,7 @@ def new_transaction_connection():
             host="YOUR_SUPABASE_HOST", database="postgres", user="postgres",
             password="YOUR_PASSWORD", port="5432", cursor_factory=RealDictCursor
         )
-    connection.autocommit = False
-    return connection
+    return _pin_business_timezone(connection, autocommit=False)
 
 
 def contact_validation_error(father_name, father_mobile, mother_name, mother_mobile):
