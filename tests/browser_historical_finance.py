@@ -77,7 +77,7 @@ async def test_browser():
         await combo.fill(f"وصل #{rid}")
         await combo.press("ArrowDown")
         await combo.press("Enter")
-        await expect(combo).to_have_value(re.compile(rf"وصل #{rid} \\u2014|وصل #{rid} —"),timeout=15000)
+        await expect(combo).to_have_value(re.compile(f"وصل #{rid}"), timeout=15000)
         details=page.get_by_text(f"تصحيح أو إلغاء الوصل #{rid}",exact=False)
         await details.click()
         await page.get_by_role("spinbutton",name="المبلغ",exact=True).fill("90.25")
