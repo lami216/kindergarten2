@@ -215,8 +215,10 @@ async def run():
         await page.get_by_role("tab",name=re.compile("الوصولات")).click()
         dropdown=page.get_by_text("اختر الوصل",exact=False).first
         await dropdown.scroll_into_view_if_needed()
-        await page.locator('[data-testid="stSelectbox"] [data-baseweb="select"]').last.click()
-        await page.get_by_role("option",name=re.compile(f"وصل #{latest}")).click()
+        receipt_pick=page.get_by_role("combobox",name="اختر الوصل").first
+        await receipt_pick.click()
+        await receipt_pick.fill(str(latest))
+        await page.get_by_text(re.compile(f"وصل #{latest}")).last.click()
         await page.get_by_text("تصحيح أو إلغاء الوصل").click()
         reason=page.get_by_role("textbox",name=re.compile("سبب التصحيح"))
         await reason.fill("مراجعة مبلغ")
