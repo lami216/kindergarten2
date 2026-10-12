@@ -182,9 +182,12 @@ class MonthlyFinanceDBTests(unittest.TestCase):
         sid=self.create(cash=9000)
         first_id=self.projection(sid,self.anchor)["receipts"][0]["receipt_id"]
         F.cancel_receipt(first_id,"مدخل مكرر",actor="tester")
-        p=self.projection(sid,self.anchor)
+        # Before the later cancellation, history must still show its cash.
+        before_change=self.projection(sid,self.anchor)
+        self.assertEqual(before_change["paid_periods"],3)
+        p=self.projection(sid,F.today())
         self.assertEqual(p["paid_periods"],0)
-        self.assertEqual(p["due_now"],4000)
+        self.assertGreaterEqual(p["due_now"],4000)
         with self.admin.cursor() as c:
             c.execute("SELECT state,amount,cancelled_by,cancel_reason FROM monthly_receipts WHERE receipt_id=%s",
                       (first_id,))
@@ -202,7 +205,8 @@ class MonthlyFinanceDBTests(unittest.TestCase):
         sid=self.create(cash=6000)
         old_id=self.projection(sid,self.anchor)["receipts"][0]["receipt_id"]
         new_id,_=F.correct_receipt(old_id,4500,"كتابة خاطئة",actor="tester")
-        p=self.projection(sid,self.anchor)
+        self.assertEqual(self.projection(sid,self.anchor)["periods"][1]["paid"],3000)
+        p=self.projection(sid,F.today())
         self.assertEqual(p["paid_periods"],1)
         self.assertEqual(p["periods"][1]["paid"],1500)
         self.assertEqual([r["state"] for r in p["receipts"]],["active","cancelled"])
@@ -216,7 +220,7 @@ class MonthlyFinanceDBTests(unittest.TestCase):
         with ThreadPoolExecutor(max_workers=2) as e:
             results=list(e.map(lambda _: F.take_payment(sid,3000,actor="tester"),range(2)))
         self.assertEqual(sum(int(created) for _,created in results),2)
-        p=self.projection(sid,self.anchor)
+        p=self.projection(sid,F.today())
         self.assertEqual([x["paid"] for x in p["periods"][:2]],[3000,3000])
 
     def test_mother_only_existing_family_and_no_second_parent(self):
