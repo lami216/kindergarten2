@@ -78,7 +78,7 @@ def compute_registration_status(conn, registration_id):
     """
     cur = conn.cursor()
     cur.execute(
-        "SELECT COUNT(*) AS c FROM payments WHERE registration_id = %s AND payment_for = %s",
+        "SELECT COUNT(*) AS c FROM payments WHERE registration_id = %s AND receipt_state = 'active' AND payment_for = %s",
         (registration_id, "رسوم تسجيل")
     )
     res = cur.fetchone()
@@ -114,6 +114,7 @@ def compute_paid_toward_tuition(conn, registration_id):
             SELECT COALESCE(SUM(amount), 0) AS total
             FROM payments
             WHERE registration_id = %s
+              AND receipt_state = 'active'
               AND payment_for IN ('رسوم تسجيل', 'أقساط تعليمية')
         """, (registration_id,))
         res = cur.fetchone()
