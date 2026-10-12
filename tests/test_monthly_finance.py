@@ -50,8 +50,11 @@ class MonthlyFinanceDBTests(unittest.TestCase):
     def create(self,mode="regular",cash=0,reg=False,gilet=False,existing=None):
         opt={"mode":mode,"cash":cash,"registration":reg,"gilet":gilet,
              "start_date":self.anchor.isoformat(),"payer":"أم شهرية"}
-        sid,new=db.save_child_with_family(self.child,self.family,existing,
-                                          str(uuid.uuid4()),finance=opt,actor="tester")
+        # The synthetic initial cash was paid at this test's historical
+        # opening date; production records use actual receipt dates.
+        with patch.object(F,"today",return_value=self.anchor):
+            sid,new=db.save_child_with_family(self.child,self.family,existing,
+                                              str(uuid.uuid4()),finance=opt,actor="tester")
         self.assertTrue(new)
         return sid
 
