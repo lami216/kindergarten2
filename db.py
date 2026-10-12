@@ -360,6 +360,25 @@ def init_db():
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
 
+            -- PostgreSQL TIMESTAMP (without time zone) is a wall clock and
+            -- must NOT be run through AT TIME ZONE during readback. Future
+            -- student creation timestamps are recorded in business local time,
+            -- even for independent SQL writers with a Berlin session. Existing
+            -- historical rows are left unchanged (their origin zone is unknown).
+            ALTER TABLE students ALTER COLUMN created_at
+                SET DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'Africa/Nouakchott');
+            -- Only future DATE defaults change; never reinterpret old ledgers.
+            ALTER TABLE registrations ALTER COLUMN registration_date
+                SET DEFAULT ((CURRENT_TIMESTAMP AT TIME ZONE 'Africa/Nouakchott')::date);
+            ALTER TABLE payments ALTER COLUMN payment_date
+                SET DEFAULT ((CURRENT_TIMESTAMP AT TIME ZONE 'Africa/Nouakchott')::date);
+            ALTER TABLE teacher_payments ALTER COLUMN payment_date
+                SET DEFAULT ((CURRENT_TIMESTAMP AT TIME ZONE 'Africa/Nouakchott')::date);
+            ALTER TABLE expenses ALTER COLUMN expense_date
+                SET DEFAULT ((CURRENT_TIMESTAMP AT TIME ZONE 'Africa/Nouakchott')::date);
+            ALTER TABLE assets ALTER COLUMN purchase_date
+                SET DEFAULT ((CURRENT_TIMESTAMP AT TIME ZONE 'Africa/Nouakchott')::date);
+
             -- Migration to ensure teacher_payments supports advance deductions
             ALTER TABLE teacher_payments ADD COLUMN IF NOT EXISTS advance NUMERIC(10, 2) DEFAULT 0.00;
 
