@@ -131,6 +131,9 @@ def _render_historical(conn):
 
     # ---------------------------------- TAB 2: VIEW / REPRINT / EDIT / DELETE --
     with tab_view:
+        notice = st.session_state.pop("legacy_receipt_notice", None)
+        if notice:
+            st.success(notice)
         payments = ui.df(conn, """
             SELECT p.receipt_number AS "رقم الوصل", s.full_name AS "اسم الطالب",
                    p.amount AS "المبلغ", p.payment_date AS "التاريخ",
@@ -226,9 +229,9 @@ def _render_historical(conn):
                                     payment_for=e_reason, details=e_other)
                                 H.refresh_registration_status(conn, registration)
                                 if delete:
-                                    st.warning("أُلغي الوصل؛ حُفظت بياناته الأصلية وسبب الإلغاء.")
+                                    st.session_state["legacy_receipt_notice"] = "أُلغي الوصل؛ حُفظت بياناته الأصلية وسبب الإلغاء."
                                 else:
-                                    st.success("حُفظ التصحيح ونسخته السابقة في سجل المراجعة.")
+                                    st.session_state["legacy_receipt_notice"] = "حُفظ التصحيح ونسخته السابقة في سجل المراجعة."
                                 st.rerun()
                             except ValueError as exc:
                                 st.error(str(exc))
