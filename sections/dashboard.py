@@ -107,6 +107,16 @@ def render(conn):
     r1, r2 = st.columns(2)
     ui.kpi(r1, "💵", "إجمالي مقبوضات الطلاب", H.format_money(total_revenue), bg="#ECFDF5", fg="#059669")
     ui.kpi(r2, "🧾", "ديون الطلاب المتبقية (أقساط)", H.format_money(total_student_outstanding), bg="#FFE4E6", fg="#E11D48")
+    st.caption("المبالغ في البطاقتين أعلاه خاصة بالتسجيل السنوي القديم (شيكل)؛ "
+               "المقبوضات الشهرية الجديدة لا تختلط بهذه العملة.")
+    from monthly_finance import financial_report, today as business_today
+    from datetime import date as business_date
+    monthly_summary = financial_report(conn, business_date(2000,1,1), business_today())
+    a,b=st.columns(2)
+    a.metric("المقبوضات الشهرية الجديدة (أوقية قديمة)",
+             f"{monthly_summary['new_cash']:,}")
+    b.metric("المستحق الآن للحسابات الشهرية (أوقية قديمة)",
+             f"{monthly_summary['due_now']:,}")
 
     st.markdown("---")
 
