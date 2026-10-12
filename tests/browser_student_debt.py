@@ -81,7 +81,15 @@ async def run():
         rows=sql("SELECT amount,reason FROM monthly_waivers WHERE student_id=%s",(sid,))
         assert rows and sum(int(x["amount"]) for x in rows)==4000,rows
         await page.get_by_role("button",name="🗑️ حذف الطالب").click()
-        assert sql("SELECT archived_at FROM students WHERE student_id=%s",(sid,))[0]["archived_at"] is not None
+        # Streamlit button click returns before the server-side transaction
+        # necessarily commits; wait for the durable PostgreSQL state.
+        for _ in range(60):
+            if sql("SELECT archived_at FROM students WHERE student_id=%s",
+                   (sid,))[0]["archived_at"] is not None:
+                break
+            await page.wait_for_timeout(250)
+        else:
+            raise AssertionError("Archival did not commit after the UI click")
         await ctx.close()
         await browser.close()
     print("Chromium debt refusal, two native choices, dark waiver, no cash, durable archive passed")
