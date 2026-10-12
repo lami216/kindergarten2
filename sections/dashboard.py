@@ -45,7 +45,7 @@ def render(conn):
     pending = int(_get_scalar(conn, "SELECT COUNT(*) FROM registrations WHERE status = %s", (H.STATUS_NEW,)))
 
     # 2. Revenue & Student Receivables
-    total_revenue = float(_get_scalar(conn, "SELECT COALESCE(SUM(amount), 0) FROM payments"))
+    total_revenue = float(_get_scalar(conn, "SELECT COALESCE(SUM(amount), 0) FROM payments WHERE receipt_state='active'"))
     
     total_student_outstanding = float(_get_scalar(conn, """
         SELECT COALESCE(SUM(GREATEST(0, COALESCE(r.annual_tuition, 3500.0) - COALESCE(p.paid, 0))), 0)
@@ -53,7 +53,7 @@ def render(conn):
         LEFT JOIN (
             SELECT registration_id, SUM(amount) AS paid
             FROM payments
-            WHERE payment_for IN ('رسوم تسجيل', 'أقساط تعليمية')
+            WHERE receipt_state='active' AND payment_for IN ('رسوم تسجيل', 'أقساط تعليمية')
             GROUP BY registration_id
         ) p ON p.registration_id = r.registration_id
         WHERE r.year_id = (SELECT year_id FROM academic_years ORDER BY start_date DESC LIMIT 1)
@@ -69,8 +69,8 @@ def render(conn):
     
     monthly_student_income = float(_get_scalar(conn, """
         SELECT COALESCE(SUM(amount), 0) 
-        FROM payments 
-        WHERE TO_CHAR(payment_date::date, 'YYYY-MM') = %s
+        FROM payments
+        WHERE receipt_state='active' AND TO_CHAR(payment_date::date, 'YYYY-MM') = %s
     """, (current_month,)))
 
     monthly_salaries_paid = float(_get_scalar(conn, """
@@ -167,6 +167,7 @@ def render(conn):
             rev = ui.df(conn, """
                 SELECT TO_CHAR(payment_date::date, 'YYYY-MM') AS "الشهر", SUM(amount) AS "المبلغ"
                 FROM payments
+                WHERE receipt_state='active'
                 GROUP BY TO_CHAR(payment_date::date, 'YYYY-MM')
                 ORDER BY TO_CHAR(payment_date::date, 'YYYY-MM') DESC
                 LIMIT 6
