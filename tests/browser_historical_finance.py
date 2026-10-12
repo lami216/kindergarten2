@@ -77,7 +77,7 @@ async def test_browser():
         await combo.fill(f"وصل #{rid}")
         # A value in the searchable input is not yet a committed selection.
         # Click the matching visible menu item, then wait for Streamlit rerun.
-        await page.get_by_text(f"وصل #{rid} —", exact=False).last.click(timeout=10000)
+        await page.locator("[data-item-hl]").first.click(force=True, timeout=10000)
         await expect(combo).to_have_value(re.compile(f"وصل #{rid}"), timeout=15000)
         summary=page.locator('[data-testid="stExpander"] summary').filter(
             has_text=f"تصحيح أو إلغاء الوصل #{rid}").first
