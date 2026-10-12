@@ -60,7 +60,7 @@ async def run():
         page=await ctx.new_page()
         await open_student(page,name)
         await page.get_by_role("button",name="🗑️ حذف الطالب").click()
-        await expect(page.get_by_text("لا يمكن حذف الطالب؛ عليه مبلغ",exact=False)).to_be_visible()
+        await expect(page.get_by_text("لا يمكن حذف الطالب؛ عليه مبلغ",exact=False).first).to_be_visible()
         await expect(page.get_by_role("button",name="تسجيل دفعة")).to_be_visible()
         await expect(page.get_by_role("button",name="إلغاء الدين")).to_be_visible()
         assert sql("SELECT archived_at FROM students WHERE student_id=%s",(sid,))[0]["archived_at"] is None
