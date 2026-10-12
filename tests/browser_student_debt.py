@@ -47,7 +47,9 @@ async def open_student(page,name):
     await expect(select).to_be_visible()
     await select.click()
     await select.fill(name)
-    await page.locator("[data-item-hl]").first.click(force=True)
+    # Select by the exact visible student label. A transient BaseWeb
+    # highlight attribute is not guaranteed on virtualized options.
+    await page.get_by_text(name,exact=True).last.click(timeout=15000)
     await expect(page.get_by_role("button",name="🗑️ حذف الطالب")).to_be_visible(timeout=15000)
 
 
