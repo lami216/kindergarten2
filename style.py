@@ -349,6 +349,25 @@ div[data-testid="stDataFrame"] {
     color: var(--primary-dark);
 }
 
+/* Keep original dashboard KPI cards, but show the full values on tablets.
+   Five native dashboard columns otherwise ellipsize the currency at 768px. */
+@media (min-width:700px) and (max-width:1100px) {
+    .kpi-card { gap:6px !important; padding:9px !important; }
+    .kpi-icon {
+        width:32px !important; height:32px !important;
+        min-width:32px !important; min-height:32px !important;
+        font-size:17px !important;
+    }
+    .kpi-value {
+        font-size:clamp(11px,1.5vw,17px) !important;
+        white-space:normal !important;
+        overflow:visible !important;
+        text-overflow:clip !important;
+        overflow-wrap:anywhere !important;
+    }
+    .kpi-label { font-size:11px !important; }
+}
+
 /* ---------------------------------------------------------------- */
 /* ORIGINAL LOGIN FORM & INPUT FIELD STYLING (RESTORED)             */
 /* ---------------------------------------------------------------- */
