@@ -793,7 +793,7 @@ def account_setup_suggestion(conn, student):
     """Only real enrollment/creation dates: never infer a registration from birth."""
     with conn.cursor() as c:
         c.execute("""
-            SELECT s.(s.created_at AT TIME ZONE 'Africa/Nouakchott')::date AS created_on,
+            SELECT (s.created_at AT TIME ZONE 'Africa/Nouakchott')::date AS created_on,
                 (SELECT MIN(r.registration_date) FROM registrations r
                  WHERE r.student_id=s.student_id) AS registered_on,
                 EXISTS(SELECT 1 FROM monthly_accounts a
