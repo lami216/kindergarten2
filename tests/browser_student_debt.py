@@ -178,7 +178,8 @@ async def run():
         history_toggle=page.get_by_role("checkbox",
             name="إظهار ملفات الأطفال المؤرشفين (السجل المالي محفوظ)")
         if not await history_toggle.is_checked():
-            await history_toggle.click()
+            await page.get_by_text("إظهار ملفات الأطفال المؤرشفين (السجل المالي محفوظ)",exact=True).click()
+        await expect(history_toggle).to_be_checked()
         select=page.locator(".st-key-student_select_edit input[role='combobox']").first
         await expect(select).to_be_visible()
         if not await page.get_by_text("الطالب مؤرشف",exact=False).count():
