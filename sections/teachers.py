@@ -4,6 +4,7 @@ sections/teachers.py — إدارة ملفات وبينات المعلمات
 
 import streamlit as st
 import ui
+import payroll_finance as P
 
 
 def render(conn):
@@ -47,7 +48,7 @@ def render(conn):
 
     # ---------------------------------------- TAB 2: VIEW / EDIT / DELETE TEACHER --
     with tab_view:
-        teachers = ui.df(conn, "SELECT national_id, full_name, salary, mobile, address, hire_date FROM teachers ORDER BY full_name")
+        teachers = ui.df(conn, "SELECT national_id, full_name, salary, mobile, address, hire_date FROM teachers WHERE archived_at IS NULL ORDER BY full_name")
         
         if teachers.empty:
             ui.empty_state("لا توجد معلمات مسجلات بعد.")
@@ -109,10 +110,9 @@ def render(conn):
                     if del_t:
                         try:
                             cur = conn.cursor()
-                            cur.execute("DELETE FROM teachers WHERE national_id=%s", (t_id,))
-                            conn.commit()
                             cur.close()
-                            st.warning("🗑️ تم حذف المعلمة بنجاح.")
+                            P.archive_teacher(t_id,actor=st.session_state.get("auth_user","مديرة الروضة"))
+                            st.warning("أُرشف ملف المعلمة؛ الرواتب والسلف السابقة باقية في الحساب والتدقيق.")
                             st.rerun()
                         except Exception as e:
                             conn.rollback()
