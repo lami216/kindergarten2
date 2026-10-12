@@ -174,7 +174,7 @@ def migrate(conn):
             CREATE UNIQUE INDEX IF NOT EXISTS expense_cash_opening_unique
                 ON expense_cash_events(expense_id) WHERE source='opening';
             CREATE OR REPLACE FUNCTION record_expense_cash_event()
-            RETURNS trigger LANGUAGE plpgsql AS $
+            RETURNS trigger LANGUAGE plpgsql AS $cash_event$
             DECLARE delta NUMERIC(12,2);
             BEGIN
                 IF TG_OP='INSERT' THEN
@@ -191,8 +191,8 @@ def migrate(conn):
                     END IF;
                 END IF;
                 RETURN NEW;
-            END $
-            ;
+            END $cash_event$;
+
             DROP TRIGGER IF EXISTS expense_cash_projection_write ON expenses;
             CREATE TRIGGER expense_cash_projection_write
                 AFTER INSERT OR UPDATE OF amount_paid ON expenses
