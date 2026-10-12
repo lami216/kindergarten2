@@ -7,6 +7,7 @@ import streamlit as st
 from datetime import datetime, date
 import ui
 import expense_finance as E
+from monthly_finance import today as business_today
 import uuid
 
 EXPENSE_CATEGORIES = [
@@ -53,7 +54,7 @@ def render(conn):
                 # --------------------------------------------------------------
                 st.markdown("##### ➕ تسجيل مصروف جديد")
                 with st.form("add_expense_form", clear_on_submit=True):
-                    exp_date = st.date_input("تاريخ المصروف", value=date.today())
+                    exp_date = st.date_input("تاريخ المصروف", value=business_today())
                     category = st.selectbox("بند المصروف", EXPENSE_CATEGORIES)
                     amount = st.number_input("إجمالي قيمة الفاتورة/المصروف (أوقية قديمة)", min_value=0.0, step=10.0, format="%.2f")
                     
@@ -138,7 +139,7 @@ def render(conn):
                         try:
                             curr_date = datetime.strptime(str(exp_data["expense_date"]), "%Y-%m-%d").date()
                         except Exception:
-                            curr_date = date.today()
+                            curr_date = business_today()
 
                         e_date = st.date_input("التاريخ", value=curr_date)
                         e_cat = st.selectbox("البند", EXPENSE_CATEGORIES, index=EXPENSE_CATEGORIES.index(exp_data["category"]) if exp_data["category"] in EXPENSE_CATEGORIES else 0)
@@ -180,7 +181,7 @@ def render(conn):
                                 pay=st.number_input("مبلغ نقد صُرف فعلياً الآن",
                                     min_value=0.0,max_value=float(remaining_debt),
                                     value=0.0,step=10.0,format="%.2f")
-                                payment_date=st.date_input("تاريخ صرف النقد",value=date.today())
+                                payment_date=st.date_input("تاريخ صرف النقد",value=business_today())
                                 settle_reason=st.text_input("سبب تسوية الدفع *")
                                 settle=st.form_submit_button("تسجيل تسوية نقدية فعلية")
                             if settle:
@@ -231,7 +232,7 @@ def render(conn):
             with col_ast_form:
                 st.markdown("##### ➕ إضافة أصل / ألعاب جديدة")
                 with st.form("add_asset_form", clear_on_submit=True):
-                    p_date = st.date_input("تاريخ الشراء", value=date.today())
+                    p_date = st.date_input("تاريخ الشراء", value=business_today())
                     item_name = st.text_input("اسم الأصل / اللعبة", placeholder="مثال: مجمع ألعاب بلاستيكي")
                     category = st.selectbox("فئة الأصل", ASSET_CATEGORIES)
                     qty = st.number_input("الكمية", min_value=1, value=1, step=1)
