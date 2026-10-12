@@ -131,7 +131,7 @@ async def run():
         await reason.fill("قرار مديرة موثق دون قبض نقدي")
         checkbox=page.get_by_role("checkbox",name="أؤكد إلغاء الدين دون قبض أي مبلغ")
         if not await checkbox.is_checked():
-            await checkbox.click()
+            await page.get_by_text("أؤكد إلغاء الدين دون قبض أي مبلغ",exact=True).click()
         await expect(checkbox).to_be_checked()
         await expect(reason).to_have_value("قرار مديرة موثق دون قبض نقدي")
         await snapshot(page,"student_debt_confirm_390_day.png",
@@ -145,7 +145,7 @@ async def run():
         await reason.fill("قرار مديرة موثق دون قبض نقدي")
         checkbox=page.get_by_role("checkbox",name="أؤكد إلغاء الدين دون قبض أي مبلغ")
         if not await checkbox.is_checked():
-            await checkbox.click()
+            await page.get_by_text("أؤكد إلغاء الدين دون قبض أي مبلغ",exact=True).click()
         await expect(checkbox).to_be_checked()
         await expect(reason).to_have_value("قرار مديرة موثق دون قبض نقدي")
         metrics["confirm_dark"]=await wait_for_real_theme(page,True,form=True)
