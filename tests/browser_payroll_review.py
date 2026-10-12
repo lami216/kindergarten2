@@ -1,6 +1,7 @@
 """Chromium payroll/advance rapid-submit regression on disposable PostgreSQL."""
 import asyncio
 import os
+import re
 import uuid
 from pathlib import Path
 import psycopg2
@@ -65,7 +66,7 @@ async def run():
         await select_teacher(page,".st-key-advance_teacher_v0",name)
         await page.locator(".st-key-advance_amount_v0 input").fill("1000")
         await page.get_by_role("button",name="💾 تسجيل السلفة المدفوعة").dblclick()
-        await expect(page.get_by_text("تم حفظ صرف السلفة",exact=False)).to_be_visible(timeout=20000)
+        await expect(page.get_by_text(re.compile("تم حفظ صرف السلفة|السلفة محفوظة سابقاً"))).to_be_visible(timeout=20000)
         advances=sql("SELECT advance_id,amount FROM teacher_advances WHERE national_id=%s",(tid,))
         assert len(advances)==1 and int(advances[0]["amount"])==1000,advances
         await expect(page.locator(".st-key-advance_amount_v1 input")).to_have_value("0.00")
