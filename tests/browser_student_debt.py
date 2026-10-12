@@ -180,12 +180,17 @@ async def run():
         if not await history_toggle.is_checked():
             await page.get_by_text("إظهار ملفات الأطفال المؤرشفين (السجل المالي محفوظ)",exact=True).click()
         await expect(history_toggle).to_be_checked()
+        # Checkbox triggers Streamlit rerun and recreates the student list.
+        # Wait for the fresh options rather than selecting a hidden grid cell.
+        await page.wait_for_timeout(700)
         select=page.locator(".st-key-student_select_edit input[role='combobox']").first
         await expect(select).to_be_visible()
         if not await page.get_by_text("الطالب مؤرشف",exact=False).count():
             await select.click()
             await select.fill(name)
-            await page.get_by_text(name,exact=True).last.click(timeout=15000)
+            archived_option=page.get_by_role("option",name=name,exact=True)
+            await expect(archived_option).to_be_visible(timeout=18000)
+            await archived_option.click()
         await expect(page.get_by_text("الطالب مؤرشف",exact=False).first).to_be_visible(timeout=20000)
         metrics["history_light"]=await wait_for_real_theme(page,False)
         await snapshot(page,"student_debt_history_390_day.png")
