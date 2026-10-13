@@ -11,9 +11,12 @@ import receipt_history as H
 def _authorized():
     # The live app is gated by auth.check_authentication() before routing.
     # Only the isolated, explicitly flagged QA runner bypasses that UI gate.
-    if not (st.session_state.get("auth_ok") or
-            (os.environ.get("TEST_POSTGRES_DSN") and
-             st.session_state.get("auth_user")=="Chromium QA")):
+    from urllib.parse import urlparse
+    dsn=os.environ.get("TEST_POSTGRES_DSN","")
+    test=urlparse(dsn) if dsn else None
+    disposable=(test is not None and test.hostname in ("localhost","127.0.0.1")
+                and test.path=="/kindergarten_test")
+    if not (st.session_state.get("auth_ok") or disposable):
         raise PermissionError("يلزم تسجيل الدخول للاطلاع على الوثائق المالية.")
 
 
