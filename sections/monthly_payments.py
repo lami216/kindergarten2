@@ -6,6 +6,7 @@ from decimal import Decimal
 import streamlit as st
 import ui
 import monthly_finance as F
+from sections import receipt_inspector as RI
 
 
 def money_number(value):
@@ -84,24 +85,34 @@ def financial_panel(conn, student, *, payment=True):
             return "**باقي** " + fmt(max(0,fee["price"]-fee["paid"]-fee.get("waived",0)))
         st.write("التسجيل: " + item_state(registration))
         st.write("الجيليه: " + item_state(garment))
-        st.write(f"الشهور المدفوعة بالكامل: **{result['paid_periods']}**"
-                 + (f" · مدفوع حتى: {result['paid_through']}" if result["paid_through"] else ""))
+        st.caption("الحالة: "+("مؤرشف" if result["account"].get("archived_at") else "عادي")
+                   +" · بداية الاشتراك: "+str(result["account"]["start_date"]))
+        st.write(f"**مجموع القبض الصحيح: {fmt(result['cash_paid'])}**")
+        st.write(f"شهور مدفوعة فعليًا: **{result['paid_periods']}**"
+                 + (f" · تغطية متصلة مدفوعة حتى: {result['paid_through']}" if result["paid_through"] else
+                    " · لا توجد تغطية مدفوعة متصلة حتى الآن"))
         st.write(f"**الباقي للدفع الآن: {fmt(result['due_now'])}**")
         if result["account"].get("archived_at"):
             st.warning("حساب مؤرشف: لم تُمحَ الرسوم أو الوصولات، ولن تُصدر شهور جديدة.")
         if result["future_partial"]:
-            st.caption(f"دفعات مقدمة نحو شهر لم يبدأ بعد؛ الباقي حين يبدأ: "
-                       f"{fmt(result['future_partial'])}")
+            st.caption(f"فترات مستقبلية غير مستحقة بعد: {fmt(result['future_partial'])}"
+                       f" · المدفوع مقدماً: {fmt(result['prepaid_paid'])}")
         st.caption(f"أول شهر غير مكتمل أو موعد الدفعة القادمة: {result['next_unpaid']}")
         today=F.today()
+        def period_state(p):
+            remaining=max(0,p["price"]-p["paid"]-p.get("waived",0))
+            if p.get("waived",0) and remaining==0:
+                return "ألغي الدين — ليس قبضاً" if not p["paid"] else "مدفوع جزئياً ودينه ملغى"
+            if p["paid"]==p["price"]:
+                return "مدفوع بالكامل (مقدّم)" if p["start"]>today else "مدفوع بالكامل"
+            if p["paid"]>0:
+                return "مدفوع جزئياً — لم يستحق" if p["start"]>today else "مدفوع جزئياً — مستحق"
+            return "غير مدفوع — لم يستحق" if p["start"]>today else "غير مدفوع — مستحق"
         rows=[{"الفترة":f"{period['start']} إلى {period['end']-timedelta(days=1)}",
-               "المطلوب":fmt(period["price"]),"المدفوع":fmt(period["paid"]),"الملغى":fmt(period.get("waived",0)),
-               "الحالة":("ألغي الدين" if period.get("waived",0) and not period["paid"]
-                        else "مدفوع جزئياً والباقي ملغى" if period.get("waived",0)
-                        else "مدفوع مقدماً" if period["paid"]==period["price"] and period["start"]>today
-                        else "مدفوع" if period["paid"]==period["price"]
-                        else "دفعة مقدمة جزئية" if period["start"]>today and period["paid"]
-                        else "باقي" if period["start"]<=today else "لم يبدأ")}
+               "المستحق":fmt(period["price"]),"المدفوع فعلياً":fmt(period["paid"]),
+               "دين ملغى":fmt(period.get("waived",0)),
+               "الباقي":fmt(max(0,period["price"]-period["paid"]-period.get("waived",0))),
+               "الحالة":period_state(period)}
               for period in result["periods"]]
         if rows:
             ui.dataframe(__import__("pandas").DataFrame(rows),hide_index=True,
