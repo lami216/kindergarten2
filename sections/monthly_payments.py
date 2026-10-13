@@ -23,7 +23,9 @@ def actor():
     return st.session_state.get("auth_user") or "مديرة الروضة"
 
 
-def financial_panel(conn, student, *, payment=True):
+def financial_panel(conn, student, *, payment=True, scope=None):
+    # Keep database identity separate from per-view widget/session identity.
+    panel_id=student if scope is None else f"{scope}_{student}"
     result=F.projection(conn,student)
     if not result:
         info=F.account_setup_suggestion(conn,student)
@@ -41,20 +43,20 @@ def financial_panel(conn, student, *, payment=True):
             label=("تاريخ تسجيل معروف" if info["registered_on"] else
                    "تاريخ إنشاء ملف الطفل؛ تاريخ مقترح قابل للتعديل")
             st.caption(label)
-            with st.form(f"monthly_existing_setup_{student}"):
+            with st.form(f"monthly_existing_setup_{panel_id}"):
                 anchor=st.date_input("بداية حساب الطفل",value=suggested,
                                      min_value=date(1990,1,1),max_value=F.today(),
-                                     key=f"existing_month_start_{student}")
+                                     key=f"existing_month_start_{panel_id}")
                 kind=st.radio("حالة الرسوم",["عادي","معفي"],horizontal=True,
-                              key=f"existing_month_mode_{student}")
+                              key=f"existing_month_mode_{panel_id}")
                 agree=st.checkbox("أؤكد التاريخ والحالة، ولا توجد دفعات سابقة غير مسجلة",
-                                  key=f"existing_month_confirm_{student}")
+                                  key=f"existing_month_confirm_{panel_id}")
                 submit=st.form_submit_button("تأكيد تهيئة حساب الطفل",type="primary")
             if submit:
                 try:
                     F.initialize_existing_account(student,anchor,
                       "exempt" if kind=="معفي" else "regular",agree,actor=actor())
-                    st.session_state[f"existing_month_saved_{student}"]=(
+                    st.session_state[f"existing_month_saved_{panel_id}"]=(
                         "تم تهيئة الحساب دون إنشاء أي إيصال نقدي.")
                     st.rerun()
                 except ValueError as error:
@@ -62,7 +64,7 @@ def financial_panel(conn, student, *, payment=True):
                 except Exception:
                     st.error("تعذرت التهيئة؛ لم تُغيّر بيانات الطفل.")
         return
-    success=st.session_state.pop(f"existing_month_saved_{student}",None)
+    success=st.session_state.pop(f"existing_month_saved_{panel_id}",None)
     if success:
         st.success(success)
     with st.expander("💵 الرسوم والدفعات الشهرية", expanded=True):
@@ -125,7 +127,7 @@ def financial_panel(conn, student, *, payment=True):
                         f"الشهر {periods[index]['no']+1} · "
                         f"{periods[index]['start']} إلى "
                         f"{periods[index]['end']-timedelta(days=1)}",
-                     key=f"child_month_sources_{student}")
+                     key=f"child_month_sources_{panel_id}")
                 period=periods[selected_period]
                 with conn.cursor() as cur:
                     cur.execute("""SELECT r.receipt_id,r.state,r.received_on,
@@ -146,8 +148,8 @@ def financial_panel(conn, student, *, payment=True):
                     left,right=st.columns([3,1])
                     left.write(f"وصل #{rid} · {source['received_on']}"
                                f" · {fmt(source['period_amount'])} · {label}")
-                    if right.button("فتح الوصل",key=f"month_source_{student}_{period['no']}_{rid}"):
-                        st.session_state[f"child_receipt_{student}_receipt_open"]=rid
+                    if right.button("فتح الوصل",key=f"month_source_{panel_id}_{period['no']}_{rid}"):
+                        st.session_state[f"child_receipt_{panel_id}_receipt_open"]=rid
                         st.rerun()
         with conn.cursor() as cur:
             cur.execute("""SELECT w.waiver_id,w.effective_on,w.amount,w.actor,w.reason,
@@ -167,21 +169,21 @@ def financial_panel(conn, student, *, payment=True):
             st.caption("الرسوم الأصلية محفوظة؛ هذه القرارات ليست إيصالات ولا مبالغ مدفوعة.")
         receipts=result["receipts"]
         if payment:
-            token_key=f"monthly_pay_token_{student}"
-            version_key=f"monthly_pay_version_{student}"
+            token_key=f"monthly_pay_token_{panel_id}"
+            version_key=f"monthly_pay_version_{panel_id}"
             version=st.session_state.get(version_key,0)
             st.session_state.setdefault(token_key,str(uuid.uuid4()))
             st.markdown("##### تسجيل دفعة — مبلغ فقط")
             paid=st.number_input("المبلغ المدفوع",min_value=0,max_value=F.MAX_AMOUNT,
-                       value=0,step=1,key=f"monthly_amount_{student}_v{version}")
+                       value=0,step=1,key=f"monthly_amount_{panel_id}_v{version}")
             left,right=st.columns(2)
-            if left.button("معاينة توزيع المبلغ",key=f"monthly_preview_button_{student}"):
+            if left.button("معاينة توزيع المبلغ",key=f"monthly_preview_button_{panel_id}"):
                 try:
-                    st.session_state[f"monthly_preview_{student}"]=F.payment_preview(
+                    st.session_state[f"monthly_preview_{panel_id}"]=F.payment_preview(
                         conn,student,int(paid))
                 except ValueError as error:
                     st.error(str(error))
-            preview=st.session_state.get(f"monthly_preview_{student}")
+            preview=st.session_state.get(f"monthly_preview_{panel_id}")
             if preview:
                 st.caption(f"معاينة توزيع {fmt(preview['amount'])} — "
                            "لا يتم إنشاء وصل إلا بعد التأكيد.")
@@ -192,10 +194,10 @@ def financial_panel(conn, student, *, payment=True):
                 if len(preview["months"])>20:
                     st.caption(f"وفترات إضافية عددها {len(preview['months'])-20}")
                 agree=st.checkbox("أؤكد قبض المبلغ وتوزيعه كما عُرض",
-                             key=f"monthly_confirm_{student}_v{version}")
+                             key=f"monthly_confirm_{panel_id}_v{version}")
                 if right.button("💾 تسجيل دفعة",type="primary",
                                  disabled=not agree,
-                                 key=f"monthly_save_{student}_v{version}"):
+                                 key=f"monthly_save_{panel_id}_v{version}"):
                     if int(paid)!=preview["amount"]:
                         st.error("تغيّر المبلغ بعد المعاينة؛ أعد المعاينة.")
                     else:
@@ -206,9 +208,9 @@ def financial_panel(conn, student, *, payment=True):
                               expected_tariff=preview["tariff"])
                             st.session_state[token_key]=str(uuid.uuid4())
                             st.session_state[version_key]=version+1
-                            st.session_state.pop(f"monthly_preview_{student}",None)
-                            st.session_state[f"child_receipt_{student}_receipt_open"]=rid
-                            st.session_state[f"monthly_payment_success_{student}"]=(
+                            st.session_state.pop(f"monthly_preview_{panel_id}",None)
+                            st.session_state[f"child_receipt_{panel_id}_receipt_open"]=rid
+                            st.session_state[f"monthly_payment_success_{panel_id}"]=(
                                 f"تم تسجيل الدفعة — وصل #{rid}" if new
                                 else f"هذه الدفعة محفوظة بالفعل — وصل #{rid}")
                             st.rerun()
@@ -216,14 +218,14 @@ def financial_panel(conn, student, *, payment=True):
                             st.error(str(error))
                         except Exception:
                             st.error("تعذّر تسجيل الدفعة؛ لم تُنشأ حركة نقدية.")
-            message=st.session_state.pop(f"monthly_payment_success_{student}",None)
+            message=st.session_state.pop(f"monthly_payment_success_{panel_id}",None)
             if message: st.success(message)
         if receipts:
             st.markdown("##### 🧾 الوصولات الحقيقية وعملياتها")
-            RI.render_receipt_list(conn,receipts,scope="child_receipt_"+student,
+            RI.render_receipt_list(conn,receipts,scope="child_receipt_"+panel_id,
                                    student_id=student,limit=20)
         with st.expander("سجل العمليات الخاصة بهذا الطفل",expanded=False):
-            RI.render_history(conn,scope="child_receipt_"+student+"_history",
+            RI.render_history(conn,scope="child_receipt_"+panel_id+"_history",
                               student_id=student)
 
 
@@ -284,11 +286,13 @@ def render_receipts(conn):
 
 
 def render_history(conn):
-    RI.render_history(conn,scope="finance_receipt_history")
-    selected=st.session_state.get("finance_receipt_receipt_open")
+    # Streamlit renders every tab. History must not share inspector/widget
+    # state with the receipt-list tab, even when both open the same receipt.
+    RI.render_history(conn,scope="finance_audit_history")
+    selected=st.session_state.get("finance_audit_receipt_open")
     if selected:
-        RI.render_inspector(conn,selected,scope="finance_receipt")
-    child=st.session_state.get("finance_receipt_history_child")
+        RI.render_inspector(conn,selected,scope="finance_audit")
+    child=st.session_state.get("finance_audit_history_child")
     if child:
         st.markdown("##### ملف الطفل المرتبط بالعملية")
         with conn.cursor() as cur:
@@ -296,7 +300,7 @@ def render_history(conn):
             row=cur.fetchone()
         if row:
             st.caption(f"{row['full_name']} — السجل محفوظ حتى عند الأرشفة")
-            financial_panel(conn,child,payment=False)
+            financial_panel(conn,child,payment=False,scope="finance_audit_child")
         else:
             st.error("لا يوجد ملف طفل لهذا الأثر؛ يتطلب مراجعة قاعدة البيانات.")
 
