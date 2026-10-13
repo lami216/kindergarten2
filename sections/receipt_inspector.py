@@ -169,8 +169,17 @@ def render_inspector(conn,receipt_id,*,scope,student_id=None):
                     f"القبض الجديد: {_amount(snapshot['new_amount'])} · "
                     f"الفرق: {_amount(snapshot['cash_delta'])}. "
                     "التخصيص النهائي يعاد حسابه من الرسوم والفترات المحفوظة.")
-            st.caption("فترات/رسوم الوصل الأصلي: "+
+            st.caption("تخصيصات الوصل الأصلي: "+
                        "، ".join(snapshot["affected_periods"]))
+            st.write("**توزيع الوصل المصحح المتوقع:**")
+            for item in snapshot["new_items"][:30]:
+                st.write(f"{item['label']} · {item['amount']:,} {F.CURRENCY}"
+                         f" · الرسم المثبت {item['price']:,} {F.CURRENCY}")
+            if len(snapshot["new_items"])>30:
+                st.caption(f"فترات إضافية: {len(snapshot['new_items'])-30}")
+            st.caption(f"الدين المستحق قبل التصحيح: "
+                       f"{snapshot['currently_due']:,} {F.CURRENCY} · "
+                       f"بعده وفق المعاينة: {snapshot['projected_due']:,} {F.CURRENCY}")
             confirmed=st.checkbox("أؤكد أثر التصحيح وحفظ الوصل الأصلي في السجل",
                         key=key+str(receipt_id)+"_edit_confirm")
             if right.button("تأكيد تصحيح الوصل",key=key+"commit_edit",
