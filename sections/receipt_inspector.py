@@ -249,6 +249,9 @@ def _change_summary(row):
     old=row.get("before_state") or {}
     new=row.get("after_state") or {}
     pieces=[]
+    if row["action"]=="receipt_cancelled":
+        original=old.get("receipt",{})
+        pieces.append(f"قبض ملغى {int(original.get('amount',0)):,} {F.CURRENCY} — ليس مصروفاً")
     if "amount" in old or "amount" in new:
         pieces.append(f"المبلغ {old.get('amount','—')} ← {new.get('amount','—')}")
     if "receipt_id" in old and "receipt_id" in new:
@@ -263,11 +266,14 @@ def render_history(conn,*,scope,student_id=None,receipt_id=None,show_open=True):
     """A single history query/UI for global, child and source-receipt contexts."""
     _authorized()
     st.markdown("##### سجل العمليات المالية")
-    a,b=st.columns([2,1])
+    a,b,c=st.columns([2,1,1])
     search=a.text_input("بحث بالطفل / رقم الوصل / المسبب",key=scope+"_q")
     action=b.selectbox("نوع العملية",["الكل"]+list(H.ACTION_LABELS),
                format_func=lambda k:H.ACTION_LABELS.get(k,"الكل"),
                key=scope+"_action")
+    state=c.selectbox("حالة الوصل",["الكل","ساري","ملغى","مصحح"],
+               key=scope+"_state")
+    status={"الكل":None,"ساري":"active","ملغى":"cancelled","مصحح":"corrected"}[state]
     dates=st.checkbox("تصفية بتاريخ القرار",key=scope+"_dates")
     start=end=None
     if dates:
@@ -279,7 +285,7 @@ def render_history(conn,*,scope,student_id=None,receipt_id=None,show_open=True):
                          key=scope+"_page")
     try:
         result=H.history(conn,student_id=student_id,receipt_id=receipt_id,
-                 action=None if action=="الكل" else action,query=search,
+                 action=None if action=="الكل" else action,state=status,query=search,
                  start=start,end=end,page=int(page),page_size=12)
     except ValueError as error:
         st.error(str(error))
