@@ -312,7 +312,8 @@ def render(conn):
                    s.address, s.medical_details, s.has_medical_condition,
                    s.allergies, s.general_notes, s.authorized_pickups, s.father_id,
                    s.archived_at,
-                   COALESCE(p.father_name, p.mother_name) AS parent_name
+                   COALESCE(p.father_name, p.mother_name) AS parent_name,
+                    p.father_mobile,p.mother_mobile,p.father_name,p.mother_name
             FROM students s JOIN parents p ON p.father_id=s.father_id
             ORDER BY s.created_at DESC
         """)
