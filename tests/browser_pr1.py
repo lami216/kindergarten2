@@ -275,7 +275,7 @@ async def verify_pickup_contrast(browser):
                         data = style[component]
                         ratio = _contrast_ratio(data["background"], data["color"])
                         assert ratio >= 4.5, f"{slug}: {component} contrast {ratio:.2f}"
-                    assert style["remove"]["kind"] == "secondaryFormSubmit"
+                    assert style["remove"]["kind"] in ("secondaryFormSubmit","secondary")
                 records.append({"version": version, "width": width, "night": night,
                                 "styles": style})
                 await context.close()

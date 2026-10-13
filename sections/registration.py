@@ -37,19 +37,17 @@ def render(conn):
         student_options = {r.full_name + " — " + r.student_id: r.student_id for r in students_df.itertuples()}
         class_options = {r.label: r.class_id for r in classes_df.itertuples()}
 
+        # Guardian/payment selection stays in the student's existing monthly
+        # record; academic placement never asks that operator for annual dues.
+        student_label = st.selectbox("الطالب *", list(student_options.keys()),
+                                     key="registration_student_choice")
         with st.form("add_registration_form", clear_on_submit=True):
-            c1, c2, c3, c4 = st.columns(4)
-            student_label = c1.selectbox("الطالب *", list(student_options.keys()))
+            c1, c2, c3 = st.columns(3)
+            c1.caption(f"الطفل: {student_label.split(' — ')[0]}")
             class_label = c2.selectbox("الصف والشعبة *", list(class_options.keys()))
             year_label = c3.selectbox("السنة الدراسية *", years_df['year_id'])
-            
-            # Input field for dynamic annual tuition fee per registration
-            annual_tuition = c4.number_input(
-                "الرسوم السنوية (شيكل) *", 
-                min_value=0.0, 
-                value=float(getattr(H, 'ANNUAL_TUITION', 3500.0)), 
-                step=100.0
-            )
+
+            st.caption("التسجيل الدراسي لتحديد الصف والسنة فقط؛ الرسوم في حساب الطفل الشهري.")
 
             submitted = st.form_submit_button("💾 تسجيل الطالب", type="primary", use_container_width=True)
 
@@ -69,11 +67,10 @@ def render(conn):
                         cur.execute('''
                             INSERT INTO registrations (student_id, class_id, year_id, status, registration_date, annual_tuition)
                             VALUES (%s, %s, %s, %s, %s, %s)
-                        ''', (sid, cid, year_label, H.STATUS_NEW, H.today_str(), annual_tuition))
+                        ''', (sid, cid, year_label, H.STATUS_NEW, H.today_str(), 0))
                         conn.commit()
                         cur.close()
-                        st.success(f"✅ تم تسجيل «{student_label.split(' — ')[0]}» بنجاح! الرسوم المقررة: {H.format_money(annual_tuition)} شيكل. "
-                                   "توجّه إلى صفحة «الدفعات المالية» لتحصيل رسوم التسجيل.")
+                        st.success("✅ تم تسجيل الطالب دراسياً دون إصدار رسوم سنوية.")
                         st.rerun()
                     except Exception as e:
                         conn.rollback()
@@ -84,11 +81,7 @@ def render(conn):
         regs = ui.df(conn, """
             SELECT r.registration_id, s.full_name AS "اسم الطالب",
                    (c.class_type || ' ' || c.section) AS "الصف", r.year_id AS "السنة الدراسية",
-                   r.status AS "الحالة", r.registration_date AS "تاريخ التسجيل", r.class_id,
-                   COALESCE(r.annual_tuition, 3500.0) AS "الرسوم السنوية",
-                   COALESCE((SELECT SUM(p.amount) FROM payments p
-                             WHERE p.registration_id = r.registration_id
-                               AND p.payment_for IN ('رسوم تسجيل', 'أقساط تعليمية')), 0) AS paid_toward_tuition
+                   r.status AS "الحالة", r.registration_date AS "تاريخ التسجيل", r.class_id
             FROM registrations r
             JOIN students s ON s.student_id = r.student_id
             JOIN classes c ON c.class_id = r.class_id
@@ -97,9 +90,6 @@ def render(conn):
         if regs.empty:
             ui.empty_state("لا توجد تسجيلات بعد.")
         else:
-            # Calculate dynamic balance per student
-            regs["المبلغ المتبقي"] = (regs["الرسوم السنوية"].astype(float) - regs["paid_toward_tuition"].astype(float)).clip(lower=0)
-
             f1, f2 = st.columns(2)
             year_filter = f1.selectbox("تصفية حسب السنة", ["الكل"] + sorted(regs["السنة الدراسية"].unique().tolist()))
             status_filter = f2.selectbox("تصفية حسب الحالة", ["الكل", H.STATUS_NEW, H.STATUS_ACTIVE])
@@ -109,12 +99,12 @@ def render(conn):
             if status_filter != "الكل":
                 shown = shown[shown["الحالة"] == status_filter]
             ui.dataframe(
-                shown.drop(columns=["registration_id", "class_id", "paid_toward_tuition"]),
+                shown.drop(columns=["registration_id", "class_id"]),
                 use_container_width=True, hide_index=True
             )
 
             st.markdown("---")
-            st.markdown("##### ✏️ تعديل (نقل صف / تعديل الرسوم) أو حذف تسجيل")
+            st.markdown("##### ✏️ تعديل الصف أو حذف تسجيل")
 
             reg_options = [
                 (int(row['registration_id']),
@@ -133,19 +123,10 @@ def render(conn):
 
                 with st.expander(f"⚙️ تعديل: {selected[1]}", expanded=True):
                     with st.form("edit_registration_form"):
-                        c_edit1, c_edit2 = st.columns(2)
-                        
                         class_label_options = list(class_options.keys())
                         current_label = classes_df.loc[classes_df['class_id'] == row['class_id'], 'label']
                         current_idx = class_label_options.index(current_label.iloc[0]) if not current_label.empty else 0
-                        new_class_label = c_edit1.selectbox("نقل إلى صف", class_label_options, index=current_idx)
-
-                        new_tuition = c_edit2.number_input(
-                            "الرسوم السنوية (شيكل)", 
-                            min_value=0.0, 
-                            value=float(row["الرسوم السنوية"]), 
-                            step=100.0
-                        )
+                        new_class_label = st.selectbox("نقل إلى صف", class_label_options, index=current_idx)
 
                         b1, b2 = st.columns(2)
                         save = b1.form_submit_button("💾 حفظ التعديلات", type="primary", use_container_width=True)
@@ -155,10 +136,8 @@ def render(conn):
                             try:
                                 cur = conn.cursor()
                                 cur.execute("""
-                                    UPDATE registrations 
-                                    SET class_id=%s, annual_tuition=%s 
-                                    WHERE registration_id=%s
-                                """, (class_options[new_class_label], new_tuition, rid))
+                                    UPDATE registrations SET class_id=%s WHERE registration_id=%s
+                                """, (class_options[new_class_label], rid))
                                 conn.commit()
                                 cur.close()
                                 st.success("✅ تم تحديث بيانات التسجيل بنجاح.")

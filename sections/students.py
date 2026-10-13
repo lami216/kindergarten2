@@ -7,6 +7,9 @@ import pandas as pd
 import streamlit as st
 
 import db
+import monthly_finance as F
+import student_debt as D
+from sections.monthly_payments import financial_panel, actor
 import helpers as H
 import ui
 
@@ -14,7 +17,9 @@ import ui
 ADD_KEYS = ("kid_name", "kid_birth", "kid_gender", "kid_place", "kid_address",
             "kid_father_name", "kid_father_phone", "kid_mother_name",
             "kid_mother_phone", "kid_email", "kid_health", "kid_allergy",
-            "kid_notes", "kid_use_existing", "kid_existing_family")
+            "kid_notes", "kid_use_existing", "kid_existing_family",
+            "kid_finance_mode", "kid_initial_registration", "kid_initial_gilet",
+            "kid_initial_amount", "kid_finance_start")
 
 
 def _text(value):
@@ -79,7 +84,7 @@ def _reset_after_success():
         st.session_state["kid_request_token"] = str(uuid.uuid4())
 
 
-def _pickup_editor(owner, initial=None):
+def _pickup_editor(owner, initial=None, *, in_form=True):
     """Render ordinary paired widgets and add/remove submit buttons in a form."""
     list_key = owner + "_pickup_ids"
     if list_key not in st.session_state:
@@ -101,14 +106,14 @@ def _pickup_editor(owner, initial=None):
             a, b, c = st.columns([4, 4, 2])
             name = a.text_input("الاسم", key=f"{owner}_pickup_{row_id}_name")
             phone = b.text_input("رقم الهاتف", key=f"{owner}_pickup_{row_id}_phone")
-            remove = c.form_submit_button("إزالة",
+            remove = (c.form_submit_button if in_form else c.button)("إزالة",
                         key=f"{owner}_pickup_{row_id}_remove",
                         use_container_width=True)
             if remove:
                 st.session_state[list_key].remove(row_id)
                 st.rerun()
             people.append({"name": name, "phone": phone})
-        add = st.form_submit_button("＋ إضافة شخص مخوّل",
+        add = (st.form_submit_button if in_form else st.button)("＋ إضافة شخص مخوّل",
                   key=owner + "_pickup_add")
         if add:
             st.session_state[list_key].append(uuid.uuid4().hex[:12])
@@ -166,12 +171,12 @@ def render(conn):
         if family_choices:
             existing = st.checkbox("اختيار ولي أمر موجود", key=_form_key("kid_use_existing"))
         version = st.session_state["kid_form_version"]
-        with st.form(f"add_student_form_{version}", clear_on_submit=False):
+        with st.container():
             st.markdown("##### 🎒 بيانات الطفل")
             a, b = st.columns(2)
             name = a.text_input("اسم الطفل *", key=_form_key("kid_name")).strip()
             birth = b.date_input("تاريخ الميلاد *", value=date(2022, 1, 1),
-                       min_value=date(1990, 1, 1), max_value=date.today(),
+                       min_value=date(1990, 1, 1), max_value=F.today(),
                        key=_form_key("kid_birth"))
             a, b = st.columns(2)
             gender = a.selectbox("الجنس *", H.GENDERS, key=_form_key("kid_gender"))
@@ -199,9 +204,51 @@ def render(conn):
                 allergy = st.text_area("الحساسية", key=_form_key("kid_allergy"))
                 notes = st.text_area("ملاحظات عامة", key=_form_key("kid_notes"))
 
-            pickups = _pickup_editor(f"kid_add_{version}")
-            submitted = st.form_submit_button("💾 حفظ بيانات الطفل والأهل",
-                                              type="primary", use_container_width=True)
+            pickups = _pickup_editor(f"kid_add_{version}", in_form=False)
+
+            st.markdown("##### 💵 الرسوم والدفع")
+            # Unlike fields inside st.form, native segmented and amount controls
+            # trigger immediate reruns and therefore a live receipt breakdown.
+            mode = st.segmented_control("طريقة الرسوم", ["دفع", "معفي"],
+                selection_mode="single", default=None, key=_form_key("kid_finance_mode"),
+                help="اترك الخيار دون تحديد لتسجيل طفل عادي بلا دفعة.")
+            tariff = F.prices(conn)
+            start_date = F.today()
+            with st.expander("تاريخ بدء التسجيل"):
+                start_date = st.date_input("تاريخ بدء الاشتراك", value=F.today(),
+                    key=_form_key("kid_finance_start"))
+            reg_chosen = garment_chosen = False
+            initial_amount = 0
+            if mode == "معفي":
+                st.caption("يشمل الإعفاء التسجيل والجيليه والشهرية، دون قبض أي مبلغ.")
+            elif mode == "دفع":
+                if tariff:
+                    reg_price, garment_price = int(tariff["registration"]), int(tariff["gilet"])
+                    reg_chosen = st.checkbox(f"رسوم التسجيل — {reg_price:,} أوقية قديمة",
+                        key=_form_key("kid_initial_registration"))
+                    garment_chosen = st.checkbox(f"الجيليه — {garment_price:,} أوقية قديمة",
+                        key=_form_key("kid_initial_gilet"))
+                else:
+                    st.warning("لم تُضبط الأسعار بعد. افتح إعدادات الرسوم في صفحة الدفعات.")
+                initial_amount = st.number_input("المبلغ المدفوع", min_value=0,
+                    max_value=F.MAX_AMOUNT, step=1, value=0,
+                    key=_form_key("kid_initial_amount"))
+                if tariff:
+                    try:
+                        estimate = F.preview(int(initial_amount),reg_chosen,garment_chosen,tariff)
+                        st.caption(f"التسجيل {estimate['registration']:,} · الجيليه "
+                                   f"{estimate['gilet']:,} · للأشهر {estimate['monthly']:,} "
+                                   f"· أشهر مكتملة {estimate['full_months']}"
+                                   + (f" · دفعة للشهر التالي {estimate['next_partial']:,}"
+                                      if estimate["next_partial"] else ""))
+                    except ValueError as exc:
+                        st.warning(str(exc))
+            else:
+                st.caption("طفل عادي بلا دفعة أولى. تبقى رسوم التسجيل مستحقة، ولا يُطلب الجيليه.")
+
+            submitted = st.button("💾 حفظ بيانات الطفل والأهل",
+                                  type="primary", use_container_width=True,
+                                  key=f"kid_save_final_{version}")
             if submitted:
                 # Remove the preceding success notice only for a new valid attempt.
                 try:
@@ -227,8 +274,27 @@ def render(conn):
                         birth_place=place, address=address, medical_details=medical,
                         allergies=allergy, general_notes=notes,
                         authorized_pickups=_validate_pickups(pickups))
+                    if mode == "دفع" and not initial_amount:
+                        raise ValueError("أدخل المبلغ المدفوع أو اترك الخيار بلا دفع.")
+                    # This preview does not authorize the charge; PostgreSQL
+                    # re-reads current tariffs and allocates in the transaction.
+                    if mode == "دفع" and tariff:
+                        F.preview(int(initial_amount),reg_chosen,garment_chosen,tariff)
+                    if parent_id:
+                        stored_parent = parents.loc[parents["father_id"] == parent_id].iloc[0]
+                        payer = (_text(stored_parent["father_name"]).strip() or
+                                 _text(stored_parent["mother_name"]).strip() or "ولي الأمر")
+                    else:
+                        payer = family["father_name"] or family["mother_name"]
+                    finance = {"mode": "exempt" if mode=="معفي" else "regular",
+                               "start_date": str(start_date),
+                               "registration": bool(reg_chosen) if mode=="دفع" else False,
+                               "gilet": bool(garment_chosen) if mode=="دفع" else False,
+                               "cash": int(initial_amount) if mode=="دفع" else 0,
+                               "payer": payer}
                     _, created = db.save_child_with_family(
-                        child, family, parent_id, st.session_state["kid_request_token"])
+                        child, family, parent_id, st.session_state["kid_request_token"],
+                        finance=finance, actor=actor())
                     st.session_state["kid_last_saved"] = (
                         "✅ تم حفظ الطفل والأهل بنجاح. النموذج فارغ لإدخال طفل آخر."
                         if created else
@@ -245,12 +311,20 @@ def render(conn):
             SELECT s.student_id, s.full_name, s.birth_date, s.gender, s.birth_place,
                    s.address, s.medical_details, s.has_medical_condition,
                    s.allergies, s.general_notes, s.authorized_pickups, s.father_id,
+                   s.archived_at,
                    COALESCE(p.father_name, p.mother_name) AS parent_name
             FROM students s JOIN parents p ON p.father_id=s.father_id
             ORDER BY s.created_at DESC
         """)
         if students.empty:
             ui.empty_state("لا يوجد طلاب مسجلون بعد.")
+            return
+        show_archived = st.checkbox("إظهار ملفات الأطفال المؤرشفين (السجل المالي محفوظ)",
+                                    key="show_archived_student_history")
+        if not show_archived:
+            students=students[students["archived_at"].isna()].copy()
+        if students.empty:
+            ui.empty_state("لا توجد ملفات في هذا العرض.")
             return
         search = st.text_input("🔍 ابحث باسم الطفل").strip()
         shown = students[students["full_name"].str.contains(
@@ -271,6 +345,15 @@ def render(conn):
         if chosen:
             sid = chosen[0]
             row = students[students["student_id"] == sid].iloc[0]
+            financial_panel(conn, sid, payment=pd.isna(row["archived_at"]))
+            if pd.notna(row["archived_at"]):
+                st.warning("الطالب مؤرشف؛ سجله وحساباته باقية للمراجعة.")
+                archived_finance=F.projection(conn,sid,materialize=False)
+                if archived_finance and archived_finance["due_now"]:
+                    st.error(f"دين أعيد فتحه بعد تصحيح أو إلغاء قبض سابق: "
+                             f"{archived_finance['due_now']:,} أوقية قديمة. "
+                             "لم تُستأنف رسوم شهرية جديدة.")
+                return
             with st.expander(f"⚙️ تعديل بيانات: {_text(row['full_name'])}", expanded=True):
                 with st.form(f"edit_student_form_{sid}"):
                     a, b, c = st.columns(3)
@@ -279,7 +362,7 @@ def render(conn):
                     old_date = pd.to_datetime(row["birth_date"], errors="coerce")
                     e_birth = b.date_input("تاريخ الميلاد",
                         value=old_date.date() if pd.notna(old_date) else date(2022, 1, 1),
-                        min_value=date(1990, 1, 1), max_value=date.today(),
+                        min_value=date(1990, 1, 1), max_value=F.today(),
                         key=f"edit_{sid}_birth")
                     original_gender = _text(row["gender"])
                     e_gender = c.selectbox("الجنس", H.GENDERS,
@@ -340,10 +423,73 @@ def render(conn):
                             st.error("تعذّر حفظ التعديلات؛ يرجى المحاولة مرة أخرى.")
                     if delete:
                         try:
-                            with conn.cursor() as cur:
-                                cur.execute("DELETE FROM students WHERE student_id=%s", (sid,))
-                            st.warning("تم حذف الطالب.")
+                            D.archive_student(sid,actor=st.session_state.get("auth_user","مديرة الروضة"))
+                            st.session_state.pop("student_pending_debt",None)
+                            st.success("أُرشف الطالب؛ جميع الحسابات والوصولات محفوظة.")
                             st.rerun()
+                        except ValueError as error:
+                            st.session_state["student_pending_debt"]=sid
+                            st.error(str(error))
                         except Exception:
-                            conn.rollback()
-                            st.error("تعذّر الحذف؛ يرجى مراجعة ارتباطات الطفل.")
+                            st.error("تعذّر الأرشفة؛ لم تتغير البيانات.")
+                if st.session_state.get("student_pending_debt")==sid:
+                    remaining=D.waiver_preview(conn,sid)
+                    due=int(remaining["due_now"]) if remaining else 0
+                    completed_waiver=st.session_state.get(f"student_waiver_success_{sid}")
+                    if completed_waiver and not due:
+                        st.success(f"أُلغي دين {completed_waiver:,} دون إنشاء قبض. يمكن الآن أرشفة الطالب.")
+                    if due:
+                        st.error(f"لا يمكن حذف الطالب؛ عليه مبلغ {due:,} أوقية قديمة.")
+                        st.caption("القرار بيد المديرة: قبض فعلي أو إلغاء دين موثّق. لا يصدر وصل عند إلغاء الدين.")
+                        b1,b2=st.columns(2)
+                        if b1.button("تسجيل دفعة",key=f"student_pay_choice_{sid}"):
+                            st.session_state[f"student_resolve_{sid}"]="pay"
+                        if b2.button("إلغاء الدين",key=f"student_waive_choice_{sid}"):
+                            st.session_state[f"student_resolve_{sid}"]="waive"
+                        mode=st.session_state.get(f"student_resolve_{sid}")
+                        if mode=="pay":
+                            st.caption("الدفعة الشهرية بالمبلغ فقط متاحة في الحساب أعلاه.")
+                            unsettled=[(kind,row) for kind,row in remaining["fees"].items()
+                               if row["price"]-row["paid"]-row.get("waived",0)>0]
+                            if unsettled:
+                                fee_map={kind:("رسوم التسجيل" if kind=="registration" else "الجيليه")
+                                    +f" — {info['price']-info['paid']-info.get('waived',0):,} أوقية قديمة"
+                                    for kind,info in unsettled}
+                                with st.form(f"student_item_collect_{sid}"):
+                                    kind=st.selectbox("رسم مستحق للتحصيل النقدي",list(fee_map),
+                                        format_func=lambda k:fee_map[k])
+                                    paid=st.form_submit_button("تحصيل المبلغ المحدد وإصدار وصل")
+                                if paid:
+                                    try:
+                                        token_key=f"student_item_token_{sid}"
+                                        st.session_state.setdefault(token_key,str(uuid.uuid4()))
+                                        receipt_id,_=D.pay_unpaid_fee(sid,kind,
+                                          actor=st.session_state.get("auth_user","مديرة الروضة"),
+                                          token=st.session_state[token_key])
+                                        st.session_state[token_key]=str(uuid.uuid4())
+                                        st.success(f"تم قبض المبلغ فعلياً؛ الوصل #{receipt_id}.")
+                                        st.rerun()
+                                    except ValueError as error:
+                                        st.error(str(error))
+                                    except Exception:
+                                        st.error("تعذّر تسجيل القبض؛ لم يصدر وصل.")
+                        elif mode=="waive":
+                            with st.form(f"student_waive_{sid}"):
+                                st.write(f"مجموع الدين الذي سيُلغى دون قبض: **{due:,} أوقية قديمة**")
+                                reason=st.text_area("سبب إلغاء الدين *")
+                                confirm=st.checkbox("أؤكد إلغاء الدين دون قبض أي مبلغ")
+                                apply=st.form_submit_button("تأكيد قرار إلغاء الدين")
+                            if apply:
+                                try:
+                                    key=f"student_waiver_token_{sid}"
+                                    st.session_state.setdefault(key,str(uuid.uuid4()))
+                                    written,_=D.waive_debt(sid,reason,confirm,
+                                        actor=st.session_state.get("auth_user","مديرة الروضة"),
+                                        token=st.session_state[key])
+                                    st.session_state[key]=str(uuid.uuid4())
+                                    st.session_state[f"student_waiver_success_{sid}"]=written
+                                    st.rerun()
+                                except ValueError as error:
+                                    st.error(str(error))
+                                except Exception:
+                                    st.error("تعذّر إلغاء الدين؛ بقي الدين محفوظاً.")

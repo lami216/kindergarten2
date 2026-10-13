@@ -7,6 +7,7 @@ import streamlit as st
 import ui
 import helpers as H
 import plotly.express as px
+from monthly_finance import today as business_today
 from datetime import datetime
 
 
@@ -33,7 +34,7 @@ def _get_scalar(conn, query, params=()):
 def render(conn):
     ui.section_header("📊", "الرئيسية", "نظرة سريعة وشاملة على أداء الروضة والمالية والسيولة")
 
-    current_month = datetime.now().strftime("%Y-%m")
+    current_month = business_today().strftime("%Y-%m")
 
     # ------------------------------------------------------------------
     # Data Queries
@@ -44,48 +45,26 @@ def render(conn):
     total_classes = int(_get_scalar(conn, "SELECT COUNT(*) FROM classes"))
     pending = int(_get_scalar(conn, "SELECT COUNT(*) FROM registrations WHERE status = %s", (H.STATUS_NEW,)))
 
-    # 2. Revenue & Student Receivables
-    total_revenue = float(_get_scalar(conn, "SELECT COALESCE(SUM(amount), 0) FROM payments"))
-    
-    total_student_outstanding = float(_get_scalar(conn, """
-        SELECT COALESCE(SUM(GREATEST(0, COALESCE(r.annual_tuition, 3500.0) - COALESCE(p.paid, 0))), 0)
-        FROM registrations r
-        LEFT JOIN (
-            SELECT registration_id, SUM(amount) AS paid
-            FROM payments
-            WHERE payment_for IN ('رسوم تسجيل', 'أقساط تعليمية')
-            GROUP BY registration_id
-        ) p ON p.registration_id = r.registration_id
-        WHERE r.year_id = (SELECT year_id FROM academic_years ORDER BY start_date DESC LIMIT 1)
-    """))
+    from monthly_finance import financial_report, CURRENCY
+    from datetime import date as business_date
 
-    # 3. Expenses Breakdown & Capital Assets
-    total_expenses_paid = float(_get_scalar(conn, "SELECT COALESCE(SUM(amount_paid), 0) FROM expenses"))
-    total_supplier_debts = float(_get_scalar(conn, "SELECT COALESCE(SUM(amount - amount_paid), 0) FROM expenses"))
-    total_assets = float(_get_scalar(conn, "SELECT COALESCE(SUM(total_cost), 0) FROM assets"))
-
-    # 4. Monthly Cash Flow Health Indicators
-    monthly_salaries_due = float(_get_scalar(conn, "SELECT COALESCE(SUM(salary), 0) FROM teachers"))
-    
-    monthly_student_income = float(_get_scalar(conn, """
-        SELECT COALESCE(SUM(amount), 0) 
-        FROM payments 
-        WHERE TO_CHAR(payment_date::date, 'YYYY-MM') = %s
-    """, (current_month,)))
-
-    monthly_salaries_paid = float(_get_scalar(conn, """
-        SELECT COALESCE(SUM(amount), 0) 
-        FROM teacher_payments 
-        WHERE salary_month = %s
-    """, (current_month,)))
-
-    monthly_expenses_paid = float(_get_scalar(conn, """
-        SELECT COALESCE(SUM(amount_paid), 0) 
-        FROM expenses 
-        WHERE TO_CHAR(expense_date::date, 'YYYY-MM') = %s
-    """, (current_month,)))
-
-    total_monthly_cash_outflow = monthly_salaries_paid + monthly_expenses_paid
+    current=business_today()
+    start_col,end_col=st.columns(2)
+    start=start_col.date_input("بداية الفترة المالية",
+        value=business_date(current.year,current.month,1),key="dashboard_finance_start")
+    end=end_col.date_input("نهاية الفترة المالية",
+        value=current,key="dashboard_finance_end")
+    if start>end:
+        st.error("تاريخ البداية بعد تاريخ النهاية.")
+        return
+    financial=financial_report(conn,start,end)
+    money=lambda value: f"{H.format_money(value)} {CURRENCY}"
+    total_assets = float(_get_scalar(conn,
+        "SELECT COALESCE(SUM(total_cost),0) FROM assets"))
+    monthly_salaries_due = float(_get_scalar(conn,
+        "SELECT COALESCE(SUM(salary),0) FROM teachers"))
+    total_supplier_debts = float(_get_scalar(conn,
+        "SELECT COALESCE(SUM(amount-amount_paid),0) FROM expenses"))
 
     # ==================================================================
     # SECTION 1: ENTITIES & OPERATIONAL COUNTS
@@ -96,58 +75,42 @@ def render(conn):
     ui.kpi(c2, "👩‍🏫", "المعلمات", total_teachers, bg="#F0F9FF", fg="#0284C7")
     ui.kpi(c3, "🏷️", "الصفوف", total_classes, bg="#F5F3FF", fg="#7C3AED")
     ui.kpi(c4, "⏳", "طلبات بانتظار التحديد", pending, bg="#FEF3C7", fg="#D97706")
-    ui.kpi(c5, "🧩", "استثمار الأصول والألعاب", H.format_money(total_assets), bg="#F0FDF4", fg="#15803D")
+    ui.kpi(c5, "🧩", "استثمار الأصول والألعاب", money(total_assets), bg="#F0FDF4", fg="#15803D")
 
     st.markdown("---")
 
     # ==================================================================
-    # SECTION 2: REVENUE & STUDENT RECEIVABLES
+    # SECTION 2: Single-currency receipt and actual cash-outflow projection
     # ==================================================================
-    st.markdown("##### 💰 المقبوضات والديون المتبقية (الطلاب)")
-    r1, r2 = st.columns(2)
-    ui.kpi(r1, "💵", "إجمالي مقبوضات الطلاب", H.format_money(total_revenue), bg="#ECFDF5", fg="#059669")
-    ui.kpi(r2, "🧾", "ديون الطلاب المتبقية (أقساط)", H.format_money(total_student_outstanding), bg="#FFE4E6", fg="#E11D48")
+    st.markdown("##### 💰 المقبوضات والسيولة بالأوقية القديمة")
+    r1,r2,r3=st.columns(3)
+    ui.kpi(r1,"💵","إجمالي المقبوضات",money(financial["total_cash"]),bg="#ECFDF5",fg="#059669")
+    ui.kpi(r2,"💸","إجمالي المصروفات",money(financial["expenses"]),bg="#FFF1F2",fg="#BE123C")
+    ui.kpi(r3,"📊","الباقي من المداخيل",money(financial["remaining_cash"]),bg="#E0F2FE",fg="#0369A1")
+    r4,r5,r6=st.columns(3)
+    # Unit is stated in the section title and adjacent cash cards.  A long
+    # currency suffix would clip this native metric at tablet widths.
+    r4.metric("الباقي على الطلاب",H.format_money(financial["due_now"]))
+    r5.metric("أطفال سددوا التسجيل",financial["registration_children"])
+    r6.metric("جيليه مدفوعة",financial["gilet_count"])
+    st.caption(f"تسجيل {money(financial['registration_cash'])} · "
+               f"جيليه {money(financial['gilet_cash'])} · "
+               f"أشهر {money(financial['monthly_cash'])} "
+               f"(منها مقدم {money(financial['prepaid_cash'])}، وليس إيراداً إضافياً)")
+    st.caption("الديون المستحقة على الأطفال لا تُخصم من المقبوضات كأنها مصروف.")
 
+    st.markdown("---")
+    st.markdown("##### 💸 التزامات منفصلة عن النقدية المصروفة")
+    e1,e2,e3=st.columns(3)
+    ui.kpi(e1,"📋","استحقاق الرواتب الشهري",money(monthly_salaries_due),bg="#FFFBEB",fg="#B45309")
+    ui.kpi(e2,"📦","تشغيلية مدفوعة",money(financial["operational_cash"]),bg="#FFF1F2",fg="#BE123C")
+    ui.kpi(e3,"💳","ديون الموردين (غير مدفوعة)",money(total_supplier_debts),bg="#FFFBEB",fg="#B45309")
+    st.caption(f"رواتب مصروفة {money(financial['salary_cash'])} · "
+               f"سلف مدفوعة {money(financial['advance_cash'])} (كل صرف مرة واحدة).")
     st.markdown("---")
 
     # ==================================================================
-    # SECTION 3: EXPENDITURES, LIABILITIES & ASSETS
-    # ==================================================================
-    st.markdown("##### 💸 الاتزامات")
-    e1, e2, e3 = st.columns(3)
-    ui.kpi(e1, "📋", "استحقاق الرواتب الشهري", H.format_money(monthly_salaries_due), bg="#FFFBEB", fg="#B45309")
-    ui.kpi(e2, "💸", "المصروفات المدفوعة فعلياً", H.format_money(total_expenses_paid), bg="#FFF1F2", fg="#BE123C")
-    ui.kpi(e3, "💳", "ديون الموردين والالتزامات (آجل)", H.format_money(total_supplier_debts), bg="#FFFBEB", fg="#B45309")
-
-    st.markdown("---")
-
-    # ==================================================================
-    # SECTION 4: MONTHLY CASH FLOW HEALTH CHECK
-    # ==================================================================
-    st.markdown(f"##### 🗓️ الميزانية والسيولة التشغيلية لشهر ({current_month})")
-    p1, p2 = st.columns(2)
-    ui.kpi(p1, "💵", "مقبوضات الطلاب (هذا الشهر)", H.format_money(monthly_student_income), bg="#E0F2FE", fg="#0369A1")
-    ui.kpi(p2, "📦", "السيولة الخارجة (رواتب + مصروفات)", H.format_money(total_monthly_cash_outflow), bg="#FEF2F2", fg="#991B1B")
-
-    # Income vs Outflow Cash Flow Alert
-    net_monthly_margin = monthly_student_income - total_monthly_cash_outflow
-    st.write("")
-    if net_monthly_margin < 0:
-        st.error(
-            f"⚠️ **تنبيه سيولة مالية:** تحصيلات الطلاب لهذا الشهر ({H.format_money(monthly_student_income)} شيكل) "
-            f"**أقل من** السيولة الخارجة للرواتب والمصروفات ({H.format_money(total_monthly_cash_outflow)} شيكل) "
-            f"بعجز قدره: **{H.format_money(abs(net_monthly_margin))} شيكل**."
-        )
-    else:
-        st.success(
-            f"✅ **السيولة المالية ممتازة:** دخل الطلاب لهذا الشهر يُغطي الرواتب والمصروفات المدفوعة "
-            f"بفائض تشغيلي قدره **{H.format_money(net_monthly_margin)} شيكل**."
-        )
-
-    st.markdown("---")
-
-    # ==================================================================
-    # SECTION 5: CHARTS AND VISUAL ANALYTICS
+        # SECTION 5: CHARTS AND VISUAL ANALYTICS
     # ==================================================================
     left, right = st.columns([1.3, 1])
 
@@ -155,10 +118,11 @@ def render(conn):
         with st.container(border=True):
             st.markdown("##### 📈 المقبوضات آخر 6 أشهر")
             rev = ui.df(conn, """
-                SELECT TO_CHAR(payment_date::date, 'YYYY-MM') AS "الشهر", SUM(amount) AS "المبلغ"
-                FROM payments
-                GROUP BY TO_CHAR(payment_date::date, 'YYYY-MM')
-                ORDER BY TO_CHAR(payment_date::date, 'YYYY-MM') DESC
+                SELECT TO_CHAR(received_on, 'YYYY-MM') AS "الشهر", SUM(amount) AS "المبلغ"
+                FROM monthly_receipts
+                WHERE state='active'
+                GROUP BY TO_CHAR(received_on, 'YYYY-MM')
+                ORDER BY TO_CHAR(received_on, 'YYYY-MM') DESC
                 LIMIT 6
             """)
             if rev.empty:

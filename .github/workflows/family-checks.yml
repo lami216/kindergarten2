@@ -36,7 +36,10 @@ jobs:
           pip install pytest playwright
       - name: Python syntax
         run: python -m compileall -q app.py db.py ui.py style.py sections tests
-      - name: Integration and UI tests
+      - name: Full PostgreSQL integration and UI tests across conflicting timezones
+        env:
+          TZ: Pacific/Honolulu
+          PGOPTIONS: -c timezone=Europe/Berlin
         run: python -m pytest -q tests/
       - name: Install Chromium for browser tests
         run: python -m playwright install --with-deps chromium
@@ -59,8 +62,18 @@ jobs:
             done
             if [ "$ready" != 1 ]; then cat /tmp/qa-after.log /tmp/qa-before.log; exit 1; fi
           done
+      # Historical receipt code/audit is retained and tested by pytest, but the
+      # old annual-payment operator tab is intentionally no longer reachable.
+      - name: Chromium salary and advance double-submission
+        run: PYTHONPATH=. python tests/browser_payroll_review.py
+      - name: Chromium student debt refusal and waiver on mobile
+        run: PYTHONPATH=. python tests/browser_student_debt.py
+      - name: Chromium single-currency operator and scrolled finance acceptance
+        run: PYTHONPATH=. python tests/browser_single_currency.py
       - name: Chromium regression and same-data screenshots
         run: python tests/browser_pr1.py
+      - name: Actual Chromium monthly/exempt receipt PostgreSQL readback
+        run: PYTHONPATH=. python tests/browser_monthly_finance.py
       - name: Upload actual browser evidence
         if: always()
         uses: actions/upload-artifact@v4

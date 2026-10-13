@@ -7,9 +7,30 @@ import hashlib
 import json
 import uuid
 
+# All application sessions use the same civil business date, regardless of
+# PostgreSQL server TimeZone or the host process TZ.
+BUSINESS_TIMEZONE = "Africa/Nouakchott"
+
 import psycopg2
 from psycopg2.extras import RealDictCursor
 import streamlit as st
+
+
+def _pin_business_timezone(conn, *, autocommit):
+    """Pin and verify each PostgreSQL session before its first financial query.
+
+    SET is executed outside a transaction so a later rollback cannot undo it.
+    Neither the server-wide timezone nor another database is changed.
+    """
+    conn.autocommit = True
+    with conn.cursor() as cursor:
+        cursor.execute("SELECT set_config('TimeZone', %s, false) AS timezone", (BUSINESS_TIMEZONE,))
+        zone = cursor.fetchone()["timezone"]
+    if zone != BUSINESS_TIMEZONE:
+        conn.close()
+        raise RuntimeError("Could not pin the PostgreSQL business timezone")
+    conn.autocommit = autocommit
+    return conn
 
 
 @st.cache_resource
@@ -34,8 +55,7 @@ def get_connection():
             cursor_factory=RealDictCursor
         )
     
-    conn.autocommit = True
-    return conn
+    return _pin_business_timezone(conn, autocommit=True)
 
 
 
@@ -48,8 +68,7 @@ def new_transaction_connection():
             host="YOUR_SUPABASE_HOST", database="postgres", user="postgres",
             password="YOUR_PASSWORD", port="5432", cursor_factory=RealDictCursor
         )
-    connection.autocommit = False
-    return connection
+    return _pin_business_timezone(connection, autocommit=False)
 
 
 def contact_validation_error(father_name, father_mobile, mother_name, mother_mobile):
@@ -65,7 +84,7 @@ def contact_validation_error(father_name, father_mobile, mother_name, mother_mob
     return None
 
 
-def _child_request_fingerprint(child, family, existing_parent_id):
+def _child_request_fingerprint(child, family, existing_parent_id, finance=None):
     """Hash the normalized data we actually persist, not a UI session identifier."""
     cleaned_child = {
         "full_name": child["full_name"].strip(),
@@ -90,12 +109,15 @@ def _child_request_fingerprint(child, family, existing_parent_id):
                 "mother_mobile", "contact_email")
         }}
     payload = {"child": cleaned_child, "family": cleaned_family}
+    if finance is not None:
+        payload["finance"] = finance
     encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True,
                          separators=(",", ":")).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
 
 
-def save_child_with_family(child, family, existing_parent_id, request_token):
+def save_child_with_family(child, family, existing_parent_id, request_token,
+                           finance=None, actor='مديرة الروضة'):
     """Persist family + child atomically; request_token makes repeated clicks idempotent.
 
     Returns (student_id, created). Existing family is only linked, never overwritten.
@@ -109,7 +131,7 @@ def save_child_with_family(child, family, existing_parent_id, request_token):
             family["mother_name"], family["mother_mobile"])
         if problem:
             raise ValueError(problem)
-    fingerprint = _child_request_fingerprint(child, family, existing_parent_id)
+    fingerprint = _child_request_fingerprint(child, family, existing_parent_id, finance)
     connection = new_transaction_connection()
     try:
         with connection.cursor() as cur:
@@ -160,6 +182,10 @@ def save_child_with_family(child, family, existing_parent_id, request_token):
                   child["allergies"].strip() or None, child["general_notes"].strip() or None,
                   json.dumps(child["authorized_pickups"], ensure_ascii=False),
                   parent_id, str(request_token), fingerprint))
+            if finance is not None:
+                import monthly_finance
+                monthly_finance.initialize_in_transaction(
+                    cur, student_id, finance, actor, request_token)
         connection.commit()
         return student_id, True
     except Exception:
@@ -249,7 +275,7 @@ def init_db():
                 year_id VARCHAR(20) REFERENCES academic_years(year_id) ON DELETE RESTRICT,
                 status VARCHAR(50) NOT NULL,
                 registration_date DATE DEFAULT CURRENT_DATE,
-                annual_tuition NUMERIC(10, 2) DEFAULT 3500.00,
+                annual_tuition NUMERIC(10, 2) DEFAULT 0.00,
                 UNIQUE(student_id, year_id)
             );
 
@@ -267,7 +293,11 @@ def init_db():
             );
 
             ALTER TABLE registrations 
-            ADD COLUMN IF NOT EXISTS annual_tuition NUMERIC(10, 2) DEFAULT 3500.00;
+            ADD COLUMN IF NOT EXISTS annual_tuition NUMERIC(10, 2) DEFAULT 0.00;
+            -- Existing historic amounts remain untouched; change only the
+            -- implicit value of future academic-year registrations.
+            ALTER TABLE registrations
+            ALTER COLUMN annual_tuition SET DEFAULT 0.00;
 
             CREATE TABLE IF NOT EXISTS payments (
                 receipt_number SERIAL PRIMARY KEY,
@@ -330,6 +360,25 @@ def init_db():
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
 
+            -- PostgreSQL TIMESTAMP (without time zone) is a wall clock and
+            -- must NOT be run through AT TIME ZONE during readback. Future
+            -- student creation timestamps are recorded in business local time,
+            -- even for independent SQL writers with a Berlin session. Existing
+            -- historical rows are left unchanged (their origin zone is unknown).
+            ALTER TABLE students ALTER COLUMN created_at
+                SET DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'Africa/Nouakchott');
+            -- Only future DATE defaults change; never reinterpret old ledgers.
+            ALTER TABLE registrations ALTER COLUMN registration_date
+                SET DEFAULT ((CURRENT_TIMESTAMP AT TIME ZONE 'Africa/Nouakchott')::date);
+            ALTER TABLE payments ALTER COLUMN payment_date
+                SET DEFAULT ((CURRENT_TIMESTAMP AT TIME ZONE 'Africa/Nouakchott')::date);
+            ALTER TABLE teacher_payments ALTER COLUMN payment_date
+                SET DEFAULT ((CURRENT_TIMESTAMP AT TIME ZONE 'Africa/Nouakchott')::date);
+            ALTER TABLE expenses ALTER COLUMN expense_date
+                SET DEFAULT ((CURRENT_TIMESTAMP AT TIME ZONE 'Africa/Nouakchott')::date);
+            ALTER TABLE assets ALTER COLUMN purchase_date
+                SET DEFAULT ((CURRENT_TIMESTAMP AT TIME ZONE 'Africa/Nouakchott')::date);
+
             -- Migration to ensure teacher_payments supports advance deductions
             ALTER TABLE teacher_payments ADD COLUMN IF NOT EXISTS advance NUMERIC(10, 2) DEFAULT 0.00;
 
@@ -345,3 +394,7 @@ def init_db():
             CREATE UNIQUE INDEX IF NOT EXISTS students_request_token_unique
               ON students(request_token);
         """)
+    # Existing annual values remain unchanged; only new accounts use the
+    # independent versioned monthly finance tables.
+    import monthly_finance
+    monthly_finance.migrate(conn)

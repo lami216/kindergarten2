@@ -349,6 +349,25 @@ div[data-testid="stDataFrame"] {
     color: var(--primary-dark);
 }
 
+/* Keep original dashboard KPI cards, but show the full values on tablets.
+   Five native dashboard columns otherwise ellipsize the currency at 768px. */
+@media (min-width:700px) and (max-width:1100px) {
+    .kpi-card { gap:6px !important; padding:9px !important; }
+    .kpi-icon {
+        width:32px !important; height:32px !important;
+        min-width:32px !important; min-height:32px !important;
+        font-size:17px !important;
+    }
+    .kpi-value {
+        font-size:clamp(11px,1.5vw,17px) !important;
+        white-space:normal !important;
+        overflow:visible !important;
+        text-overflow:clip !important;
+        overflow-wrap:anywhere !important;
+    }
+    .kpi-label { font-size:11px !important; }
+}
+
 /* ---------------------------------------------------------------- */
 /* ORIGINAL LOGIN FORM & INPUT FIELD STYLING (RESTORED)             */
 /* ---------------------------------------------------------------- */
@@ -462,6 +481,57 @@ SHELL_CSS = """
 /* The internal pickup selector must not create its own layout row. */
 [data-testid="stExpander"] [data-testid="stElementContainer"]:has(.pickup-style-anchor) {
     display:none !important;
+}
+/* Force BOTH native fee-choice buttons' actual text and backgrounds.
+   Current Streamlit uses a ButtonGroup rather than stSegmentedControl on some
+   installs; its selected data-baseweb buttons have no aria-pressed attribute. */
+[class*="st-key-kid_finance_mode"] button {
+    background:var(--card-bg) !important;
+    color:var(--text-main) !important;
+    border:1px solid var(--card-border) !important;
+}
+[class*="st-key-kid_finance_mode"] button :is(p,span,svg) {
+    color:var(--text-main) !important;
+}
+[class*="st-key-kid_finance_mode"] button:is(:hover,:focus-visible) {
+    background:var(--card-bg) !important;
+    color:var(--text-main) !important;
+    border-color:var(--primary) !important;
+}
+[class*="st-key-kid_finance_mode"] button:is([aria-pressed="true"],[aria-checked="true"],[data-state="on"],[data-selected="true"],[data-active="true"]),
+[class*="st-key-kid_finance_mode"] [data-baseweb="button-group"] button[aria-selected="true"] {
+    background:#006348 !important;
+    color:#fff !important;
+    border-color:#006348 !important;
+}
+[class*="st-key-kid_finance_mode"] button:is([aria-pressed="true"],[aria-checked="true"],[data-state="on"],[data-selected="true"],[data-active="true"]) :is(p,span,svg),
+[class*="st-key-kid_finance_mode"] [data-baseweb="button-group"] button[aria-selected="true"] :is(p,span,svg) {
+    color:#fff !important;
+}
+/* Native fee-mode choices: color the displayed descendants, not just wrapper.
+   Covers versions of the existing Streamlit widget after successful saves. */
+[class*="st-key-kid_finance_mode"] [data-testid="stSegmentedControl"] button,
+[class*="st-key-kid_finance_mode"] button[aria-pressed] {
+    background:var(--card-bg) !important;
+    color:var(--text-main) !important;
+    border:1px solid var(--card-border) !important;
+}
+[class*="st-key-kid_finance_mode"] :is([data-testid="stSegmentedControl"] button,button[aria-pressed]) :is(p,span,svg) {
+    color:inherit !important;
+}
+[class*="st-key-kid_finance_mode"] :is([data-testid="stSegmentedControl"] button,button[aria-pressed]):is(:hover,:focus-visible):not([aria-pressed="true"]) {
+    background:var(--card-bg) !important;
+    color:var(--text-main) !important;
+    border-color:var(--primary) !important;
+}
+[class*="st-key-kid_finance_mode"] button[aria-pressed="true"],
+[class*="st-key-kid_finance_mode"] [data-testid="stSegmentedControl"] button[aria-checked="true"] {
+    background:#006348 !important;
+    color:#ffffff !important;
+    border-color:#006348 !important;
+}
+[class*="st-key-kid_finance_mode"] :is(button[aria-pressed="true"],button[aria-checked="true"]) :is(p,span,svg) {
+    color:#ffffff !important;
 }
 /* Native controls remain visible and use the existing palette. */
 .st-key-appearance_control {

@@ -4,6 +4,7 @@ sections/teachers.py — إدارة ملفات وبينات المعلمات
 
 import streamlit as st
 import ui
+import payroll_finance as P
 
 
 def render(conn):
@@ -19,7 +20,7 @@ def render(conn):
             full_name = c2.text_input("الاسم الرباعي *").strip()
 
             c3, c4, c5 = st.columns(3)
-            salary = c3.number_input("الراتب الشهري الافتراضي (شيكل) *", min_value=0.0, value=2000.0, step=100.0)
+            salary = c3.number_input("الراتب الشهري الافتراضي (أوقية قديمة) *", min_value=0.0, value=2000.0, step=100.0)
             mobile = c4.text_input("رقم الجوال").strip()
             hire_date = c5.date_input("تاريخ التعيين")
 
@@ -47,7 +48,7 @@ def render(conn):
 
     # ---------------------------------------- TAB 2: VIEW / EDIT / DELETE TEACHER --
     with tab_view:
-        teachers = ui.df(conn, "SELECT national_id, full_name, salary, mobile, address, hire_date FROM teachers ORDER BY full_name")
+        teachers = ui.df(conn, "SELECT national_id, full_name, salary, mobile, address, hire_date FROM teachers WHERE archived_at IS NULL ORDER BY full_name")
         
         if teachers.empty:
             ui.empty_state("لا توجد معلمات مسجلات بعد.")
@@ -81,7 +82,7 @@ def render(conn):
                 with st.form("edit_teacher_form"):
                     ec1, ec2 = st.columns(2)
                     e_name = ec1.text_input("الاسم الرباعي", value=t_row['full_name'])
-                    e_salary = ec2.number_input("الراتب الشهري الافتراضي (شيكل)", min_value=0.0, value=float(t_row['salary']), step=100.0)
+                    e_salary = ec2.number_input("الراتب الشهري الافتراضي (أوقية قديمة)", min_value=0.0, value=float(t_row['salary']), step=100.0)
 
                     ec3, ec4 = st.columns(2)
                     e_mobile = ec3.text_input("رقم الجوال", value=t_row['mobile'] or "")
@@ -109,10 +110,9 @@ def render(conn):
                     if del_t:
                         try:
                             cur = conn.cursor()
-                            cur.execute("DELETE FROM teachers WHERE national_id=%s", (t_id,))
-                            conn.commit()
                             cur.close()
-                            st.warning("🗑️ تم حذف المعلمة بنجاح.")
+                            P.archive_teacher(t_id,actor=st.session_state.get("auth_user","مديرة الروضة"))
+                            st.warning("أُرشف ملف المعلمة؛ الرواتب والسلف السابقة باقية في الحساب والتدقيق.")
                             st.rerun()
                         except Exception as e:
                             conn.rollback()

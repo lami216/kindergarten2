@@ -15,6 +15,7 @@ def _get_credentials():
 
 def logout():
     st.session_state["auth_ok"] = False
+    st.session_state.pop("auth_user", None)
     st.rerun()
 
 
@@ -64,6 +65,7 @@ def check_authentication():
             if submitted:
                 if username == valid_user and password == valid_pass:
                     st.session_state["auth_ok"] = True
+                    st.session_state["auth_user"] = username
                     st.rerun()
                 else:
                     st.error("اسم المستخدم أو كلمة المرور غير صحيحة.")
