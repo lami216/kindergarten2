@@ -158,7 +158,7 @@ class BusinessTimezonePG(TestCase):
             cursor.execute("SELECT archived_at FROM students WHERE student_id=%s",(student,))
             self.assertIsNotNone(cursor.fetchone()["archived_at"])
 
-    def test_later_cancellation_preserves_prior_business_day_snapshot(self):
+    def test_later_cancellation_corrects_prior_cash_report_without_fake_refund(self):
         yesterday=self.day-timedelta(days=1)
         student=self.child(self.day-timedelta(days=3))
         rid,_=F.take_payment(student,4000,actor="timezone-fixture",as_of=yesterday)
@@ -169,11 +169,11 @@ class BusinessTimezonePG(TestCase):
         with self.admin.cursor() as cursor:
             cursor.execute("UPDATE monthly_receipts SET cancelled_at=%s WHERE receipt_id=%s",
                            (self.boundary_instant(),rid))
-        self.assertEqual(F.projection(self.admin,student,yesterday)["due_now"],0)
-        self.assertEqual(F.financial_report(self.admin,yesterday,yesterday)["total_cash"],past_cash)
+        self.assertEqual(F.projection(self.admin,student,yesterday)["due_now"],4000)
+        self.assertEqual(F.financial_report(self.admin,yesterday,yesterday)["total_cash"],past_cash-4000)
         self.assertEqual(F.projection(self.admin,student,self.day)["due_now"],4000)
 
-    def test_corrected_receipt_only_effective_on_business_decision_date(self):
+    def test_corrected_receipt_counts_on_original_date_not_decision_date(self):
         yesterday=self.day-timedelta(days=1)
         student=self.child(self.day-timedelta(days=3))
         rid,_=F.take_payment(student,4000,actor="timezone-fixture",as_of=yesterday)
@@ -186,7 +186,7 @@ class BusinessTimezonePG(TestCase):
                            (self.boundary_instant(),rid))
             cursor.execute("UPDATE monthly_receipts SET created_at=%s WHERE receipt_id=%s",
                            (self.boundary_instant(),correction))
-        self.assertEqual(F.projection(self.admin,student,yesterday)["due_now"],0)
+        self.assertEqual(F.projection(self.admin,student,yesterday)["due_now"],1000)
         self.assertEqual(F.projection(self.admin,student,self.day)["due_now"],1000)
         with self.assertRaisesRegex(ValueError,"لا يمكن حذف الطالب؛ عليه مبلغ"):
             D.archive_student(student,actor="timezone-fixture")
