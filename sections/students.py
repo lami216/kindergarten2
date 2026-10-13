@@ -326,9 +326,18 @@ def render(conn):
         if students.empty:
             ui.empty_state("لا توجد ملفات في هذا العرض.")
             return
-        search = st.text_input("🔍 ابحث باسم الطفل").strip()
-        shown = students[students["full_name"].str.contains(
-            search, case=False, na=False, regex=False)] if search else students
+        search = st.text_input("🔍 ابحث باسم الطفل أو ولي الأمر أو رقم الهاتف").strip()
+        matches=(
+            students["full_name"].fillna("").astype(str).str.contains(
+                search,case=False,regex=False) |
+            students["parent_name"].fillna("").astype(str).str.contains(
+                search,case=False,regex=False) |
+            students["father_mobile"].fillna("").astype(str).str.contains(
+                search,case=False,regex=False) |
+            students["mother_mobile"].fillna("").astype(str).str.contains(
+                search,case=False,regex=False)
+        ) if search else None
+        shown=students[matches] if search else students
         display = shown.copy()
         display["العمر"] = display["birth_date"].apply(H.calculate_age)
         ui.dataframe(display.rename(columns={
@@ -338,13 +347,21 @@ def render(conn):
             use_container_width=True, hide_index=True)
         st.markdown("---")
         st.markdown("##### ✏️ تعديل أو حذف طالب")
-        options = [(row["student_id"], row["full_name"]) for _, row in students.iterrows()]
+        options = [(row["student_id"], row["full_name"]) for _, row in shown.iterrows()]
         chosen = st.selectbox("اختر الطفل", options,
             format_func=lambda x: x[1], index=None, placeholder="ابحث عن طفل...",
             key="student_select_edit")
         if chosen:
             sid = chosen[0]
             row = students[students["student_id"] == sid].iloc[0]
+            st.markdown(f"#### {row['full_name']}")
+            contacts=" / ".join(filter(None,[
+                _text(row["father_name"]),_text(row["mother_name"])]))
+            phone=" / ".join(filter(None,[
+                _text(row["father_mobile"]),_text(row["mother_mobile"])]))
+            st.caption(f"ولي الأمر: {contacts or 'غير مسجل'} · الهاتف: {phone or 'غير مسجل'}")
+            st.caption(f"تاريخ الميلاد: {_text(row['birth_date']) or 'غير مسجل'}"
+                       f" · الجنس: {_text(row['gender']) or 'غير مسجل'}")
             financial_panel(conn, sid, payment=pd.isna(row["archived_at"]))
             if pd.notna(row["archived_at"]):
                 st.warning("الطالب مؤرشف؛ سجله وحساباته باقية للمراجعة.")
