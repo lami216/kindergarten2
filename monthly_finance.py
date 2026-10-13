@@ -675,10 +675,10 @@ def payment_preview(conn, student, cash):
                            "waived":int(row["waived"]),"allocating":use})
             left-=use
         index+=1
-    return {"amount":cash,"revision":revision,"months":result}
+    return {"amount":cash,"revision":revision,"tariff":int(tariff["tuition"]),"months":result}
 
 
-def take_payment(student, cash, *, payer="", token=None, actor="مديرة الروضة", as_of=None, expected_revision=None):
+def take_payment(student, cash, *, payer="", token=None, actor="مديرة الروضة", as_of=None, expected_revision=None, expected_tariff=None):
     cash=amount(cash)
     token=str(token or uuid.uuid4())
     fp=_hash({"student":student,"amount":cash,"payer":payer.strip(),"kind":"monthly"})
@@ -688,6 +688,8 @@ def take_payment(student, cash, *, payer="", token=None, actor="مديرة ال�
             # Lock account for all receipts/corrections and schedule generation.
             account=_lock(c,student)
             _assert_receipt_revision(c,student,expected_revision)
+            if expected_tariff is not None and int(_tariffs(c)["tuition"])!=int(expected_tariff):
+                raise ValueError("تغيّرت الأسعار منذ المعاينة؛ أعد معاينة الدفعة.")
             c.execute("SELECT COALESCE(father_name,mother_name,'ولي الأمر') AS name FROM parents p "
                       "JOIN students s ON s.father_id=p.father_id WHERE s.student_id=%s",(student,))
             contact=c.fetchone()
