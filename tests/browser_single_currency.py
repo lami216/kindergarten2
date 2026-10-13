@@ -199,6 +199,7 @@ async def run():
                               f"finance_cash_report_{suffix}",manifest)
                 await page.get_by_role("tab",name=re.compile("الوصولات")).click()
                 await page.get_by_role("textbox",name="بحث بالطفل أو رقم الوصل").fill(str(first_receipt))
+                await page.get_by_role("textbox",name="بحث بالطفل أو رقم الوصل").press("Enter")
                 await expect(page.get_by_role("button",name="فتح الوصل")).to_have_count(1,timeout=30000)
                 await page.get_by_role("button",name="فتح الوصل").click()
                 await expect(page.get_by_text(f"وصل قبض #{first_receipt}")).to_be_visible(timeout=30000)
@@ -263,6 +264,7 @@ async def run():
 
         await page.get_by_role("tab",name=re.compile("الوصولات")).click()
         await page.get_by_role("textbox",name="بحث بالطفل أو رقم الوصل").fill(str(latest))
+        await page.get_by_role("textbox",name="بحث بالطفل أو رقم الوصل").press("Enter")
         await expect(page.get_by_role("button",name="فتح الوصل")).to_have_count(1,timeout=30000)
         await page.get_by_role("button",name="فتح الوصل").click()
         await expect(page.get_by_text(f"وصل قبض #{latest}")).to_be_visible(timeout=30000)
