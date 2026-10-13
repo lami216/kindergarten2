@@ -255,6 +255,17 @@ def render_history(conn):
     selected=st.session_state.get("finance_receipt_receipt_open")
     if selected:
         RI.render_inspector(conn,selected,scope="finance_receipt")
+    child=st.session_state.get("finance_receipt_history_child")
+    if child:
+        st.markdown("##### ملف الطفل المرتبط بالعملية")
+        with conn.cursor() as cur:
+            cur.execute("SELECT full_name FROM students WHERE student_id=%s",(child,))
+            row=cur.fetchone()
+        if row:
+            st.caption(f"{row['full_name']} — السجل محفوظ حتى عند الأرشفة")
+            financial_panel(conn,child,payment=False)
+        else:
+            st.error("لا يوجد ملف طفل لهذا الأثر؛ يتطلب مراجعة قاعدة البيانات.")
 
 
 def render_report(conn):
