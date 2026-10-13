@@ -170,7 +170,8 @@ def financial_panel(conn, student, *, payment=True):
                         try:
                             rid,new=F.take_payment(student,int(paid),actor=actor(),
                               token=st.session_state[token_key],
-                              expected_revision=preview["revision"])
+                              expected_revision=preview["revision"],
+                              expected_tariff=preview["tariff"])
                             st.session_state[token_key]=str(uuid.uuid4())
                             st.session_state[version_key]=version+1
                             st.session_state.pop(f"monthly_preview_{student}",None)
