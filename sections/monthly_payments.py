@@ -117,6 +117,38 @@ def financial_panel(conn, student, *, payment=True):
         if rows:
             ui.dataframe(__import__("pandas").DataFrame(rows),hide_index=True,
                          use_container_width=True)
+        if result["periods"]:
+            with st.expander("فتح مصادر تمويل فترة شهرية — الوصولات الفعلية"):
+                periods=result["periods"]
+                selected_period=st.selectbox("اختر الفترة",list(range(len(periods))),
+                     format_func=lambda index:
+                        f"الشهر {periods[index]['no']+1} · "
+                        f"{periods[index]['start']} إلى "
+                        f"{periods[index]['end']-timedelta(days=1)}",
+                     key=f"child_month_sources_{student}")
+                period=periods[selected_period]
+                with conn.cursor() as cur:
+                    cur.execute("""SELECT r.receipt_id,r.state,r.received_on,
+                          a.amount AS period_amount,a.active AS allocation_active
+                          FROM monthly_periods p
+                          JOIN monthly_allocations a ON a.period_id=p.period_id
+                          JOIN monthly_receipts r ON r.receipt_id=a.receipt_id
+                          WHERE p.student_id=%s AND p.period_no=%s
+                          ORDER BY r.receipt_id DESC""",
+                          (student,period["no"]))
+                    original_sources=[dict(x) for x in cur.fetchall()]
+                if not original_sources:
+                    st.caption("لا توجد وصولات لهذا الشهر؛ لا يُنشأ وصل من مجموع الفترة.")
+                for source in original_sources:
+                    rid=int(source["receipt_id"])
+                    label=("ساري" if source["state"]=="active"
+                           and source["allocation_active"] else "ملغى / مصحح")
+                    left,right=st.columns([3,1])
+                    left.write(f"وصل #{rid} · {source['received_on']}"
+                               f" · {fmt(source['period_amount'])} · {label}")
+                    if right.button("فتح الوصل",key=f"month_source_{student}_{period['no']}_{rid}"):
+                        st.session_state[f"child_receipt_{student}_receipt_open"]=rid
+                        st.rerun()
         with conn.cursor() as cur:
             cur.execute("""SELECT w.waiver_id,w.effective_on,w.amount,w.actor,w.reason,
                     COALESCE(f.kind, 'month ' || p.period_no::text) AS item
