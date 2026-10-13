@@ -57,7 +57,7 @@ def receipt_line(item):
     return "تخصيص غير معروف"
 
 
-def history(conn, *, student_id=None, receipt_id=None, action=None, query="",
+def history(conn, *, student_id=None, receipt_id=None, action=None, state=None, query="",
             start=None, end=None, page=1, page_size=15):
     """A single permission-scoped UI caller uses this stable paginated ledger."""
     if page_size<1 or page_size>50 or page<1 or page>1_000_000:
@@ -81,6 +81,14 @@ def history(conn, *, student_id=None, receipt_id=None, action=None, query="",
     if action and action!="all":
         terms.append("h.action=%s")
         params.append(action)
+    if state and state!="all":
+        if state not in ("active","cancelled","corrected"):
+            raise ValueError("حالة الوصل غير معروفة.")
+        status=("EXISTS(SELECT 1 FROM monthly_receipts v "
+                "WHERE v.corrects_id=r.receipt_id)" if state=="corrected"
+                else "r.state=%s")
+        terms.append(status)
+        if state!="corrected": params.append(state)
     if start:
         terms.append("(h.happened_at AT TIME ZONE 'Africa/Nouakchott')::date >= %s")
         params.append(start)
@@ -94,13 +102,15 @@ def history(conn, *, student_id=None, receipt_id=None, action=None, query="",
           CAST(h.receipt_id AS TEXT) = %s OR CAST(h.student_id AS TEXT) ILIKE %s)""")
         params.extend([f"%{q}%",f"%{q}%",f"%{q}%",q,f"%{q}%"])
     where="WHERE "+" AND ".join(terms) if terms else ""
-    base=""" FROM monthly_audit h LEFT JOIN students s ON s.student_id=h.student_id """
+    base=""" FROM monthly_audit h LEFT JOIN students s ON s.student_id=h.student_id
+             LEFT JOIN monthly_receipts r ON r.receipt_id=h.receipt_id """
     with conn.cursor() as c:
         c.execute("SELECT COUNT(*) AS n"+base+where,tuple(params))
         total=int(c.fetchone()["n"])
         c.execute("""SELECT h.audit_id,h.student_id,h.receipt_id,h.action,h.actor,
              h.happened_at,h.reason,h.before_state,h.after_state,
-             s.full_name AS student_name,
+             s.full_name AS student_name,r.received_on AS payment_date,
+             r.state AS receipt_state,
              (h.happened_at AT TIME ZONE 'Africa/Nouakchott') AS business_time
              """+base+where+""" ORDER BY h.happened_at DESC,h.audit_id DESC
              LIMIT %s OFFSET %s""",(*params,page_size,(page-1)*page_size))
