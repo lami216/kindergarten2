@@ -833,8 +833,7 @@ def projection(conn, student, as_of=None, *, materialize=True):
         # A valid payment with received_on after the cutoff cannot settle old debt.
         c.execute("""SELECT f.kind,f.price,
             COALESCE(SUM(a.amount) FILTER (WHERE r.received_on<=%s
-               AND (r.corrects_id IS NULL OR (r.created_at AT TIME ZONE 'Africa/Nouakchott')::date<=%s)
-               AND (r.state='active' OR (r.cancelled_at AT TIME ZONE 'Africa/Nouakchott')::date>%s)),0) AS paid,
+               AND a.active AND r.state='active'),0) AS paid,
             COALESCE((SELECT SUM(w.amount) FROM monthly_waivers w
                       WHERE w.fee_id=f.fee_id AND w.effective_on<=%s),0) AS waived
             FROM monthly_fees f LEFT JOIN monthly_allocations a ON a.fee_id=f.fee_id
@@ -845,8 +844,7 @@ def projection(conn, student, as_of=None, *, materialize=True):
                          **({"waived":int(r.get("waived",0))} if int(r.get("waived",0)) else {})} for r in c.fetchall()}
         c.execute("""SELECT p.period_no,p.starts,p.ends,p.price,
             COALESCE(SUM(a.amount) FILTER (WHERE r.received_on<=%s
-               AND (r.corrects_id IS NULL OR (r.created_at AT TIME ZONE 'Africa/Nouakchott')::date<=%s)
-               AND (r.state='active' OR (r.cancelled_at AT TIME ZONE 'Africa/Nouakchott')::date>%s)),0) AS paid,
+               AND a.active AND r.state='active'),0) AS paid,
             COALESCE((SELECT SUM(w.amount) FROM monthly_waivers w
                       WHERE w.period_id=p.period_id AND w.effective_on<=%s),0) AS waived
             FROM monthly_periods p LEFT JOIN monthly_allocations a ON a.period_id=p.period_id
@@ -964,16 +962,13 @@ def financial_report(conn, start, end):
         ensure_started(student,as_of=end)
     with conn.cursor() as c:
         c.execute("""SELECT COALESCE(SUM(amount),0) AS n FROM monthly_receipts
-                     WHERE (state='active' OR (cancelled_at AT TIME ZONE 'Africa/Nouakchott')::date>%s)
-                     AND (corrects_id IS NULL OR (created_at AT TIME ZONE 'Africa/Nouakchott')::date<=%s)
-                     AND received_on BETWEEN %s AND %s""",(end,end,start,end))
+                     WHERE state='active' AND received_on BETWEEN %s AND %s""",(start,end))
         cash=int(c.fetchone()["n"])
         c.execute("""SELECT f.kind,COALESCE(SUM(a.amount),0) AS n
              FROM monthly_allocations a JOIN monthly_receipts r ON r.receipt_id=a.receipt_id
              JOIN monthly_fees f ON f.fee_id=a.fee_id
              WHERE a.active
                AND r.state='active'
-               AND TRUE
                AND r.received_on BETWEEN %s AND %s
              GROUP BY f.kind""",(start,end))
         fees={r["kind"]:int(r["n"]) for r in c.fetchall()}
@@ -982,7 +977,6 @@ def financial_report(conn, start, end):
              JOIN monthly_periods p ON p.period_id=a.period_id
              WHERE a.active
              AND r.state='active'
-             AND TRUE
              AND r.received_on BETWEEN %s AND %s""",(start,end))
         monthly=int(c.fetchone()["n"])
         c.execute("""SELECT COALESCE(SUM(a.amount),0) AS n FROM monthly_allocations a
@@ -990,7 +984,6 @@ def financial_report(conn, start, end):
              JOIN monthly_periods p ON p.period_id=a.period_id
              WHERE a.active
              AND r.state='active'
-             AND TRUE
              AND r.received_on BETWEEN %s AND %s AND p.starts>r.received_on""",
              (start,end))
         prepaid=int(c.fetchone()["n"])
@@ -1001,7 +994,6 @@ def financial_report(conn, start, end):
             JOIN monthly_receipts r ON r.receipt_id=a.receipt_id
             WHERE f.price>0 AND a.active
               AND r.state='active'
-              AND TRUE
               AND r.received_on<=%s
             GROUP BY f.fee_id
             HAVING SUM(a.amount)=MAX(f.price)
