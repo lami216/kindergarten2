@@ -66,7 +66,11 @@ async def goto_students(page):
 
 async def open_child(page,name):
     await goto_students(page)
-    await page.get_by_role("textbox",name=re.compile("ابحث باسم الطفل")).fill(name)
+    search=page.get_by_role("textbox",name=re.compile("ابحث باسم الطفل"))
+    await search.fill(name)
+    # Commit the server-side filter before opening the dropdown. Blurring this
+    # field via the dropdown used to replace its options midway through click.
+    await search.press("Enter")
     chooser=page.locator(".st-key-student_select_edit input[role='combobox']")
     await expect(chooser).to_be_visible(timeout=30000)
     await chooser.click()
