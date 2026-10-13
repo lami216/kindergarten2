@@ -200,8 +200,7 @@ async def run():
                 await page.get_by_role("tab",name=re.compile("الوصولات")).click()
                 await page.get_by_role("textbox",name="بحث بالطفل أو رقم الوصل").fill(str(first_receipt))
                 await expect(page.get_by_role("button",name="فتح الوصل")).to_have_count(1,timeout=30000)
-                await expect(page.get_by_role("button",name="فتح الوصل")).to_have_count(1,timeout=30000)
-        await page.get_by_role("button",name="فتح الوصل").first.click()
+                await page.get_by_role("button",name="فتح الوصل").click()
                 await expect(page.get_by_text(f"وصل قبض #{first_receipt}")).to_be_visible(timeout=30000)
                 await page.get_by_role("button",name="تعديل الوصل").click()
                 await capture(page,page.get_by_role("button",name="معاينة أثر التصحيح"),
@@ -264,7 +263,8 @@ async def run():
 
         await page.get_by_role("tab",name=re.compile("الوصولات")).click()
         await page.get_by_role("textbox",name="بحث بالطفل أو رقم الوصل").fill(str(latest))
-        await page.get_by_role("button",name="فتح الوصل").first.click()
+        await expect(page.get_by_role("button",name="فتح الوصل")).to_have_count(1,timeout=30000)
+        await page.get_by_role("button",name="فتح الوصل").click()
         await expect(page.get_by_text(f"وصل قبض #{latest}")).to_be_visible(timeout=30000)
         await page.get_by_role("button",name="تعديل الوصل").click()
         reason=page.get_by_role("textbox",name=re.compile("سبب التصحيح"))
