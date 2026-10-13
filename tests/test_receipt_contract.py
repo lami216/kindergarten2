@@ -224,7 +224,9 @@ class ChildReceiptContractPG(TestCase):
             reader=PdfReader(BytesIO(pdf))
             self.assertGreaterEqual(len(reader.pages),1)
             fonts=reader.pages[0]["/Resources"]["/Font"]
-            self.assertTrue(any("/FontFile2" in str(font.get_object()) for font in fonts.values()))
+            self.assertTrue(any("/FontDescriptor" in font.get_object() and
+                "/FontFile2" in font.get_object()["/FontDescriptor"].get_object()
+                for font in fonts.values()))
             # Keep synthetic export evidence; never use real child data.
             out=Path("visual-evidence/receipt-contract")
             out.mkdir(parents=True,exist_ok=True)
