@@ -285,7 +285,9 @@ def render(conn):
     summary_metrics = {}
 
     years_df = ui.df(conn, "SELECT year_id FROM academic_years ORDER BY year_id DESC")
-    year_list = years_df['year_id'].tolist() if not years_df.empty else [H.CURRENT_YEAR_DEFAULT]
+    # Financial reports are independent of academic setup. Never invent a
+    # year or access a nonexistent fallback when the year table is empty.
+    year_list = years_df['year_id'].tolist() if not years_df.empty else []
 
     classes_df = ui.df(conn, """
         SELECT c.class_id, (c.class_type || ' ' || c.section) AS class_name

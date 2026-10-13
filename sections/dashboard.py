@@ -45,7 +45,7 @@ def render(conn):
     total_classes = int(_get_scalar(conn, "SELECT COUNT(*) FROM classes"))
     pending = int(_get_scalar(conn, "SELECT COUNT(*) FROM registrations WHERE status = %s", (H.STATUS_NEW,)))
 
-    from monthly_finance import financial_report, today as business_today, CURRENCY
+    from monthly_finance import financial_report, CURRENCY
     from datetime import date as business_date
 
     current=business_today()
