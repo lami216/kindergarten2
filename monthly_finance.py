@@ -357,6 +357,25 @@ def migrate(conn):
                 CHECK(amount>0 AND amount_paid>=0 AND amount_paid<=amount);
         """)
         c.execute("INSERT INTO finance_schema_versions(version) VALUES(7) ON CONFLICT DO NOTHING")
+        # Version 8: durable idempotency and a stable, indexed audit history.
+        # No historical cash row or original allocation is rewritten.
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS monthly_receipt_operations (
+                request_token UUID PRIMARY KEY,
+                request_hash VARCHAR(64) NOT NULL,
+                receipt_id BIGINT NOT NULL REFERENCES monthly_receipts(receipt_id) ON DELETE RESTRICT,
+                action TEXT NOT NULL CHECK (action IN ('cancel')),
+                actor TEXT NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+            CREATE INDEX IF NOT EXISTS monthly_audit_by_child_time
+                ON monthly_audit(student_id, happened_at DESC, audit_id DESC);
+            CREATE INDEX IF NOT EXISTS monthly_audit_by_receipt_time
+                ON monthly_audit(receipt_id, happened_at DESC, audit_id DESC);
+            CREATE INDEX IF NOT EXISTS monthly_receipts_correction_link
+                ON monthly_receipts(corrects_id);
+        """)
+        c.execute("INSERT INTO finance_schema_versions(version) VALUES(8) ON CONFLICT DO NOTHING")
     if not conn.autocommit:
         conn.commit()
 
@@ -646,17 +665,61 @@ def _cancel_in_tx(c, student, receipt_id, reason, actor):
     return dict(row)
 
 
-def cancel_receipt(receipt_id, reason, *, actor="مديرة الروضة"):
-    connection=db.new_transaction_connection()
+def receipt_revision(conn, student):
+    """Monotonic account mutation marker for explicit preview confirmation."""
+    with conn.cursor() as c:
+        c.execute("SELECT COALESCE(MAX(audit_id),0) AS revision FROM monthly_audit "
+                  "WHERE student_id=%s", (student,))
+        return int(c.fetchone()["revision"])
+
+
+def _assert_receipt_revision(c, student, expected_revision):
+    if expected_revision is None:
+        return
+    c.execute("SELECT COALESCE(MAX(audit_id),0) AS revision FROM monthly_audit "
+              "WHERE student_id=%s", (student,))
+    if int(c.fetchone()["revision"]) != int(expected_revision):
+        raise ValueError("تغيّر الحساب منذ المعاينة؛ أعد فتح الوصل وراجع التأثير قبل التأكيد.")
+
+
+def cancel_receipt(receipt_id, reason, *, actor="مديرة الروضة",
+                   token=None, expected_revision=None):
+    """Void once; original allocations remain as inactive permanent evidence.
+
+    Ordinary reports always use surviving valid receipts, including for old
+    payment-date ranges. Audit retains the actual later decision timestamp.
+    """
+    if not str(reason or "").strip():
+        raise ValueError("اكتب سبب إلغاء الوصل.")
+    actor = _actor(actor)
+    token = str(uuid.UUID(str(token or uuid.uuid4())))
+    fingerprint = _hash({"action":"cancel","receipt":int(receipt_id),
+                         "reason":str(reason).strip(),"actor":actor})
+    connection = db.new_transaction_connection()
     try:
         with connection.cursor() as c:
-            c.execute("SELECT student_id FROM monthly_receipts WHERE receipt_id=%s",(receipt_id,))
-            row=c.fetchone()
+            c.execute("SELECT student_id FROM monthly_receipts WHERE receipt_id=%s",
+                      (receipt_id,))
+            row = c.fetchone()
             if not row:
                 raise ValueError("الوصل غير موجود.")
-            account=_lock(c,row["student_id"])
-            _cancel_in_tx(c,account["student_id"],receipt_id,reason,actor)
+            account = _lock(c,row["student_id"])
+            c.execute("SELECT request_hash FROM monthly_receipt_operations "
+                      "WHERE request_token=%s",(token,))
+            duplicate = c.fetchone()
+            if duplicate:
+                if duplicate["request_hash"] != fingerprint:
+                    raise ValueError("تعارض رمز الإلغاء؛ البيانات مختلفة عن الطلب السابق.")
+                connection.commit()
+                return False
+            _assert_receipt_revision(c,account["student_id"],expected_revision)
+            _cancel_in_tx(c,account["student_id"],receipt_id,str(reason),actor)
+            c.execute("""INSERT INTO monthly_receipt_operations
+                (request_token,request_hash,receipt_id,action,actor)
+                VALUES(%s,%s,%s,'cancel',%s)""",
+                (token,fingerprint,receipt_id,actor))
         connection.commit()
+        return True
     except Exception:
         connection.rollback()
         raise
@@ -664,37 +727,71 @@ def cancel_receipt(receipt_id, reason, *, actor="مديرة الروضة"):
         connection.close()
 
 
-def correct_receipt(receipt_id, new_amount, reason, *, actor="مديرة الروضة", token=None):
-    new_amount=amount(new_amount)
-    token=str(token or uuid.uuid4())
-    connection=db.new_transaction_connection()
+def correct_receipt(receipt_id, new_amount, reason, *, actor="مديرة الروضة",
+                    token=None, received_on=None, payer=None,
+                    expected_revision=None):
+    """Atomic immutable-version correction with exact replay and stale guard."""
+    new_amount = amount(new_amount)
+    reason = str(reason or "").strip()
+    if not reason:
+        raise ValueError("اكتب سبب تصحيح الوصل.")
+    actor = _actor(actor)
+    token = str(uuid.UUID(str(token or uuid.uuid4())))
+    connection = db.new_transaction_connection()
     try:
         with connection.cursor() as c:
             c.execute("SELECT * FROM monthly_receipts WHERE receipt_id=%s",(receipt_id,))
-            old=c.fetchone()
+            old = c.fetchone()
             if not old:
                 raise ValueError("الوصل غير موجود.")
-            account=_lock(c,old["student_id"])
-            fp=_hash({"correct":receipt_id,"new":new_amount,"reason":reason})
+            account = _lock(c,old["student_id"])
+            correct_date = received_on if received_on is not None else old["received_on"]
+            if isinstance(correct_date,str):
+                correct_date = date.fromisoformat(correct_date)
+            if not isinstance(correct_date,date) or not date(1990,1,1)<=correct_date<=today():
+                raise ValueError("تاريخ الوصل المصحح غير صالح أو مستقبلي.")
+            correct_payer = old["payer"] if payer is None else str(payer).strip()
+            if not correct_payer or len(correct_payer)>150:
+                raise ValueError("اسم دافع الوصل غير صالح.")
+            fp = _hash({"correct":int(receipt_id),"new":new_amount,
+                        "reason":reason,"date":str(correct_date),
+                        "payer":correct_payer,"actor":actor})
             c.execute("SELECT receipt_id,request_hash FROM monthly_receipts WHERE request_token=%s",
                       (token,))
-            duplicate=c.fetchone()
+            duplicate = c.fetchone()
             if duplicate:
-                if duplicate["request_hash"]!=fp:
-                    raise ValueError("تعارض رمز طلب التصحيح.")
+                if duplicate["request_hash"] != fp:
+                    raise ValueError("تعارض رمز التصحيح؛ تغيّرت بيانات الطلب.")
+                connection.commit()
                 return duplicate["receipt_id"],False
+            _assert_receipt_revision(c,account["student_id"],expected_revision)
+            if old["state"] != "active":
+                raise ValueError("الوصل ملغى أو مصحح بالفعل؛ افتح الوصل الساري في سلسلة التصحيحات.")
+            c.execute("""SELECT allocation_id,fee_id,period_id,amount FROM monthly_allocations
+                         WHERE receipt_id=%s AND active ORDER BY allocation_id""",(receipt_id,))
+            original_allocations=[dict(x) for x in c.fetchall()]
+            kinds=set()
+            if original_allocations:
+                c.execute("""SELECT DISTINCT f.kind FROM monthly_allocations a
+                    JOIN monthly_fees f ON f.fee_id=a.fee_id
+                    WHERE a.receipt_id=%s""",(receipt_id,))
+                kinds={x["kind"] for x in c.fetchall()}
             previous=_cancel_in_tx(c,account["student_id"],receipt_id,reason,actor)
-            c.execute("""SELECT DISTINCT f.kind FROM monthly_allocations a
-                 JOIN monthly_fees f ON f.fee_id=a.fee_id
-                 WHERE a.receipt_id=%s""",(receipt_id,))
-            kinds={x["kind"] for x in c.fetchall()}
-            new_id,_=_issue(c,account,new_amount,previous["payer"],actor,
-                          token,fp,selected_registration="registration" in kinds,
-                          selected_gilet="gilet" in kinds,
-                          as_of=previous["received_on"],corrects_id=receipt_id)
+            new_id,_=_issue(c,account,new_amount,correct_payer,actor,token,fp,
+                 selected_registration="registration" in kinds,
+                 selected_gilet="gilet" in kinds,
+                 as_of=correct_date,corrects_id=receipt_id)
+            c.execute("""SELECT allocation_id,fee_id,period_id,amount
+                         FROM monthly_allocations WHERE receipt_id=%s AND active
+                         ORDER BY allocation_id""",(new_id,))
+            new_allocations=[dict(x) for x in c.fetchall()]
             _audit(c,account["student_id"],new_id,"receipt_corrected",actor,
-                   {"old_receipt":receipt_id,"amount":int(old["amount"])},
-                   {"new_receipt":new_id,"amount":new_amount},reason)
+                   {"receipt_id":receipt_id,"amount":int(old["amount"]),
+                    "received_on":str(old["received_on"]),"payer":old["payer"],
+                    "allocations":original_allocations},
+                   {"receipt_id":new_id,"amount":new_amount,
+                    "received_on":str(correct_date),"payer":correct_payer,
+                    "corrects_id":receipt_id,"allocations":new_allocations},reason)
         connection.commit()
         return new_id,True
     except Exception:
@@ -731,9 +828,9 @@ def projection(conn, student, as_of=None, *, materialize=True):
     if isinstance(day,str):
         day=date.fromisoformat(day)
     with conn.cursor() as c:
-        # A receipt correction/void affects snapshots on its ACTUAL decision
-        # date; earlier snapshots retain the original historical allocation.
-        # Ordinary payments use received_on, even if registered later.
+        # Corrected ledger: cancelled/superseded receipts NEVER count, even
+        # for a historical payment-date range. This is NOT an audit replay.
+        # A valid payment with received_on after the cutoff cannot settle old debt.
         c.execute("""SELECT f.kind,f.price,
             COALESCE(SUM(a.amount) FILTER (WHERE r.received_on<=%s
                AND (r.corrects_id IS NULL OR (r.created_at AT TIME ZONE 'Africa/Nouakchott')::date<=%s)
@@ -743,7 +840,7 @@ def projection(conn, student, as_of=None, *, materialize=True):
             FROM monthly_fees f LEFT JOIN monthly_allocations a ON a.fee_id=f.fee_id
             LEFT JOIN monthly_receipts r ON r.receipt_id=a.receipt_id
             WHERE f.student_id=%s GROUP BY f.fee_id ORDER BY f.kind""",
-            (day,day,day,day,student))
+            (day,day,student))
         fees={r["kind"]:{**{"price":int(r["price"]),"paid":int(r["paid"])},
                          **({"waived":int(r.get("waived",0))} if int(r.get("waived",0)) else {})} for r in c.fetchall()}
         c.execute("""SELECT p.period_no,p.starts,p.ends,p.price,
@@ -755,14 +852,14 @@ def projection(conn, student, as_of=None, *, materialize=True):
             FROM monthly_periods p LEFT JOIN monthly_allocations a ON a.period_id=p.period_id
             LEFT JOIN monthly_receipts r ON r.receipt_id=a.receipt_id
             WHERE p.student_id=%s GROUP BY p.period_id ORDER BY p.period_no""",
-            (day,day,day,day,student))
+            (day,day,student))
         periods=[{"no":r["period_no"],"start":r["starts"],"end":r["ends"],
                   "price":int(r["price"]),"paid":int(r["paid"]),
                   **({"waived":int(r.get("waived",0))} if int(r.get("waived",0)) else {})} for r in c.fetchall()]
         c.execute("""SELECT receipt_id,amount,received_on,payer,created_by,state
                 FROM monthly_receipts WHERE student_id=%s ORDER BY receipt_id DESC""",(student,))
         receipts=[dict(row) for row in c.fetchall()]
-    paid_count=sum(1 for x in periods if x["paid"]==x["price"])
+    paid_count=sum(1 for x in periods if x["price"]>0 and x["paid"]==x["price"])
     contiguous=0
     for p in periods:
         if p["no"]!=contiguous or p["paid"]<p["price"]:
@@ -874,42 +971,42 @@ def financial_report(conn, start, end):
         c.execute("""SELECT f.kind,COALESCE(SUM(a.amount),0) AS n
              FROM monthly_allocations a JOIN monthly_receipts r ON r.receipt_id=a.receipt_id
              JOIN monthly_fees f ON f.fee_id=a.fee_id
-             WHERE (a.active OR (r.cancelled_at AT TIME ZONE 'Africa/Nouakchott')::date>%s)
-               AND (r.state='active' OR (r.cancelled_at AT TIME ZONE 'Africa/Nouakchott')::date>%s)
-               AND (r.corrects_id IS NULL OR (r.created_at AT TIME ZONE 'Africa/Nouakchott')::date<=%s)
+             WHERE a.active
+               AND r.state='active'
+               AND TRUE
                AND r.received_on BETWEEN %s AND %s
-             GROUP BY f.kind""",(end,end,end,start,end))
+             GROUP BY f.kind""",(start,end))
         fees={r["kind"]:int(r["n"]) for r in c.fetchall()}
         c.execute("""SELECT COALESCE(SUM(a.amount),0) AS n FROM monthly_allocations a
              JOIN monthly_receipts r ON r.receipt_id=a.receipt_id
              JOIN monthly_periods p ON p.period_id=a.period_id
-             WHERE (a.active OR (r.cancelled_at AT TIME ZONE 'Africa/Nouakchott')::date>%s)
-             AND (r.state='active' OR (r.cancelled_at AT TIME ZONE 'Africa/Nouakchott')::date>%s)
-             AND (r.corrects_id IS NULL OR (r.created_at AT TIME ZONE 'Africa/Nouakchott')::date<=%s)
-             AND r.received_on BETWEEN %s AND %s""",(end,end,end,start,end))
+             WHERE a.active
+             AND r.state='active'
+             AND TRUE
+             AND r.received_on BETWEEN %s AND %s""",(start,end))
         monthly=int(c.fetchone()["n"])
         c.execute("""SELECT COALESCE(SUM(a.amount),0) AS n FROM monthly_allocations a
              JOIN monthly_receipts r ON r.receipt_id=a.receipt_id
              JOIN monthly_periods p ON p.period_id=a.period_id
-             WHERE (a.active OR (r.cancelled_at AT TIME ZONE 'Africa/Nouakchott')::date>%s)
-             AND (r.state='active' OR (r.cancelled_at AT TIME ZONE 'Africa/Nouakchott')::date>%s)
-             AND (r.corrects_id IS NULL OR (r.created_at AT TIME ZONE 'Africa/Nouakchott')::date<=%s)
+             WHERE a.active
+             AND r.state='active'
+             AND TRUE
              AND r.received_on BETWEEN %s AND %s AND p.starts>r.received_on""",
-             (end,end,end,start,end))
+             (start,end))
         prepaid=int(c.fetchone()["n"])
         c.execute("""SELECT fully.kind,COUNT(DISTINCT fully.student_id) AS n FROM (
             SELECT f.student_id,f.kind,f.price,MAX(r.received_on) AS completed_on,
                    SUM(a.amount) AS paid
             FROM monthly_fees f JOIN monthly_allocations a ON a.fee_id=f.fee_id
             JOIN monthly_receipts r ON r.receipt_id=a.receipt_id
-            WHERE f.price>0 AND (a.active OR (r.cancelled_at AT TIME ZONE 'Africa/Nouakchott')::date>%s)
-              AND (r.state='active' OR (r.cancelled_at AT TIME ZONE 'Africa/Nouakchott')::date>%s)
-              AND (r.corrects_id IS NULL OR (r.created_at AT TIME ZONE 'Africa/Nouakchott')::date<=%s)
+            WHERE f.price>0 AND a.active
+              AND r.state='active'
+              AND TRUE
               AND r.received_on<=%s
             GROUP BY f.fee_id
             HAVING SUM(a.amount)=MAX(f.price)
         ) fully WHERE fully.completed_on BETWEEN %s AND %s GROUP BY fully.kind""",
-                  (end,end,end,end,start,end))
+                  (end,start,end))
         counts={r["kind"]:int(r["n"]) for r in c.fetchall()}
         c.execute("""SELECT COALESCE(SUM(x.amount+
                  COALESCE((SELECT SUM(am.delta) FROM expense_cash_amendments am
