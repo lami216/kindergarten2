@@ -111,32 +111,105 @@ def history(conn, *, student_id=None, receipt_id=None, action=None, query="",
 
 def receipt_impact(conn, receipt_id, *, new_amount=None,
                    new_date=None, new_payer=None):
-    """Non-mutating preview. Confirmation MUST compare its revision under lock.
+    """Read-only, exact next-allocation simulation on the stored fee snapshots.
 
-    Exact real allocations are read from receipt_detail; prospective affected
-    periods are identified and the post-save authoritative read is shown after
-    commit. No claim is made that this preview reserves prices or periods.
+    Confirmation uses the returned audit revision under an account row lock,
+    reruns the canonical allocation service, and refuses stale states. This is
+    a preview, NOT a reservation or an accounting event.
     """
-    from monthly_finance import receipt_revision, projection
+    from monthly_finance import (anniversary, receipt_revision, projection,
+                                 amount, CURRENCY)
     data=receipt_detail(conn,receipt_id)
     row=data["receipt"]
     if row["state"]!="active":
-        raise ValueError("هذا الوصل ملغى؛ لا يمكن تغيير أثره.")
-    if new_amount is not None and (isinstance(new_amount,bool) or
-                                  not isinstance(new_amount,int) or new_amount<=0):
-        raise ValueError("المبلغ الجديد غير صالح.")
-    desired=row["amount"] if new_amount is None else new_amount
+        raise ValueError("الوصل غير ساري؛ افتح آخر نسخة صحيحة.")
+    desired=int(row["amount"]) if new_amount is None else amount(new_amount)
     day=row["received_on"] if new_date is None else new_date
     payer=row["payer"] if new_payer is None else str(new_payer).strip()
     if isinstance(day,str): day=date.fromisoformat(day)
-    if not isinstance(day,date) or day>today() or day<date(1990,1,1):
+    if not isinstance(day,date) or not date(1990,1,1)<=day<=today():
         raise ValueError("التاريخ المصحح غير صالح.")
-    if not payer or len(payer)>150: raise ValueError("اسم الدافع غير صالح.")
-    current=projection(conn,row["student_id"],materialize=False)
-    return {"revision":receipt_revision(conn,row["student_id"]),
-            "receipt":data,"new_amount":int(desired),
-            "new_date":day,"new_payer":payer,
-            "cash_delta":int(desired)-int(row["amount"]),
+    if not payer or len(payer)>150:
+        raise ValueError("اسم الدافع غير صالح.")
+    student=row["student_id"]
+    with conn.cursor() as c:
+        c.execute("""SELECT status,start_date,departure_on FROM monthly_accounts
+                     WHERE student_id=%s""",(student,))
+        account=c.fetchone()
+        if not account or account["status"]!="regular":
+            raise ValueError("لا يقبل حساب معفى تغيير قبض.")
+        c.execute("""SELECT f.fee_id,f.kind,f.price,
+                   COALESCE((SELECT SUM(a.amount) FROM monthly_allocations a
+                      WHERE a.fee_id=f.fee_id AND a.active
+                        AND a.receipt_id<>%s),0) AS paid,
+                   COALESCE((SELECT SUM(w.amount) FROM monthly_waivers w
+                      WHERE w.fee_id=f.fee_id),0) AS waived
+                   FROM monthly_fees f WHERE f.student_id=%s""",
+                  (receipt_id,student))
+        fees={r["kind"]:dict(r) for r in c.fetchall()}
+        c.execute("""SELECT p.period_id,p.period_no,p.starts,p.ends,p.price,
+                   COALESCE((SELECT SUM(a.amount) FROM monthly_allocations a
+                      WHERE a.period_id=p.period_id AND a.active
+                        AND a.receipt_id<>%s),0) AS paid,
+                   COALESCE((SELECT SUM(w.amount) FROM monthly_waivers w
+                      WHERE w.period_id=p.period_id),0) AS waived
+                   FROM monthly_periods p WHERE p.student_id=%s
+                   ORDER BY p.period_no""",(receipt_id,student))
+        periods={r["period_no"]:dict(r) for r in c.fetchall()}
+        c.execute("SELECT tuition FROM monthly_tariffs WHERE id=1")
+        tariff=c.fetchone()
+    selected={x["fee_kind"] for x in data["items"] if x["fee_kind"]}
+    cash_left=desired
+    prospective=[]
+    for kind in ("registration","gilet"):
+        if kind not in selected: continue
+        fee=fees.get(kind)
+        if not fee: raise ValueError("الرسم الأصلي لم يعد موجوداً؛ يلزم مراجعة.")
+        owed=int(fee["price"])-int(fee["paid"])-int(fee["waived"])
+        if owed<0: raise ValueError("تجاوز رصيد رسم محفوظ؛ توقف للمراجعة.")
+        if owed>cash_left: raise ValueError("المبلغ المصحح لا يغطي الرسم المحدد.")
+        if owed:
+            prospective.append({"kind":kind,"label":"رسوم التسجيل" if kind=="registration"
+                else "الجيليه","start":None,"price":int(fee["price"]),
+                "previously_paid":int(fee["paid"]),"waived":int(fee["waived"]),
+                "amount":owed})
+            cash_left-=owed
+    index=0
+    while cash_left:
+        if index>=1200: raise ValueError("التخصيص يتجاوز الحد المسموح.")
+        p=periods.get(index)
+        if p is None:
+            if account["departure_on"]:
+                raise ValueError("لا يمكن إضافة أشهر بعد مغادرة الطفل.")
+            if not tariff: raise ValueError("رسوم الشهور غير مضبوطة.")
+            starts=anniversary(account["start_date"],index)
+            p={"starts":starts,"ends":anniversary(account["start_date"],index+1),
+               "price":int(tariff["tuition"]),"paid":0,"waived":0}
+        owed=int(p["price"])-int(p["paid"])-int(p["waived"])
+        if owed<0: raise ValueError("رصيد شهر محفوظ غير متسق.")
+        allocated=min(cash_left,owed)
+        if allocated:
+            label=f"الشهر {index+1}: {p['starts']} — {p['ends']}"
+            prospective.append({"kind":"month","label":label,"start":p["starts"],
+                "price":int(p["price"]),"previously_paid":int(p["paid"]),
+                "waived":int(p["waived"]),"amount":allocated})
+            cash_left-=allocated
+        index+=1
+    if sum(x["amount"] for x in prospective)!=desired:
+        raise ValueError("التخصيص المصحح لا يطابق المبلغ.")
+    current=projection(conn,student,materialize=False)
+    cutoff=min(today(),account["departure_on"]) if account["departure_on"] else today()
+    # The original receipt was valid and recognized before replacement.
+    original_due_coverage=sum(int(x["amount"]) for x in data["items"]
+        if x["fee_kind"] or (x["starts"] and x["starts"]<=cutoff))
+    corrected_due_coverage=sum(x["amount"] for x in prospective
+        if x["kind"]!="month" or x["start"]<=cutoff)
+    projected_due=(int(current["due_now"])+original_due_coverage-
+                   corrected_due_coverage) if current else None
+    return {"revision":receipt_revision(conn,student),"receipt":data,
+            "new_amount":desired,"new_date":day,"new_payer":payer,
+            "cash_delta":desired-int(row["amount"]),
             "currently_due":current["due_now"] if current else None,
+            "projected_due":max(0,projected_due) if projected_due is not None else None,
             "affected_periods":[receipt_line(i) for i in data["items"]],
-            "requires_refresh":True}
+            "new_items":prospective}
