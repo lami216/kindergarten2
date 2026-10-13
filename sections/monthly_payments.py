@@ -134,43 +134,64 @@ def financial_panel(conn, student, *, payment=True):
             ]),hide_index=True,use_container_width=True)
             st.caption("الرسوم الأصلية محفوظة؛ هذه القرارات ليست إيصالات ولا مبالغ مدفوعة.")
         receipts=result["receipts"]
-        if receipts:
-            st.markdown("##### 🧾 آخر الدفعات")
-            ui.dataframe(__import__("pandas").DataFrame([
-                {"رقم الوصل":r["receipt_id"],"التاريخ":r["received_on"],
-                 "المبلغ":fmt(r["amount"]),"الدافع":r["payer"],
-                 "الحالة":"ساري" if r["state"]=="active" else "ملغى"}
-                for r in receipts[:20]]),hide_index=True,use_container_width=True)
         if payment:
-            # No default 3000: the next visible form must never implicitly
-            # create a second receipt after the successful-save rerun.
             token_key=f"monthly_pay_token_{student}"
             version_key=f"monthly_pay_version_{student}"
             version=st.session_state.get(version_key,0)
-            if token_key not in st.session_state:
-                st.session_state[token_key]=str(uuid.uuid4())
-            with st.form(f"monthly_simple_pay_{student}_v{version}"):
-                paid=st.number_input("المبلغ المدفوع",min_value=0,max_value=F.MAX_AMOUNT,
-                           value=0,step=1,key=f"monthly_amount_{student}_v{version}")
-                submit=st.form_submit_button("💾 تسجيل دفعة",type="primary",
-                                               use_container_width=True)
-            if submit:
+            st.session_state.setdefault(token_key,str(uuid.uuid4()))
+            st.markdown("##### تسجيل دفعة — مبلغ فقط")
+            paid=st.number_input("المبلغ المدفوع",min_value=0,max_value=F.MAX_AMOUNT,
+                       value=0,step=1,key=f"monthly_amount_{student}_v{version}")
+            left,right=st.columns(2)
+            if left.button("معاينة توزيع المبلغ",key=f"monthly_preview_button_{student}"):
                 try:
-                    rid,new=F.take_payment(student,int(paid),actor=actor(),
-                                             token=st.session_state[token_key])
-                    st.session_state[token_key]=str(uuid.uuid4())
-                    st.session_state[version_key]=version+1
-                    st.session_state["monthly_payment_success"]=(
-                        f"تم تسجيل الدفعة — وصل #{rid}" if new
-                        else f"هذه الدفعة محفوظة بالفعل — وصل #{rid}")
-                    st.rerun()
+                    st.session_state[f"monthly_preview_{student}"]=F.payment_preview(
+                        conn,student,int(paid))
                 except ValueError as error:
                     st.error(str(error))
-                except Exception:
-                    st.error("تعذّر تسجيل الدفعة؛ لم يُخصم المبلغ. حاول مجدداً.")
-            message=st.session_state.pop("monthly_payment_success",None)
-            if message:
-                st.success(message)
+            preview=st.session_state.get(f"monthly_preview_{student}")
+            if preview:
+                st.caption(f"معاينة توزيع {fmt(preview['amount'])} — "
+                           "لا يتم إنشاء وصل إلا بعد التأكيد.")
+                for item in preview["months"][:20]:
+                    st.write(f"{item['start']} إلى {item['end']-timedelta(days=1)}"
+                             f" · تخصيص {fmt(item['allocating'])}"
+                             f" · مدفوع سابقاً {fmt(item['previously_paid'])}")
+                if len(preview["months"])>20:
+                    st.caption(f"وفترات إضافية عددها {len(preview['months'])-20}")
+                agree=st.checkbox("أؤكد قبض المبلغ وتوزيعه كما عُرض",
+                             key=f"monthly_confirm_{student}_v{version}")
+                if right.button("💾 تسجيل دفعة",type="primary",
+                                 disabled=not agree,
+                                 key=f"monthly_save_{student}_v{version}"):
+                    if int(paid)!=preview["amount"]:
+                        st.error("تغيّر المبلغ بعد المعاينة؛ أعد المعاينة.")
+                    else:
+                        try:
+                            rid,new=F.take_payment(student,int(paid),actor=actor(),
+                              token=st.session_state[token_key],
+                              expected_revision=preview["revision"])
+                            st.session_state[token_key]=str(uuid.uuid4())
+                            st.session_state[version_key]=version+1
+                            st.session_state.pop(f"monthly_preview_{student}",None)
+                            st.session_state[f"child_receipt_{student}_receipt_open"]=rid
+                            st.session_state[f"monthly_payment_success_{student}"]=(
+                                f"تم تسجيل الدفعة — وصل #{rid}" if new
+                                else f"هذه الدفعة محفوظة بالفعل — وصل #{rid}")
+                            st.rerun()
+                        except ValueError as error:
+                            st.error(str(error))
+                        except Exception:
+                            st.error("تعذّر تسجيل الدفعة؛ لم تُنشأ حركة نقدية.")
+            message=st.session_state.pop(f"monthly_payment_success_{student}",None)
+            if message: st.success(message)
+        if receipts:
+            st.markdown("##### 🧾 الوصولات الحقيقية وعملياتها")
+            RI.render_receipt_list(conn,receipts,scope="child_receipt_"+student,
+                                   student_id=student,limit=20)
+        with st.expander("سجل العمليات الخاصة بهذا الطفل",expanded=False):
+            RI.render_history(conn,scope="child_receipt_"+student+"_history",
+                              student_id=student)
 
 
 def render_accounts(conn):
