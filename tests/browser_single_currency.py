@@ -115,7 +115,7 @@ async def select_account(page,name,*,has_account=True):
     await combo.fill(name)
     # BaseWeb's virtualized search options aren't necessarily exposed with
     # role=option at all widths, but their visible label is stable.
-    await page.get_by_text(name,exact=True).last.click(timeout=15000)
+    await page.locator('[role="listbox"]').get_by_text(name,exact=True).last.click(timeout=15000)
     if has_account:
         await expect(page.get_by_text("💵 الرسوم والدفعات الشهرية",exact=False)).to_be_visible()
     else:
