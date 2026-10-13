@@ -181,9 +181,12 @@ async def run_variant(browser,width,dark):
                 page.get_by_text(f"وصل قبض #{corrected}"))
 
     await page.get_by_role("button",name="سجل العمليات").click()
-    await expect(page.get_by_text("سجل العمليات المالية")).to_be_visible()
-    await photo(page,"receipt_history_"+suffix,
-                page.get_by_text("سجل العمليات المالية"))
+    # The collapsed child-history expander is also mounted in Streamlit's
+    # DOM. Inspect the visible receipt-specific history, not that hidden copy.
+    history_heading=page.get_by_text("سجل العمليات المالية",exact=True).filter(visible=True)
+    await expect(history_heading).to_have_count(1)
+    await expect(history_heading).to_be_visible()
+    await photo(page,"receipt_history_"+suffix,history_heading)
     # Actual CSS must match the chosen state *after* the form and reruns.
     post=await toggle_theme(page,dark)
     assert post["app"]["background"]==colors["app"]["background"] and not post["horizontalOverflow"]
