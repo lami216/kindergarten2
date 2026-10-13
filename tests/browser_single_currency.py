@@ -247,6 +247,7 @@ async def run():
         old_count=read("SELECT COUNT(*) AS n FROM monthly_receipts WHERE student_id=%s",(sid,))[0]["n"]
         amt=page.locator(f'.st-key-monthly_amount_{sid}_v0 input')
         await amt.fill("4500")
+        await amt.press("Tab")
         await capture(page,amt,"finance_next_before_390",manifest)
         await page.get_by_role("button",name="معاينة توزيع المبلغ").click()
         await expect(page.get_by_text("معاينة توزيع 4,500",exact=False)).to_be_visible()
@@ -272,6 +273,7 @@ async def run():
         reason=page.get_by_role("textbox",name=re.compile("سبب التصحيح"))
         await reason.fill("مراجعة مبلغ")
         await page.get_by_role("spinbutton",name="المبلغ المصحح").fill("3000")
+        await page.get_by_role("spinbutton",name="المبلغ المصحح").press("Tab")
         await page.get_by_role("button",name="معاينة أثر التصحيح").click()
         await expect(page.get_by_text("القبض القديم:",exact=False)).to_be_visible()
         await page.get_by_text("أؤكد أثر التصحيح وحفظ الوصل الأصلي في السجل",exact=False).click()
