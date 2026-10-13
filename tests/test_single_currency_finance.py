@@ -91,10 +91,10 @@ class SingleCurrencyCashTests(unittest.TestCase):
         # this test cannot pass merely by comparing a report to itself.
         active_before=F.financial_report(self.admin,self.day,F.today())
         F.cancel_receipt(rid,"اختبار إلغاء",actor="fixture")
-        # Old as-of snapshots retain receipts that were still active then.
+        # An ordinary corrected report always excludes the invalid receipt.
         after_cancel=self.report()
-        self.assertEqual(after_cancel["total_cash"]-baseline["total_cash"],18000)
-        self.assertEqual(after_cancel["remaining_cash"]-baseline["remaining_cash"],16000)
+        self.assertEqual(after_cancel["total_cash"]-baseline["total_cash"],12000)
+        self.assertEqual(after_cancel["remaining_cash"]-baseline["remaining_cash"],10000)
         # The decision-time view excludes the voided 6000, including its
         # allocations and debt effect, but does not remove the first 12000.
         after_decision=F.financial_report(self.admin,self.day,F.today())

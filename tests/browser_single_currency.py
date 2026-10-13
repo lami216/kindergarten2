@@ -115,7 +115,7 @@ async def select_account(page,name,*,has_account=True):
     await combo.fill(name)
     # BaseWeb's virtualized search options aren't necessarily exposed with
     # role=option at all widths, but their visible label is stable.
-    await page.get_by_text(name,exact=True).last.click(timeout=15000)
+    await page.locator('[role="listbox"]').get_by_text(name,exact=True).last.click(timeout=15000)
     if has_account:
         await expect(page.get_by_text("💵 الرسوم والدفعات الشهرية",exact=False)).to_be_visible()
     else:
@@ -198,12 +198,15 @@ async def run():
                 await capture(page,page.get_by_text("الباقي من المداخيل",exact=False).first,
                               f"finance_cash_report_{suffix}",manifest)
                 await page.get_by_role("tab",name=re.compile("الوصولات")).click()
-                picker=page.get_by_role("combobox",name="اختر الوصل").first
-                await picker.click()
-                await picker.fill(str(first_receipt))
-                await page.get_by_text(re.compile(f"وصل #{first_receipt}")).last.click()
-                await page.get_by_text("تصحيح أو إلغاء الوصل").click()
-                await capture(page,page.get_by_role("button",name="حفظ التصحيح"),
+                await page.get_by_role("textbox",name="بحث بالطفل أو رقم الوصل").fill(str(first_receipt))
+                await page.get_by_role("textbox",name="بحث بالطفل أو رقم الوصل").press("Enter")
+                specific=page.locator(f".st-key-finance_receipt_open_{first_receipt} button")
+                await expect(specific).to_be_visible(timeout=30000)
+                await specific.click()
+                await expect(page.get_by_role("tabpanel",name="🧾 الوصولات",exact=True)
+                             .get_by_text(f"وصل قبض #{first_receipt}",exact=False)).to_be_visible(timeout=30000)
+                await page.get_by_role("button",name="تعديل الوصل").click()
+                await capture(page,page.get_by_role("button",name="معاينة أثر التصحيح"),
                               f"finance_receipt_edit_{suffix}",manifest)
                 await open_section(page,"dashboard")
                 await night_theme(page,night)
@@ -246,7 +249,11 @@ async def run():
         old_count=read("SELECT COUNT(*) AS n FROM monthly_receipts WHERE student_id=%s",(sid,))[0]["n"]
         amt=page.locator(f'.st-key-monthly_amount_{sid}_v0 input')
         await amt.fill("4500")
+        await amt.press("Tab")
         await capture(page,amt,"finance_next_before_390",manifest)
+        await page.get_by_role("button",name="معاينة توزيع المبلغ").click()
+        await expect(page.get_by_text("معاينة توزيع 4,500",exact=False)).to_be_visible()
+        await page.get_by_text("أؤكد قبض المبلغ وتوزيعه كما عُرض",exact=False).click()
         await page.get_by_role("button",name="💾 تسجيل دفعة").click()
         await expect(page.get_by_text("تم تسجيل الدفعة",exact=False)).to_be_visible()
         await capture(page,page.get_by_text("تم تسجيل الدفعة",exact=False),
@@ -259,22 +266,27 @@ async def run():
         assert [int(x["amount"]) for x in allocations]==[1500,3000],allocations
 
         await page.get_by_role("tab",name=re.compile("الوصولات")).click()
-        dropdown=page.get_by_text("اختر الوصل",exact=False).first
-        await dropdown.scroll_into_view_if_needed()
-        receipt_pick=page.get_by_role("combobox",name="اختر الوصل").first
-        await receipt_pick.click()
-        await receipt_pick.fill(str(latest))
-        await page.get_by_text(re.compile(f"وصل #{latest}")).last.click()
-        await page.get_by_text("تصحيح أو إلغاء الوصل").click()
+        await page.get_by_role("textbox",name="بحث بالطفل أو رقم الوصل").fill(str(latest))
+        await page.get_by_role("textbox",name="بحث بالطفل أو رقم الوصل").press("Enter")
+        specific=page.locator(f".st-key-finance_receipt_open_{latest} button")
+        await expect(specific).to_be_visible(timeout=30000)
+        await specific.click()
+        await expect(page.get_by_role("tabpanel",name="🧾 الوصولات",exact=True)
+                     .get_by_text(f"وصل قبض #{latest}",exact=False)).to_be_visible(timeout=30000)
+        await page.get_by_role("button",name="تعديل الوصل").click()
         reason=page.get_by_role("textbox",name=re.compile("سبب التصحيح"))
         await reason.fill("مراجعة مبلغ")
-        await page.get_by_role("spinbutton",name="المبلغ الصحيح").fill("3000")
-        await page.get_by_role("button",name="حفظ التصحيح").click()
-        await expect(page.get_by_text("تم التصحيح",exact=False)).to_be_visible()
+        await page.get_by_role("spinbutton",name="المبلغ المصحح").fill("3000")
+        await page.get_by_role("spinbutton",name="المبلغ المصحح").press("Tab")
+        await page.get_by_role("button",name="معاينة أثر التصحيح").click()
+        await expect(page.get_by_text("القبض القديم:",exact=False)).to_be_visible()
+        await page.get_by_text("أؤكد أثر التصحيح وحفظ الوصل الأصلي في السجل",exact=False).click()
+        await page.get_by_role("button",name="تأكيد تصحيح الوصل").click()
+        await expect(page.get_by_text("صُحح الوصل",exact=False)).to_be_visible()
         assert read("SELECT state FROM monthly_receipts WHERE receipt_id=%s",(latest,))[0]["state"]=="cancelled"
         new=read("SELECT receipt_id,amount FROM monthly_receipts WHERE corrects_id=%s",(latest,))
         assert len(new)==1 and new[0]["amount"]==3000
-        await capture(page,page.get_by_text("تم التصحيح",exact=False),
+        await capture(page,page.get_by_text("صُحح الوصل",exact=False),
                       "finance_receipt_corrected_390",manifest)
 
         # Child without account: explicit date/status/confirmation and no cash.
@@ -282,7 +294,7 @@ async def run():
         combo=page.locator(".st-key-monthly_finance_child").get_by_role("combobox").first
         await combo.click()
         await combo.fill(unfunded_name)
-        await page.get_by_text(unfunded_name,exact=True).last.click()
+        await page.locator('[role="listbox"]').get_by_text(unfunded_name,exact=True).last.click()
         await expect(page.get_by_text("تهيئة الحساب الشهري لهذا الطفل")).to_be_visible()
         await capture(page,page.get_by_text("تهيئة الحساب الشهري لهذا الطفل"),
                       "finance_legacy_setup_before_390",manifest)

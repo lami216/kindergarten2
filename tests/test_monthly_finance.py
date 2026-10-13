@@ -182,9 +182,9 @@ class MonthlyFinanceDBTests(unittest.TestCase):
         sid=self.create(cash=9000)
         first_id=self.projection(sid,self.anchor)["receipts"][0]["receipt_id"]
         F.cancel_receipt(first_id,"مدخل مكرر",actor="tester")
-        # Before the later cancellation, history must still show its cash.
+        # The corrected ledger excludes invalid cash even in the original date.
         before_change=self.projection(sid,self.anchor)
-        self.assertEqual(before_change["paid_periods"],3)
+        self.assertEqual(before_change["paid_periods"],0)
         p=self.projection(sid,F.today())
         self.assertEqual(p["paid_periods"],0)
         self.assertGreaterEqual(p["due_now"],4000)
@@ -205,7 +205,7 @@ class MonthlyFinanceDBTests(unittest.TestCase):
         sid=self.create(cash=6000)
         old_id=self.projection(sid,self.anchor)["receipts"][0]["receipt_id"]
         new_id,_=F.correct_receipt(old_id,4500,"كتابة خاطئة",actor="tester")
-        self.assertEqual(self.projection(sid,self.anchor)["periods"][1]["paid"],3000)
+        self.assertEqual(self.projection(sid,self.anchor)["periods"][1]["paid"],1500)
         p=self.projection(sid,F.today())
         self.assertEqual(p["paid_periods"],1)
         self.assertEqual(p["periods"][1]["paid"],1500)

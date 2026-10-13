@@ -17,6 +17,9 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 import streamlit as st
 from sections import students
+# The production router authenticates before rendering this form. Model that
+# real identity explicitly instead of relying on an invented default actor.
+st.session_state['auth_user'] = 'family-ui-qa'
 conn = psycopg2.connect(os.environ["TEST_POSTGRES_DSN"], cursor_factory=RealDictCursor)
 conn.autocommit = True
 try:
