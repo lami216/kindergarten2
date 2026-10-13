@@ -35,7 +35,7 @@ def seed():
     return sid,name
 
 
-async def open_student(page,name):
+async def open_student(page,name,*,include_archived=False):
     await page.goto(BASE,wait_until="domcontentloaded")
     nav=page.locator(".st-key-nav_students button")
     await nav.wait_for(state="attached",timeout=30000)
@@ -46,6 +46,13 @@ async def open_student(page,name):
     if await nav.is_visible():
         await page.locator('[data-testid="stSidebarCollapseButton"] button').first.click()
     await page.get_by_role("tab",name="📋 عرض / تعديل / حذف").click()
+    if include_archived:
+        history=page.get_by_role("checkbox",
+            name="إظهار ملفات الأطفال المؤرشفين (السجل المالي محفوظ)")
+        await expect(history).to_be_visible()
+        if not await history.is_checked():
+            await page.get_by_text("إظهار ملفات الأطفال المؤرشفين (السجل المالي محفوظ)",exact=True).click()
+        await expect(history).to_be_checked()
     select=page.locator(".st-key-student_select_edit input[role='combobox']").first
     await expect(select).to_be_visible()
     await select.click()
@@ -53,7 +60,10 @@ async def open_student(page,name):
     # Select by the exact visible student label. A transient BaseWeb
     # highlight attribute is not guaranteed on virtualized options.
     await page.get_by_text(name,exact=True).last.click(timeout=15000)
-    await expect(page.get_by_role("button",name="🗑️ حذف الطالب")).to_be_visible(timeout=15000)
+    if include_archived:
+        await expect(page.get_by_text("الطالب مؤرشف",exact=False).first).to_be_visible(timeout=20000)
+    else:
+        await expect(page.get_by_role("button",name="🗑️ حذف الطالب")).to_be_visible(timeout=15000)
 
 
 async def wait_for_real_theme(page, dark, *, form=False):
@@ -173,24 +183,12 @@ async def run():
             await page.wait_for_timeout(250)
         else:
             raise AssertionError("Archival did not commit after the UI click")
-        # Archived records are intentionally hidden from the active roster;
-        # explicitly enable retained history, then re-select the same child.
-        history_toggle=page.get_by_role("checkbox",
-            name="إظهار ملفات الأطفال المؤرشفين (السجل المالي محفوظ)")
-        if not await history_toggle.is_checked():
-            await page.get_by_text("إظهار ملفات الأطفال المؤرشفين (السجل المالي محفوظ)",exact=True).click()
-        await expect(history_toggle).to_be_checked()
-        # Checkbox triggers Streamlit rerun and recreates the student list.
-        # Wait for the fresh options rather than selecting a hidden grid cell.
-        await page.wait_for_timeout(700)
-        select=page.locator(".st-key-student_select_edit input[role='combobox']").first
-        await expect(select).to_be_visible()
-        if not await page.get_by_text("الطالب مؤرشف",exact=False).count():
-            await select.click()
-            await select.fill(name)
-            archived_option=page.get_by_role("option",name=name,exact=True)
-            await expect(archived_option).to_be_visible(timeout=18000)
-            await archived_option.click()
+        # Verify durable history in a fresh browser session, not stale widgets
+        # left by the archive rerun. This also proves identity/history readback
+        # survives reconnecting rather than depending on the former selection.
+        await page.close()
+        page=await ctx.new_page()
+        await open_student(page,name,include_archived=True)
         await expect(page.get_by_text("الطالب مؤرشف",exact=False).first).to_be_visible(timeout=20000)
         metrics["history_light"]=await wait_for_real_theme(page,False)
         await snapshot(page,"student_debt_history_390_day.png")
