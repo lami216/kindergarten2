@@ -73,6 +73,29 @@ class ChildReceiptContractPG(TestCase):
     def cash(self):
         return F.financial_report(self.admin,date(2026,1,1),F.today())
 
+    def test_amount_only_preview_has_no_cash_side_effect_and_rejects_price_change(self):
+        sid=self.child()
+        initial,_=F.take_payment(sid,1500,actor="receipt-qa",as_of=self.start)
+        before=(len(self.receipts(sid)),len(self.audit(sid)))
+        preview=F.payment_preview(self.admin,sid,4500)
+        self.assertEqual(sum(m["allocating"] for m in preview["months"]),4500)
+        self.assertEqual([m["allocating"] for m in preview["months"]],[1500,3000])
+        self.assertEqual(before,(len(self.receipts(sid)),len(self.audit(sid))))
+        F.update_tariffs(0,0,3500,"changed-after-preview")
+        with self.assertRaisesRegex(ValueError,"تغيّرت الأسعار"):
+            F.take_payment(sid,4500,actor="receipt-qa",
+                expected_revision=preview["revision"],
+                expected_tariff=preview["tariff"])
+        self.assertEqual(len(self.receipts(sid)),before[0])
+        fresh=F.payment_preview(self.admin,sid,4500)
+        self.assertEqual(fresh["tariff"],3500)
+        rid,_=F.take_payment(sid,4500,actor="receipt-qa",
+               expected_revision=fresh["revision"],
+               expected_tariff=fresh["tariff"])
+        self.assertEqual(len(self.receipts(sid)),before[0]+1)
+        self.assertEqual(F.projection(self.admin,sid)["periods"][0]["paid"],3000)
+        self.assertEqual(H.receipt_detail(self.admin,rid)["receipt"]["amount"],4500)
+
     def test_cancel_three_period_receipt_retains_partial_and_future_does_not_become_due(self):
         # Anchor at two actual months ago; third period is future for this fixture.
         anchor=F.anniversary(self.today,-2) if False else date(self.today.year,self.today.month,1)
