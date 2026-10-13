@@ -33,9 +33,9 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
-          pip install pytest playwright
+          pip install pytest playwright pypdf==6.1.3
       - name: Python syntax
-        run: python -m compileall -q app.py db.py ui.py style.py sections tests
+        run: python -m compileall -q app.py db.py ui.py style.py sections tests monthly_finance.py receipt_history.py receipt_pdf.py
       - name: Full PostgreSQL integration and UI tests across conflicting timezones
         env:
           TZ: Pacific/Honolulu
@@ -74,11 +74,20 @@ jobs:
         run: python tests/browser_pr1.py
       - name: Actual Chromium monthly/exempt receipt PostgreSQL readback
         run: PYTHONPATH=. python tests/browser_monthly_finance.py
+      - name: Chromium child receipts, PDF and history acceptance
+        run: PYTHONPATH=. python tests/browser_child_receipts.py
+      - name: Render synthetic Arabic PDF evidence
+        run: |
+          mkdir -p visual-evidence/receipt-contract
+          for doc in visual-evidence/receipt-contract/*.pdf; do
+            test -e "$doc" || continue
+            pdftoppm -f 1 -l 1 -png -r 110 -singlefile "$doc" "${doc%.pdf}" 
+          done
       - name: Upload actual browser evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: family-pr1-chromium-before-after
+          name: child-receipt-audit-finance-chromium-and-pdf
           path: visual-evidence/
           if-no-files-found: warn
           retention-days: 14
