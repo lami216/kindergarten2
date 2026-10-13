@@ -73,6 +73,18 @@ class ChildReceiptContractPG(TestCase):
     def cash(self):
         return F.financial_report(self.admin,date(2026,1,1),F.today())
 
+    def test_blank_actor_rejected_without_receipt_audit_or_periods(self):
+        sid=self.child()
+        for actor in (None, "", " \t\n "):
+            with self.subTest(actor=actor):
+                with self.assertRaisesRegex(ValueError, "هوية"):
+                    F.take_payment(sid,3000,actor=actor)
+        self.assertEqual(self.receipts(sid),[])
+        self.assertEqual(self.audit(sid),[])
+        with self.admin.cursor() as c:
+            c.execute("SELECT COUNT(*) AS n FROM monthly_periods WHERE student_id=%s",(sid,))
+            self.assertEqual(c.fetchone()["n"],0)
+
     def test_amount_only_preview_has_no_cash_side_effect_and_rejects_price_change(self):
         sid=self.child()
         initial,_=F.take_payment(sid,1500,actor="receipt-qa",as_of=self.start)

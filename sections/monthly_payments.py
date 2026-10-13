@@ -20,7 +20,9 @@ def fmt(value):
 
 
 def actor():
-    return st.session_state.get("auth_user") or "مديرة الروضة"
+    # Finance submissions use the authenticated session identity. Missing or
+    # whitespace-only identities must not silently become a generic manager.
+    return F._actor(st.session_state.get("auth_user"))
 
 
 def financial_panel(conn, student, *, payment=True, scope=None):

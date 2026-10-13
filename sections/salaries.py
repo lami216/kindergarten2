@@ -78,7 +78,9 @@ def render(conn):
             SELECT tp.payment_id, tp.national_id, t.full_name AS "المعلمة",
                    tp.salary_month AS "عن شهر", tp.base_salary AS "الأساسي",
                    tp.bonus AS "المكافأة", tp.deductions AS "الخصم",
-                   tp.cash_amount AS "الصافي المدفوع", tp.record_state AS "الحالة", tp.payment_date AS "تاريخ الصرف",
+                   tp.cash_amount AS "الصافي المدفوع", CASE tp.record_state
+                       WHEN 'active' THEN 'نشطة' WHEN 'cancelled' THEN 'ملغاة'
+                       ELSE tp.record_state END AS "الحالة", tp.payment_date AS "تاريخ الصرف",
                    tp.notes AS "ملاحظات"
             FROM teacher_payments tp
             JOIN teachers t ON t.national_id = tp.national_id
@@ -207,7 +209,9 @@ def render(conn):
                 st.error("تعذّر صرف السلفة؛ لم تُنشأ دفعة جديدة.")
         advances=ui.df(conn,"""SELECT a.advance_id AS "رقم السلفة",
                t.full_name AS "المعلمة",a.advance_date AS "تاريخ الصرف",
-               a.salary_month AS "شهر الخصم",a.cash_amount AS "المبلغ",a.record_state AS "الحالة",
+               a.salary_month AS "شهر الخصم",a.cash_amount AS "المبلغ",CASE a.record_state
+                   WHEN 'active' THEN 'نشطة' WHEN 'cancelled' THEN 'ملغاة'
+                   ELSE a.record_state END AS "الحالة",
                a.is_deducted AS "خُصمت",a.notes AS "ملاحظات"
             FROM teacher_advances a JOIN teachers t ON t.national_id=a.national_id
             ORDER BY a.advance_id DESC""")

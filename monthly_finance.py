@@ -44,7 +44,9 @@ def _hash(obj):
 
 
 def _actor(name):
-    return (name or "مديرة الروضة").strip()[:100]
+    if not isinstance(name, str) or not name.strip():
+        raise ValueError("هوية منفّذ العملية مطلوبة؛ أعد تسجيل الدخول.")
+    return name.strip()[:100]
 
 
 def migrate(conn):
