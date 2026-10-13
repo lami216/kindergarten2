@@ -622,7 +622,58 @@ def initialize_in_transaction(c, student, options, actor, token):
     return receipt
 
 
-def take_payment(student, cash, *, payer="", token=None, actor="مديرة الروضة", as_of=None):
+def payment_preview(conn, student, cash):
+    """Read-only explanation of the next amount-only month allocation.
+
+    Periods use stored snapshots and the original anniversary anchor. A preview
+    is never a receipt and never reserves amounts; save checks its audit revision.
+    """
+    cash=amount(cash)
+    with conn.cursor() as c:
+        c.execute("""SELECT student_id,status,start_date,departure_on,archived_at
+                     FROM monthly_accounts WHERE student_id=%s""",(student,))
+        account=c.fetchone()
+        if not account: raise ValueError("يجب تهيئة الحساب أولاً.")
+        if account["status"]!="regular": raise ValueError("الطفل معفى بالكامل.")
+        if account["archived_at"]: raise ValueError("لا تُقبل دفعات جديدة لحساب مؤرشف.")
+        c.execute("SELECT tuition FROM monthly_tariffs WHERE id=1")
+        tariff=c.fetchone()
+        if not tariff: raise ValueError("لم تُضبط الرسوم الشهرية بعد.")
+        c.execute("""SELECT p.period_no,p.starts,p.ends,p.price,
+                COALESCE(SUM(a.amount) FILTER(WHERE a.active),0) AS paid,
+                COALESCE((SELECT SUM(w.amount) FROM monthly_waivers w
+                           WHERE w.period_id=p.period_id),0) AS waived
+                FROM monthly_periods p LEFT JOIN monthly_allocations a
+                     ON a.period_id=p.period_id
+                WHERE p.student_id=%s GROUP BY p.period_id ORDER BY p.period_no""",
+                  (student,))
+        rows={r["period_no"]:dict(r) for r in c.fetchall()}
+    revision=receipt_revision(conn,student)
+    index=0
+    left=cash
+    result=[]
+    while left:
+        if index>=1200: raise ValueError("تجاوزت المعاينة الحد المسموح للأشهر.")
+        row=rows.get(index)
+        if row is None:
+            if account["departure_on"]: raise ValueError("لا شهور جديدة بعد أرشفة الطفل.")
+            starts=anniversary(account["start_date"],index)
+            row={"period_no":index,"starts":starts,
+                 "ends":anniversary(account["start_date"],index+1),
+                 "price":int(tariff["tuition"]),"paid":0,"waived":0}
+        remaining=int(row["price"])-int(row["paid"])-int(row["waived"])
+        if remaining<0: raise ValueError("تجاوز سابق في تمويل أحد الأشهر.")
+        use=min(left,remaining)
+        if use:
+            result.append({"start":row["starts"],"end":row["ends"],
+                           "price":int(row["price"]),"previously_paid":int(row["paid"]),
+                           "waived":int(row["waived"]),"allocating":use})
+            left-=use
+        index+=1
+    return {"amount":cash,"revision":revision,"months":result}
+
+
+def take_payment(student, cash, *, payer="", token=None, actor="مديرة الروضة", as_of=None, expected_revision=None):
     cash=amount(cash)
     token=str(token or uuid.uuid4())
     fp=_hash({"student":student,"amount":cash,"payer":payer.strip(),"kind":"monthly"})
@@ -631,6 +682,7 @@ def take_payment(student, cash, *, payer="", token=None, actor="مديرة ال�
         with connection.cursor() as c:
             # Lock account for all receipts/corrections and schedule generation.
             account=_lock(c,student)
+            _assert_receipt_revision(c,student,expected_revision)
             c.execute("SELECT COALESCE(father_name,mother_name,'ولي الأمر') AS name FROM parents p "
                       "JOIN students s ON s.father_id=p.father_id WHERE s.student_id=%s",(student,))
             contact=c.fetchone()
