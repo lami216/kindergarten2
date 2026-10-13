@@ -233,61 +233,28 @@ def render_settings(conn):
 
 
 def render_receipts(conn):
-    last=st.session_state.pop("monthly_receipt_feedback",None)
-    if last:
-        st.success(last)
-    receipts=ui.df(conn,"""SELECT r.student_id, r.receipt_id AS "الوصل",s.full_name AS "الطفل",
-       r.amount AS "المبلغ",r.received_on AS "التاريخ",
-       r.payer AS "الدافع",r.state AS "الحالة"
-       FROM monthly_receipts r JOIN students s ON s.student_id=r.student_id
-       ORDER BY r.receipt_id DESC""")
+    st.caption("الوصولات الأصلية والمصححة والملغاة محفوظة. افتح الوثيقة الفعلية لإجراءاتها.")
+    receipts=ui.df(conn,"""SELECT r.receipt_id,r.student_id,r.amount,r.received_on,
+        r.payer,r.state,s.full_name
+        FROM monthly_receipts r JOIN students s ON s.student_id=r.student_id
+        ORDER BY r.receipt_id DESC LIMIT 200""")
     if receipts.empty:
         ui.empty_state("لا توجد وصولات شهرية.")
         return
-    display=receipts.copy()
-    display["الحالة"]=display["الحالة"].replace({"active":"ساري","cancelled":"ملغى"})
-    ui.dataframe(display.drop(columns=["student_id"]),hide_index=True,use_container_width=True)
-    choices=[(int(r["الوصل"]),str(r["الطفل"])) for _,r in receipts.iterrows()]
-    chosen=st.selectbox("اختر الوصل",choices,index=None,
-                        format_func=lambda x:f"وصل #{x[0]} — {x[1]}")
-    if not chosen:
-        return
-    row=receipts[receipts["الوصل"]==chosen[0]].iloc[0]
-    if st.button("🖨️ عرض / طباعة الوصل"):
-        import receipt
-        status=F.projection(conn,row["student_id"],materialize=True)
-        receipt.render_receipt(
-            receipt_id=chosen[0],date=str(row["التاريخ"]),student_name=row["الطفل"],
-            payer=row["الدافع"],amount=f"{int(row['المبلغ']):,}",
-            reason="رسوم الروضة الشهرية" if row["الحالة"]=="active" else "وصل ملغى",
-            remaining=f"{status['due_now']:,}",
-            currency=F.CURRENCY,remaining_label="المتبقي المستحق الآن",
-        )
-    if row["الحالة"]!="active":
-        st.warning("وصل ملغى؛ محفوظ في سجل المراجعة ولا يضاف إلى المقبوضات.")
-        return
-    with st.expander("تصحيح أو إلغاء الوصل"):
-        with st.form(f"monthly_receipt_modify_{chosen[0]}"):
-            a=st.number_input("المبلغ الصحيح",min_value=1,max_value=F.MAX_AMOUNT,
-                              step=1,value=int(row["المبلغ"]))
-            reason=st.text_input("سبب التصحيح أو الإلغاء *")
-            left,right=st.columns(2)
-            fix=left.form_submit_button("حفظ التصحيح")
-            void=right.form_submit_button("إلغاء الوصل")
-        if fix or void:
-            try:
-                if void:
-                    F.cancel_receipt(chosen[0],reason,actor=actor())
-                    st.session_state["monthly_receipt_feedback"]="أُلغي أثر الوصل مع الاحتفاظ بسجل المراجعة."
-                else:
-                    F.correct_receipt(chosen[0],int(a),reason,actor=actor(),
-                                      token=str(uuid.uuid4()))
-                    st.session_state["monthly_receipt_feedback"]="تم التصحيح وإعادة توزيع المبلغ في معاملة واحدة."
-                st.rerun()
-            except ValueError as exc:
-                st.error(str(exc))
-            except Exception:
-                st.error("تعذّر حفظ التعديل، ولم تتغير الأرصدة.")
+    term=st.text_input("بحث بالطفل أو رقم الوصل",key="monthly_receipt_search").strip()
+    if term:
+        receipts=receipts[receipts["full_name"].str.contains(term,case=False,
+              regex=False,na=False)|receipts["receipt_id"].astype(str).str.contains(
+              term,regex=False)]
+    RI.render_receipt_list(conn,receipts.to_dict("records"),scope="finance_receipt",
+                           limit=40)
+
+
+def render_history(conn):
+    RI.render_history(conn,scope="finance_receipt_history")
+    selected=st.session_state.get("finance_receipt_receipt_open")
+    if selected:
+        RI.render_inspector(conn,selected,scope="finance_receipt")
 
 
 def render_report(conn):
