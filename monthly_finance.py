@@ -560,8 +560,13 @@ def _issue(c, account, cash, payer, actor, token, fingerprint,
               (receipt,))
     if int(c.fetchone()["total"]) != cash:
         raise ValueError("تعذّر توزيع مبلغ الدفعة بالكامل.")
+    c.execute("""SELECT allocation_id,fee_id,period_id,amount FROM monthly_allocations
+                 WHERE receipt_id=%s ORDER BY allocation_id""",(receipt,))
+    allocation_snapshot=[dict(x) for x in c.fetchall()]
     _audit(c,account["student_id"],receipt,"receipt_issued",actor,{},
-           {"amount":cash,"registration":selected_registration,"gilet":selected_gilet})
+           {"receipt_id":receipt,"amount":cash,"received_on":str(day),
+            "payer":payer,"registration":selected_registration,
+            "gilet":selected_gilet,"allocations":allocation_snapshot})
     return receipt,True
 
 
