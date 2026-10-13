@@ -297,15 +297,21 @@ def render_history(conn,*,scope,student_id=None,receipt_id=None,show_open=True):
         title=H.ACTION_LABELS.get(row["action"],row["action"])
         st.write(f"**{title}** · {_stamp(row['happened_at'])} · "
                  f"{row['student_name'] or row['student_id'] or 'غير محدد'}")
-        st.caption(f"الوصل: {('#'+str(rid)) if rid else '—'} · "
-                   f"المسؤول: {row['actor'] or 'غير مسجل'} · "
-                   f"السبب: {row['reason'] or 'لم يسجل سبب'}")
+        st.caption(f"الوصل: {('#'+str(rid)) if rid else '—'}"
+                   f" · تاريخ قبضه: {row.get('payment_date') or 'غير مرتبط بوصل'}"
+                   f" · المسؤول: {row['actor'] or 'غير مسجل'}"
+                   f" · السبب: {row['reason'] or 'لم يسجل سبب'}")
         st.caption(_change_summary(row))
         if show_open and rid:
             if st.button(f"فتح مصدر العملية — وصل #{rid}",
                          key=scope+"_source_"+str(row["audit_id"])):
                 target_scope=scope.split("_history")[0] if "_history" in scope else scope
                 st.session_state[f"{target_scope}_receipt_open"]=int(rid)
+                st.rerun()
+        if show_open and not rid and row["student_id"]:
+            if st.button("فتح ملف الطفل — المصدر",key=scope+"_child_"+str(row["audit_id"])):
+                target_scope=scope.split("_history")[0] if "_history" in scope else scope
+                st.session_state[f"{target_scope}_history_child"]=row["student_id"]
                 st.rerun()
         with st.expander("تفاصيل قبل / بعد",expanded=False):
             before=row.get("before_state") or {}
