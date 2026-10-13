@@ -71,7 +71,7 @@ async def open_child(page,name):
     await expect(chooser).to_be_visible(timeout=30000)
     await chooser.click()
     await chooser.fill(name)
-    await page.get_by_text(name,exact=True).last.click(timeout=18000)
+    await page.locator('[role="listbox"]').get_by_text(name,exact=True).last.click(timeout=18000)
     await expect(page.get_by_text("تسجيل دفعة — مبلغ فقط")).to_be_visible(timeout=20000)
 
 
