@@ -33,6 +33,7 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
+          import os
           import shutil
 
           source = Path('docs')
@@ -48,6 +49,13 @@ jobs:
               if not asset.is_file():
                   raise SystemExit(f'Missing preview asset: {name}')
               shutil.copy2(asset, output / name)
+          # Each deployment gets fresh CSS/JS even in an already-open browser.
+          index = output / 'index.html'
+          version = os.environ['GITHUB_SHA'][:12]
+          html = index.read_text(encoding='utf-8')
+          html = html.replace('href="preview.css"', f'href="preview.css?v={version}"')
+          html = html.replace('src="preview.js"', f'src="preview.js?v={version}"')
+          index.write_text(html, encoding='utf-8')
           print(f'Built {len(files)} preview assets in dist/')
           PY
       - name: Downloadable preview build
