@@ -939,6 +939,8 @@ def projection(conn, student, as_of=None, *, materialize=True):
         contiguous+=1
     charge_active = day >= account["start_date"]
     cutoff = min(day, account["departure_on"]) if account.get("departure_on") else day
+    if account['status']=='exempt' and account.get('exempt_from'):
+        cutoff=min(cutoff,account['exempt_from'])
     currently_due=sum(max(0,p["price"]-p["paid"]-p.get("waived",0)) for p in periods
                       if p["start"]<=cutoff and charge_active)
     if charge_active:

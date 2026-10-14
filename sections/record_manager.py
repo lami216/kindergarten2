@@ -228,9 +228,18 @@ def _done(message):
 
 def _tariffs(conn):
     import monthly_finance as F
-    settings=F.prices(conn) or {}
-    with st.form('record_tariffs'):
-        vals={key:st.number_input(FIELD_NAMES[key],min_value=0 if key!='tuition' else 1,value=int(settings.get(key,1 if key=='tuition' else 0)),step=1) for key in ('registration','gilet','tuition')}
+    fresh=F.prices(conn) or {}
+    if st.session_state.get('records_open')!='monthly_tariffs':
+        st.session_state['records_open']='monthly_tariffs'
+        st.session_state['records_tariff_snapshot']=dict(fresh)
+        st.session_state['records_form_version']=st.session_state.get('records_form_version',0)+1
+    settings=st.session_state['records_tariff_snapshot']
+    version=st.session_state['records_form_version']
+    if dict(fresh)!=settings: st.warning('تغيّرت الرسوم بعد فتح النموذج؛ حدّث البيانات قبل الحفظ.')
+    if st.button('تحديث بيانات الرسوم'):
+        st.session_state.pop('records_open',None); st.rerun()
+    with st.form('record_tariffs_'+str(version)):
+        vals={key:st.number_input(FIELD_NAMES[key],min_value=0 if key!='tuition' else 1,value=int(settings.get(key,1 if key=='tuition' else 0)),step=1,key=f'record_tariff_{version}_{key}') for key in ('registration','gilet','tuition')}
         reason=st.text_input('سبب تعديل الرسوم *')
         if st.form_submit_button('حفظ الرسوم',type='primary'):
             try:

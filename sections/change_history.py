@@ -32,6 +32,7 @@ FIELD_NAMES={
     'effective_on':'تاريخ الإعفاء',
     'display_national_id':'رقم هوية المعلمة','display_year_id':'السنة الدراسية',
     'payment_method':'طريقة الدفع',
+    'exempt_from':'بداية الإعفاء',
 }
 
 

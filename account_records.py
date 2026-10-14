@@ -18,7 +18,8 @@ def change_account(student, *, actor, reason, start_date=None, status=None, canc
             if cancel:
                 import student_debt as D
                 if old['status']=='regular': F._due_started(c,student,old)
-                if any(r['remaining']>0 for r in D._debt(c,student,F.today())):
+                cutoff=min(F.today(),old['exempt_from']) if old['status']=='exempt' and old.get('exempt_from') else F.today()
+                if any(r['remaining']>0 for r in D._debt(c,student,cutoff)):
                     raise ValueError('سدّد أو ألغِ الدين المتبقي أولًا؛ الدفعات والإعفاءات متاحة في إدارة السجلات.')
                 c.execute('UPDATE monthly_accounts SET archived_at=now(),archived_by=%s,departure_on=%s WHERE student_id=%s',(actor,F.today(),student))
             else:
@@ -35,9 +36,13 @@ def change_account(student, *, actor, reason, start_date=None, status=None, canc
                 if old['status']=='regular' and status=='exempt':
                     import student_debt as D
                     F._due_started(c,student,{**old,'start_date':anchor})
-                    if any(item['remaining']>0 for item in D._debt(c,student,date.max)):
+                    if any(item['remaining']>0 for item in D._debt(c,student,F.today())):
                         raise ValueError('يوجد دين سابق؛ سدّده أو ألغِه صراحةً من ملف الطالب قبل تغيير حالة الإعفاء.')
-                c.execute('UPDATE monthly_accounts SET start_date=%s,status=%s WHERE student_id=%s',(anchor,status,student))
+                freeze=(old.get('exempt_from') if old['status']=='exempt' else F.today()) if status=='exempt' else None
+                c.execute('''UPDATE monthly_accounts SET start_date=%s,status=%s,exempt_from=%s,
+                    exempt_by=CASE WHEN %s='exempt' THEN %s ELSE NULL END,
+                    exempt_at=CASE WHEN %s='exempt' THEN now() ELSE NULL END WHERE student_id=%s''',
+                    (anchor,status,freeze,status,actor,status,student))
                 if old['status']=='exempt' and status=='regular':
                     # Initially exempt accounts have no issued fees or periods.
                     settings=F._tariffs(c)

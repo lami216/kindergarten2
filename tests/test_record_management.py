@@ -199,7 +199,9 @@ def test_asset_recalculation_and_invalid_dates_rollback(ledger):
 def test_account_correction_requires_resolving_dependent_receipts(ledger):
     from datetime import timedelta
     from account_records import change_account
-    conn,marker=ledger; sid=child(conn,marker,cash=4000)
+    conn,marker=ledger
+    F.update_tariffs(1000,2000,1000,'record QA fixture')
+    sid=child(conn,marker,cash=4000) # creates three periods, including future credit
     anchor=F.today()-timedelta(days=3)
     with pytest.raises(ValueError,match='ألغِ الوصولات'): change_account(sid,start_date=anchor,status='regular',actor='record QA',reason='تصحيح البداية')
     assert row(conn,'monthly_accounts',sid)['start_date']==F.today()
@@ -213,6 +215,8 @@ def test_account_correction_requires_resolving_dependent_receipts(ledger):
     SD.waive_debt(sid,'إعفاء صريح للدين',True,actor='record QA')
     change_account(sid,start_date=anchor,status='exempt',actor='record QA',reason='الطفل معفي')
     assert F.projection(conn,sid,materialize=False)['due_now']==0
+    assert F.projection(conn,sid,as_of=F.today()+timedelta(days=80),materialize=False)['due_now']==0
+    F.update_tariffs(1000,2000,3000,'record QA fixture reset')
 
 
 def test_waiver_correction_and_cancellation_restore_debt_without_cash(ledger):

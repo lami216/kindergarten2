@@ -45,6 +45,7 @@ def migrate(conn):
             c.execute(sql.SQL('ALTER TABLE {} ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ, '
                              'ADD COLUMN IF NOT EXISTS archived_by TEXT').format(sql.Identifier(table)))
         c.execute('ALTER TABLE expenses ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMPTZ;')
+        c.execute('ALTER TABLE monthly_accounts ADD COLUMN IF NOT EXISTS exempt_from DATE;')
         c.execute('ALTER TABLE teacher_payments ADD COLUMN IF NOT EXISTS entry_cancelled_at TIMESTAMPTZ; ALTER TABLE teacher_advances ADD COLUMN IF NOT EXISTS entry_cancelled_at TIMESTAMPTZ;')
         # Editable public identifiers are separate from stable internal keys.
         # No foreign-key policies or historical references are changed.
