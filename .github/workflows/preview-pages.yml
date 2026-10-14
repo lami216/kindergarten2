@@ -1,0 +1,35 @@
+name: Publish interface preview
+
+on:
+  push:
+    branches: [design/simpler-owner-workflow]
+    paths:
+      - 'docs/**'
+      - '.github/workflows/preview-pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: interface-preview-pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/design/simpler-owner-workflow'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+      - name: Publish synthetic preview
+        id: deployment
+        uses: actions/deploy-pages@v4

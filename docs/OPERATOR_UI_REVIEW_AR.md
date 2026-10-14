@@ -27,7 +27,7 @@
 
 `docs/index.html` معاينة تفاعلية ببيانات وهمية في ذاكرة الصفحة؛ تحديث الصفحة يعيدها لحالتها الأصلية. تتيح تجربة الإضافة والدفعات والوصولات والمصروفات، وتوضح اتجاه التصميم. ليست نسخة تعمل بقاعدة بيانات الروضة، ولا تطابق كل إمكانات النظام الفعلي.
 
-في GitHub: **Settings → Pages → Deploy from a branch**، اختر الفرع `design/simpler-owner-workflow` والمجلد `/docs`. GitHub Pages يخدم ملفات ثابتة، ولا يشغّل Streamlit أو PostgreSQL. تشغيل الفرع الحقيقي يحتاج بيئة Streamlit منفصلة متصلة بقاعدة تجريبية.
+مصدر Pages هو **GitHub Actions**. ملف `.github/workflows/preview-pages.yml` ينشر مجلد `docs` تلقائيًا من الفرع `design/simpler-owner-workflow`. GitHub Pages يخدم ملفات ثابتة، ولا يشغّل Streamlit أو PostgreSQL. تشغيل الفرع الحقيقي يحتاج بيئة Streamlit منفصلة متصلة بقاعدة تجريبية.
 
 ## الخطوة التالية المقترحة
 
