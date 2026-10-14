@@ -36,11 +36,11 @@ elif section == "parents":
 elif section == "payments":
     from sections import payments
     payments.render(conn)
-elif section in ("reports","dashboard","expenses","salaries","registration"):
-    from sections import reports, dashboard, expenses, salaries, registration
+elif section in ("reports","dashboard","expenses","salaries","registration","records","history"):
+    from sections import reports, dashboard, expenses, salaries, registration, record_manager, change_history
     routes={"reports":reports.render,"dashboard":dashboard.render,
             "expenses":expenses.render,"salaries":salaries.render,
-            "registration":registration.render}
+            "registration":registration.render,'records':record_manager.render,'history':change_history.render}
     routes[section](conn)
 else:
     st.info("صفحة ليست ضمن مسارات اختبار المالية.")

@@ -15,7 +15,7 @@ from datetime import datetime
 def render(conn):
     ui.section_header("💸", "رواتب المعلمات", "إدارة صرف وتعديل وإعادة طباعة قسائم الرواتب الشهرية")
 
-    teachers_df = ui.df(conn, "SELECT national_id, full_name, salary FROM teachers WHERE archived_at IS NULL ORDER BY full_name")
+    teachers_df = ui.df(conn, "SELECT national_id,COALESCE(display_national_id,national_id) AS display_national_id, full_name, salary FROM teachers WHERE archived_at IS NULL ORDER BY full_name")
     
     if teachers_df.empty:
         st.info("لا توجد معلمات نشطات للصرف؛ السجلات السابقة ما زالت متاحة.")
@@ -23,7 +23,7 @@ def render(conn):
     tab_pay, tab_log, tab_advance = st.tabs([
         "➕ صرف راتب شهري", "📋 سجل الرواتب والإعادة", "💰 سلف المعلمات"])
 
-    teacher_map = {f"{r.full_name} ({r.national_id})": (r.national_id, float(r.salary), r.full_name) for r in teachers_df.itertuples()}
+    teacher_map = {f"{r.full_name} ({r.display_national_id})": (r.national_id, float(r.salary), r.full_name) for r in teachers_df.itertuples()}
 
     # -------------------------------------------------- TAB 1: DISBURSE SALARY --
     with tab_pay:
@@ -75,7 +75,7 @@ def render(conn):
     # ---------------------------------- TAB 2: LOG, REPRINT, EDIT & DELETE --
     with tab_log:
         salary_logs = ui.df(conn, """
-            SELECT tp.payment_id, tp.national_id, t.full_name AS "المعلمة",
+            SELECT tp.payment_id, tp.national_id, COALESCE(t.display_national_id,t.national_id) AS display_national_id,t.full_name AS "المعلمة",
                    tp.salary_month AS "عن شهر", tp.base_salary AS "الأساسي",
                    tp.bonus AS "المكافأة", tp.deductions AS "الخصم",
                    tp.cash_amount AS "الصافي المدفوع", CASE tp.record_state
@@ -96,7 +96,7 @@ def render(conn):
                 shown = shown[shown["المعلمة"].str.contains(search, na=False) |
                               shown["عن شهر"].str.contains(search, na=False)]
 
-            display_df = shown.drop(columns=['payment_id', 'national_id'])
+            display_df = shown.drop(columns=['payment_id', 'national_id','display_national_id'])
             ui.dataframe(display_df, use_container_width=True, hide_index=True)
             st.metric("💰 مجموع النقد المصروف فعلاً", f"{H.format_money(shown['الصافي المدفوع'].sum())} أوقية قديمة")
 
@@ -129,7 +129,7 @@ def render(conn):
                     teacher_receipt.render_salary_slip(
                         payment_id=p_id,
                         teacher_name=sal_row['المعلمة'],
-                        national_id=sal_row['national_id'],
+                        national_id=sal_row['display_national_id'],
                         payment_date=str(sal_row['تاريخ الصرف']),
                         salary_month=sal_row['عن شهر'],
                         base_salary=float(sal_row['الأساسي']),
@@ -139,6 +139,7 @@ def render(conn):
                         notes=sal_row['ملاحظات'] or ""
                     )
 
+                ui.open_record_editor('teacher_payments',int(p_id),'تعديل مبلغ الراتب أو إلغاء الإدخال')
                 # ✏️ Edit & Delete Form
                 with st.expander(f"✏️ تصحيح بيانات / إلغاء القسيمة #{p_id}", expanded=False):
                     with st.form("edit_salary_form"):
@@ -220,6 +221,7 @@ def render(conn):
             aid=st.selectbox("اختر سلفة للمراجعة",list(advances["رقم السلفة"]),index=None)
             if aid:
                 entry=advances[advances["رقم السلفة"]==aid].iloc[0]
+                ui.open_record_editor('teacher_advances',int(aid),'تعديل مبلغ السلفة أو إلغاء الإدخال')
                 st.caption("إلغاء المستند لا يعني رجوع النقد؛ ويظل الصرف في التقرير.")
                 with st.form(f"advance_audit_{aid}"):
                     corrected_month=st.text_input("شهر الخصم الصحيح",value=entry["شهر الخصم"])

@@ -11,7 +11,10 @@ def migrate(conn):
                 name VARCHAR(180) NOT NULL CHECK(length(btrim(name))>0),
                 created_at TIMESTAMPTZ NOT NULL DEFAULT now()
             );
-            CREATE UNIQUE INDEX IF NOT EXISTS school_department_name_unique ON school_departments(lower(name));
+            ALTER TABLE school_departments ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ;
+            ALTER TABLE school_departments ADD COLUMN IF NOT EXISTS archived_by TEXT;
+            DROP INDEX IF EXISTS school_department_name_unique;
+            CREATE UNIQUE INDEX school_department_name_unique ON school_departments(lower(name)) WHERE archived_at IS NULL;
             CREATE TABLE IF NOT EXISTS student_departments (
                 student_id VARCHAR(20) PRIMARY KEY REFERENCES students(student_id) ON DELETE RESTRICT,
                 department_id INTEGER NOT NULL REFERENCES school_departments(department_id) ON DELETE RESTRICT,
@@ -61,6 +64,7 @@ def create(name):
     conn=db.new_transaction_connection()
     try:
         with conn.cursor() as c:
+            c.execute("SELECT pg_advisory_xact_lock(hashtextextended('department_mutation',0))")
             c.execute('INSERT INTO school_departments(name) VALUES(%s) RETURNING department_id',(name,))
             result=c.fetchone()['department_id']
         conn.commit()
@@ -85,7 +89,10 @@ def transfer(student_ids,department_id,*,actor):
     conn=db.new_transaction_connection()
     try:
         with conn.cursor() as c:
-            c.execute('SELECT department_id FROM school_departments WHERE department_id=%s FOR KEY SHARE',(department_id,))
+            c.execute("SELECT pg_advisory_xact_lock(hashtextextended('department_mutation',0))")
+            import record_history
+            record_history.context(c,actor,'نقل الأطفال بين الأقسام')
+            c.execute('SELECT department_id FROM school_departments WHERE department_id=%s AND archived_at IS NULL FOR SHARE',(department_id,))
             if not c.fetchone():
                 raise ValueError('القسم المحدد غير موجود.')
             # Stable child locks serialize transfers and preserve atomic batches.

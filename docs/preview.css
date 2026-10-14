@@ -54,3 +54,22 @@ aside{position:fixed;inset:0 0 0 auto;width:250px;background:#073f31;color:#f0f7
 .table-wrap table:has(thead tr th:nth-child(2):last-child) { min-width:0; table-layout:fixed; }
 .table-wrap table:has(thead tr th:nth-child(2):last-child) th:first-child { width:70%; }
 .table-wrap table:has(thead tr th:nth-child(2):last-child) td { overflow-wrap:anywhere; }
+.record-actions { display:flex; gap:6px; flex-wrap:wrap; }
+.small { padding:6px 9px; font-size:12px; }
+.managed-row { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:16px 0; border-bottom:1px solid var(--border); }
+.managed-row>div:first-child { min-width:0; overflow-wrap:anywhere; }
+.managed-row .muted { margin:4px 0 0; }
+.dialog-head { display:flex; align-items:center; justify-content:space-between; gap:14px; margin-bottom:18px; }
+.dialog-head h2 { font-size:20px; margin:0; }
+#record-dialog { width:min(650px,calc(100% - 24px)); max-height:90vh; overflow:auto; border:1px solid var(--border); border-radius:20px; padding:24px; background:var(--surface); color:var(--text); box-sizing:border-box; }
+dialog::backdrop { background:#153c3b66; backdrop-filter:blur(3px); }
+.danger { background:#b42318; color:white; border:1px solid #b42318; border-radius:8px; padding:10px 17px; }
+aside { overflow-y:auto; }
+.history-entry { padding:14px 0; border-bottom:1px solid var(--border); }
+.history-entry summary { display:flex; gap:8px; flex-wrap:wrap; }
+.history-diff { display:grid; gap:8px; font-size:13px; }
+.history-diff>div { display:grid; grid-template-columns:1fr 1fr 20px 1fr; gap:8px; padding:10px; background:var(--soft); border-radius:8px; overflow-wrap:anywhere; }
+.table-wrap table:has([data-record-type="departments"]) { min-width:0; table-layout:fixed; }
+.table-wrap table:has([data-record-type="departments"]) th:first-child { width:36%; }
+.table-wrap table:has([data-record-type="departments"]) th:nth-child(2) { width:22%; }
+@media(max-width:520px) { .managed-row { align-items:flex-start; flex-direction:column; } #record-dialog { padding:18px; } .table-wrap:has([data-record-type="departments"]) th,.table-wrap:has([data-record-type="departments"]) td { padding:10px 5px; } }

@@ -355,8 +355,9 @@ def migrate(conn):
                 AFTER INSERT ON expenses
                 FOR EACH ROW EXECUTE FUNCTION record_expense_cash_event();
             ALTER TABLE expenses DROP CONSTRAINT IF EXISTS expense_valid_amount_paid;
+            ALTER TABLE expenses ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMPTZ;
             ALTER TABLE expenses ADD CONSTRAINT expense_valid_amount_paid
-                CHECK(amount>0 AND amount_paid>=0 AND amount_paid<=amount);
+                CHECK((amount>0 OR (amount=0 AND cancelled_at IS NOT NULL)) AND amount_paid>=0 AND amount_paid<=amount);
         """)
         c.execute("INSERT INTO finance_schema_versions(version) VALUES(7) ON CONFLICT DO NOTHING")
         # Version 8: durable idempotency and a stable, indexed audit history.
@@ -405,11 +406,13 @@ def _audit(c, student, receipt, action, actor, before, after, reason=None):
          json.dumps(after, default=str, ensure_ascii=False), reason))
 
 
-def update_tariffs(registration, gilet, tuition, actor):
+def update_tariffs(registration, gilet, tuition, actor, *, reason='', expected=None):
     values = (amount(registration,zero=True),amount(gilet,zero=True),amount(tuition))
     conn = db.new_transaction_connection()
     try:
         with conn.cursor() as c:
+            import record_history
+            record_history.context(c,actor,reason)
             c.execute("SELECT pg_advisory_xact_lock(82416079)")
             # Snapshot every already-started unpaid period at the OLD tariff,
             # before updating prices. Future periods use the new tariff.
@@ -419,13 +422,17 @@ def update_tariffs(registration, gilet, tuition, actor):
                 _due_started(c,row["student_id"],locked)
             c.execute("SELECT registration,gilet,tuition FROM monthly_tariffs WHERE id=1")
             old = c.fetchone()
+            if expected is not None:
+                import records
+                if records.revision(old or {})!=expected:
+                    raise ValueError('تغيّرت الرسوم؛ حدّث الصفحة قبل حفظ التعديل.')
             c.execute("""INSERT INTO monthly_tariffs(id,registration,gilet,tuition,changed_by)
                 VALUES(1,%s,%s,%s,%s)
                 ON CONFLICT(id) DO UPDATE SET registration=EXCLUDED.registration,
                 gilet=EXCLUDED.gilet,tuition=EXCLUDED.tuition,
                 changed_by=EXCLUDED.changed_by,changed_at=now()""",(*values,_actor(actor)))
             _audit(c,None,None,"tariff_change",actor,dict(old) if old else {},
-                   dict(zip(("registration","gilet","tuition"),values)))
+                   dict(zip(("registration","gilet","tuition"),values)),reason)
         conn.commit()
     except Exception:
         conn.rollback()
@@ -538,6 +545,8 @@ def _fund_months(c, receipt, account, money, *, as_of=None):
 def _issue(c, account, cash, payer, actor, token, fingerprint,
            selected_registration=False, selected_gilet=False,
            *, as_of=None, schedule_as_of=None, corrects_id=None):
+    import record_history
+    record_history.context(c,actor,'تصحيح وصل' if corrects_id else 'قبض دفعة')
     amount(cash)
     c.execute("SELECT receipt_id,request_hash,state FROM monthly_receipts WHERE request_token=%s",
               (str(token),))
@@ -592,6 +601,8 @@ def preview(cash, registration, gilet, settings):
 
 def initialize_in_transaction(c, student, options, actor, token):
     """Called inside the existing atomic family+student transaction."""
+    import record_history
+    record_history.context(c,actor,'تهيئة رسوم الطالب')
     mode = options.get("mode","regular")
     if mode not in ("regular","exempt"):
         raise ValueError("خيار الرسوم غير معروف.")
@@ -707,6 +718,8 @@ def take_payment(student, cash, *, payer="", token=None, actor="مديرة ال�
 
 
 def _cancel_in_tx(c, student, receipt_id, reason, actor):
+    import record_history
+    record_history.context(c,actor,reason)
     if not reason.strip():
         raise ValueError("يرجى كتابة سبب الإلغاء أو التصحيح.")
     c.execute("SELECT * FROM monthly_receipts WHERE receipt_id=%s AND student_id=%s FOR UPDATE",

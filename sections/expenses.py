@@ -120,7 +120,7 @@ def render(conn):
                         payment_status AS "حالة الدفع",
                         payee AS "المورد",
                         notes AS "ملاحظات"
-                    FROM expenses
+                    FROM expenses WHERE cancelled_at IS NULL
                     ORDER BY expense_date DESC
                 """)
                 if df_exp.empty:
@@ -132,7 +132,7 @@ def render(conn):
         # SUB TAB 2: Edit & Settle Debts
         # --------------------------------------------------------------
         with sub_tab2:
-            df_exp_manage = ui.df(conn, "SELECT * FROM expenses ORDER BY expense_date DESC")
+            df_exp_manage = ui.df(conn, "SELECT * FROM expenses WHERE cancelled_at IS NULL ORDER BY expense_date DESC")
             if df_exp_manage.empty:
                 ui.empty_state("لا توجد مصروفات للتعديل أو الحذف.")
             else:
@@ -143,6 +143,7 @@ def render(conn):
                 selected_id = st.selectbox("اختر المصروف لتعديله، تسديد الدين، أو الحذف:", options=list(exp_options.keys()), format_func=lambda x: exp_options[x])
 
                 exp_data = df_exp_manage[df_exp_manage["expense_id"] == selected_id].iloc[0]
+                ui.open_record_editor('expenses',int(selected_id),'تعديل كامل للمصروف وتسوياته')
                 remaining_debt = float(exp_data["amount"]) - float(exp_data["amount_paid"])
 
                 col_edit, col_del = st.columns([2, 1])
@@ -213,22 +214,16 @@ def render(conn):
                                     st.error("تعذّر حفظ التسوية؛ بقي الحساب كما هو.")
                             st.write("---")
 
-                        st.warning("لا يمكن حذف مصروف سُجل له صرف نقدي؛ تُحفظ آثاره في سجل الحركة.")
-                        if st.button("🗑️ حذف مصروف غير مدفوع", key=f"del_exp_{selected_id}", use_container_width=True):
+                        reason=st.text_input("سبب إلغاء المصروف *",key=f"expense_cancel_reason_{selected_id}")
+                        agree=st.checkbox("أؤكد إلغاء إدخال المصروف الخاطئ وإزالة أثره من الحسابات",key=f"expense_cancel_agree_{selected_id}")
+                        if st.button("إلغاء المصروف",disabled=not agree,key=f"del_exp_{selected_id}"):
                             try:
-                                with conn.cursor() as cur:
-                                    cur.execute("SELECT 1 FROM expense_cash_events WHERE expense_id=%s",
-                                                (selected_id,))
-                                    if cur.fetchone():
-                                        raise ValueError("هذا المصروف له حركة نقدية محفوظة؛ لا يمكن حذفها.")
-                                    cur.execute("DELETE FROM expenses WHERE expense_id = %s", (selected_id,))
-                                st.success("حُذف المصروف غير المدفوع.")
+                                E.cancel(selected_id,actor=st.session_state.get("auth_user"),reason=reason)
                                 st.rerun()
-                            except ValueError as exc:
-                                st.error(str(exc))
+                            except ValueError as error:
+                                st.error(str(error))
                             except Exception:
-                                conn.rollback()
-                                st.error("تعذّر حذف هذا المصروف.")
+                                st.error("تعذر الإلغاء؛ بقي الحساب كما هو.")
 
     # ==================================================================
     # MAIN TAB 2: CAPITAL ASSETS & TOYS
@@ -278,7 +273,7 @@ def render(conn):
                         unit_cost AS "سعر القطعة",
                         total_cost AS "الإجمالي",
                         condition_status AS "الحالة"
-                    FROM assets
+                    FROM assets WHERE archived_at IS NULL
                     ORDER BY purchase_date DESC
                 """)
                 if df_ast.empty:
@@ -290,7 +285,7 @@ def render(conn):
         # SUB TAB 2: Edit & Scrap Asset
         # --------------------------------------------------------------
         with sub_ast2:
-            df_ast_manage = ui.df(conn, "SELECT * FROM assets ORDER BY purchase_date DESC")
+            df_ast_manage = ui.df(conn, "SELECT * FROM assets WHERE archived_at IS NULL ORDER BY purchase_date DESC")
             if df_ast_manage.empty:
                 ui.empty_state("لا توجد أصول لإدارتها.")
             else:

@@ -18,7 +18,7 @@ def render(conn):
 
     tab_add, tab_view = st.tabs(["➕ إضافة صف", "📋 عرض / تعديل / حذف"])
 
-    teachers_df = ui.df(conn, "SELECT national_id, full_name FROM teachers")
+    teachers_df = ui.df(conn, "SELECT national_id, full_name FROM teachers WHERE archived_at IS NULL")
     teacher_options = {"— بدون تعيين —": None}
     teacher_options.update({r.full_name: r.national_id for r in teachers_df.itertuples()})
 
@@ -58,7 +58,7 @@ def render(conn):
         classes = ui.df(conn, """
             SELECT c.class_id, c.class_type, c.section, c.class_name, t.full_name AS teacher_name,
                    c.teacher_id
-            FROM classes c LEFT JOIN teachers t ON c.teacher_id = t.national_id
+            FROM classes c LEFT JOIN teachers t ON c.teacher_id = t.national_id WHERE c.archived_at IS NULL
         """)
         if classes.empty:
             ui.empty_state("لا توجد صفوف بعد.")

@@ -19,7 +19,8 @@ async def run():
     url=f"http://127.0.0.1:{server.server_port}"
     try:
         async with async_playwright() as pw:
-            browser=await pw.chromium.launch(headless=True)
+            import sys
+            browser=await pw.chromium.launch(headless=True,channel='chrome' if sys.platform=='win32' else None)
             for width in (390,768,1280):
                 page=await browser.new_page(viewport={"width":width,"height":900})
                 await page.goto(url)

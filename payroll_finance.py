@@ -171,3 +171,57 @@ def archive_teacher(national_id, *, actor):
         raise
     finally:
         connection.close()
+
+
+def correct_cash_entry(table, ident, *, actor, reason, expected=None, cancel=False,
+                       amount=None, base=0, bonus=0, deductions=0, month=None, on_date=None, notes='', national_id=None):
+    """Explicit correction of erroneous cash input, distinct from retiring a slip."""
+    if table not in ('teacher_payments','teacher_advances'): raise ValueError('نوع العملية غير صالح.')
+    actor=_actor(actor)
+    if not str(reason or '').strip(): raise ValueError('أدخل سبب التصحيح أو الإلغاء.')
+    if not cancel:
+        month=_month(month)
+        day=date.fromisoformat(str(on_date))
+        if day>business_today(): raise ValueError('تاريخ الصرف لا يكون مستقبليًا.')
+        if table=='teacher_payments':
+            from expense_finance import cash
+            base,bonus,deductions=(cash(x,zero=True) for x in (base,bonus,deductions))
+            amount=_cash(base+bonus-deductions)
+        else: amount=_cash(amount)
+    conn=db.new_transaction_connection()
+    column='payment_id' if table=='teacher_payments' else 'advance_id'
+    try:
+        with conn.cursor() as c:
+            import record_history as H
+            import records as R
+            H.context(c,actor,reason)
+            old=R._lock(c,table,ident,expected)
+            if old.get('entry_cancelled_at'):
+                if cancel: conn.commit(); return False
+                raise ValueError('الإدخال ملغى بالفعل.')
+            if cancel:
+                c.execute(f"UPDATE {table} SET cash_amount=0,record_state='cancelled',entry_cancelled_at=now() WHERE {column}=%s RETURNING *",(ident,))
+                action='cash_entry_cancelled'
+            else:
+                teacher=national_id or old['national_id']
+                c.execute('SELECT national_id FROM teachers WHERE national_id=%s AND archived_at IS NULL FOR SHARE',(teacher,))
+                if not c.fetchone() and teacher!=old['national_id']: raise ValueError('المعلمة غير موجودة أو محذوفة.')
+                if table=='teacher_payments':
+                    c.execute('''UPDATE teacher_payments SET national_id=%s,amount=%s,cash_amount=%s,
+                        base_salary=%s,bonus=%s,deductions=%s,salary_month=%s,payment_date=%s,notes=%s
+                        WHERE payment_id=%s RETURNING *''',(teacher,amount,amount,base,bonus,deductions,month,day,notes,ident))
+                else:
+                    c.execute('''UPDATE teacher_advances SET national_id=%s,amount=%s,cash_amount=%s,
+                        salary_month=%s,advance_date=%s,notes=%s WHERE advance_id=%s RETURNING *''',
+                        (teacher,amount,amount,month,day,notes,ident))
+                action='cash_entry_corrected'
+            after=c.fetchone()
+            _audit(c,table,ident,action,actor,reason,old,after)
+            # A explicitly linked mirror cannot leave a phantom supplier debt.
+            link='teacher_payment_id' if table=='teacher_payments' else 'teacher_advance_id'
+            c.execute(f"UPDATE expenses SET amount=%s,amount_paid=%s,payment_status=%s,cancelled_at=CASE WHEN %s THEN now() ELSE cancelled_at END WHERE {link}=%s",
+                      (0 if cancel else amount,0 if cancel else amount,'ملغى' if cancel else 'مدفوع بالكامل',cancel,ident))
+        conn.commit(); return True
+    except Exception:
+        conn.rollback(); raise
+    finally: conn.close()

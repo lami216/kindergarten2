@@ -9,6 +9,6 @@ class SidebarTest(unittest.TestCase):
                and b.key not in ('nav_logout', 'nav_backup_dialog')]
         self.assertEqual([b.key for b in nav], ['nav_'+k for k in
             ['dashboard','students','registration','payments','expenses',
-             'reports','salaries','parents','teachers','classes','years']])
+             'reports','salaries','parents','teachers','classes','years','records','history']])
         nav[1].click().run()
         self.assertEqual(app.session_state['current_page'], 'students')

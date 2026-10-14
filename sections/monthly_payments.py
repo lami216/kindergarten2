@@ -271,7 +271,8 @@ def render_accounts(conn):
     if not choices:
         ui.empty_state("لا توجد نتائج لهذا البحث.")
         return
-    chosen=st.selectbox("اختر الطفل",choices,format_func=lambda x:x[1],
+    duplicate_names=set(children['full_name'][children['full_name'].duplicated(keep=False)])
+    chosen=st.selectbox("اختر الطفل",choices,format_func=lambda x:f'{x[1]} · {x[0]}' if x[1] in duplicate_names else x[1],
                        index=None,placeholder="اختر طفلاً...",key="monthly_finance_child")
     if chosen:
         financial_panel(conn,chosen[0])

@@ -20,6 +20,8 @@ NAV_ITEMS = [
     ("teachers", "👩‍🏫", "المعلمات"),
     ("classes", "📚", "سجل الصفوف"),
     ("years", "📅", "السنوات الدراسية"),
+    ("records", "✏️", "إدارة السجلات"),
+    ("history", "🕘", "سجل التغييرات"),
 ]
 
 
@@ -49,6 +51,7 @@ def backup_dialog(conn):
                         "المصروفات": "expenses",
                         "الأصول": "assets",
                         "السنوات الدراسية": "academic_years",
+                        "سجل التغييرات": "record_changes",
                     }
                     
                     cur = conn.cursor()

@@ -68,7 +68,11 @@ def new_transaction_connection():
             host="YOUR_SUPABASE_HOST", database="postgres", user="postgres",
             password="YOUR_PASSWORD", port="5432", cursor_factory=RealDictCursor
         )
-    return _pin_business_timezone(connection, autocommit=False)
+    connection = _pin_business_timezone(connection, autocommit=False)
+    import record_history
+    with connection.cursor() as cursor:
+        record_history.context(cursor, st.session_state.get('auth_user') or 'النظام')
+    return connection
 
 
 def contact_validation_error(father_name, father_mobile, mother_name, mother_mobile):
@@ -135,6 +139,8 @@ def save_child_with_family(child, family, existing_parent_id, request_token,
     connection = new_transaction_connection()
     try:
         with connection.cursor() as cur:
+            import record_history
+            record_history.context(cur, actor, 'إضافة طالب وبيانات الأهل')
             # Serialize retries under the same token before checking the payload.
             cur.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))",
                         (str(request_token),))
@@ -151,7 +157,7 @@ def save_child_with_family(child, family, existing_parent_id, request_token,
                 connection.commit()
                 return already["student_id"], False
             if existing_parent_id:
-                cur.execute("SELECT father_id FROM parents WHERE father_id=%s FOR KEY SHARE",
+                cur.execute("SELECT father_id FROM parents WHERE father_id=%s AND archived_at IS NULL FOR SHARE",
                             (existing_parent_id,))
                 if not cur.fetchone():
                     raise ValueError("ولي الأمر المحدد غير موجود، حدّث الصفحة واختر مجدداً.")
@@ -400,3 +406,5 @@ def init_db():
     monthly_finance.migrate(conn)
     import school_departments
     school_departments.migrate(conn)
+    import records
+    records.migrate(conn)

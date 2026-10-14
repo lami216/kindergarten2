@@ -16,7 +16,7 @@ import sidebar
 
 from sections import (
     dashboard, parents, students,  teachers,
-    classes, academic_years, registration, payments, salaries, expenses, reports,
+    classes, academic_years, registration, payments, salaries, expenses, reports, record_manager, change_history,
 )
 
 LOGO_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "school-logo.jpg")
@@ -32,6 +32,9 @@ if not auth.check_authentication():
 
 init_db()
 conn = get_connection()
+import record_history
+with conn.cursor() as cursor:
+    record_history.context(cursor, st.session_state.get('auth_user'), local=False)
 
 # --------------------------------------------------------------------------
 # Navigation + routing
@@ -47,9 +50,24 @@ ROUTES = {
     "payments": payments.render,
     "salaries": salaries.render,
     "reports": reports.render,
-    "expenses": expenses.render
+    "expenses": expenses.render,
+    "records": record_manager.render,
+    "history": change_history.render,
 }
 
 current_page = sidebar.render(conn)
 ROUTES[current_page](conn)
+if current_page not in ('records','history','dashboard','reports'):
+    targets={'students':'students','parents':'parents','teachers':'teachers','classes':'classes',
+             'years':'academic_years','registration':'school_departments','expenses':'expenses',
+             'salaries':'teacher_payments','payments':'monthly_receipts'}
+    st.divider()
+    left,right=st.columns(2)
+    if left.button('✏️ تعديل أو حذف السجلات',key='open_record_manager',use_container_width=True):
+        st.session_state['records_target']=targets[current_page]
+        st.session_state['current_page']='records'
+        st.rerun()
+    if right.button('🕘 سجل التغييرات',key='open_change_history',use_container_width=True):
+        st.session_state['current_page']='history'
+        st.rerun()
 

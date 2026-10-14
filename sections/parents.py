@@ -19,12 +19,12 @@ def render(conn):
                    SELECT string_agg(s.full_name, '، ' ORDER BY s.full_name, s.student_id)
                    FROM students s WHERE s.father_id=p.father_id
                ), '') AS linked_children
-        FROM parents p
+        FROM parents p WHERE p.archived_at IS NULL
     """
     params = ()
     if search:
-        sql += """ WHERE p.father_name ILIKE %s OR p.mother_name ILIKE %s
-                    OR p.father_mobile ILIKE %s OR p.mother_mobile ILIKE %s """
+        sql += """ AND (p.father_name ILIKE %s OR p.mother_name ILIKE %s
+                    OR p.father_mobile ILIKE %s OR p.mother_mobile ILIKE %s) """
         params = tuple([f"%{search}%"] * 4)
     sql += " ORDER BY COALESCE(p.father_name, p.mother_name), p.father_id"
     parents = ui.df(conn, sql, params)
@@ -45,7 +45,7 @@ def render(conn):
     st.markdown("---")
     st.markdown("##### ✏️ تعديل أو حذف ولي أمر")
     all_parents = ui.df(conn, """
-        SELECT father_id, father_name, mother_name FROM parents
+        SELECT father_id, father_name, mother_name FROM parents WHERE archived_at IS NULL
         ORDER BY COALESCE(father_name, mother_name), father_id
     """)
     if all_parents.empty:
@@ -61,6 +61,7 @@ def render(conn):
         return
 
     fid = chosen[0]
+    ui.open_record_editor('parents',fid,'تعديل كامل / حذف ملف ولي الأمر مع حفظ ارتباط الأطفال')
     with conn.cursor() as cur:
         cur.execute("""SELECT father_id, father_name, mother_name,
                               father_mobile, mother_mobile, contact_email

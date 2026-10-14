@@ -72,6 +72,16 @@ def navigate(page, **state):
 
 
 
+def open_record_editor(table, ident, label='تعديل كامل / حذف السجل'):
+    """Open the same selected record in the complete, audited editor."""
+    if st.button(label,key=f'record_manage_{table}_{ident}'):
+        st.session_state['records_target']=table
+        st.session_state['records_pick_'+table]=ident
+        st.session_state.pop('records_open',None)
+        st.session_state['current_page']='records'
+        st.rerun()
+
+
 def dataframe(data, **kwargs):
     """Retain native table/export UX; theme cell values without modifying data."""
     if st.session_state.get("night_mode", False) and isinstance(data, pd.DataFrame):

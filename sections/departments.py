@@ -24,11 +24,15 @@ def render(conn):
     departments=ui.df(conn,'''SELECT d.department_id,d.name,COUNT(s.student_id) AS children
         FROM school_departments d LEFT JOIN student_departments m ON m.department_id=d.department_id
         LEFT JOIN students s ON s.student_id=m.student_id AND s.archived_at IS NULL
-        GROUP BY d.department_id ORDER BY d.name''')
+        WHERE d.archived_at IS NULL GROUP BY d.department_id ORDER BY d.name''')
     if departments.empty:
         ui.empty_state('أضف أول قسم، ثم اختر الأطفال لإلحاقهم به.')
         return
     ui.dataframe(departments.rename(columns={'name':'القسم','children':'عدد الأطفال'})[['القسم','عدد الأطفال']],hide_index=True,use_container_width=True)
+    if st.button('تعديل أو حذف قسم',key='department_edit_open'):
+        st.session_state['records_target']='school_departments'
+        st.session_state['current_page']='records'
+        st.rerun()
     children=ui.df(conn,'''SELECT s.student_id,s.full_name,p.father_name,p.mother_name,
         p.father_mobile,p.mother_mobile,m.department_id,COALESCE(d.name,'بدون قسم') AS department_name
         FROM students s LEFT JOIN parents p ON p.father_id=s.father_id

@@ -156,7 +156,7 @@ def render(conn):
     tab_add, tab_view = st.tabs(["➕ إضافة طالب جديد", "📋 عرض / تعديل / حذف"])
     parents = ui.df(conn, """
         SELECT father_id, father_name, mother_name, father_mobile, mother_mobile
-        FROM parents ORDER BY COALESCE(father_name, mother_name)
+        FROM parents WHERE archived_at IS NULL ORDER BY COALESCE(father_name, mother_name)
     """)
     family_choices = []
     for _, row in parents.iterrows():
@@ -346,8 +346,9 @@ def render(conn):
         st.markdown("---")
         st.markdown("##### فتح ملف طالب")
         options = [(row["student_id"], row["full_name"]) for _, row in shown.iterrows()]
+        duplicate_names=set(shown['full_name'][shown['full_name'].duplicated(keep=False)])
         chosen = st.selectbox("اختر الطفل", options,
-            format_func=lambda x: x[1], index=None, placeholder="ابحث عن طفل...",
+            format_func=lambda x:f'{x[1]} · {x[0]}' if x[1] in duplicate_names else x[1], index=None, placeholder="ابحث عن طفل...",
             key="student_select_edit")
         if chosen:
             sid = chosen[0]

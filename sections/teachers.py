@@ -3,6 +3,7 @@ sections/teachers.py — إدارة ملفات وبينات المعلمات
 """
 
 import streamlit as st
+import uuid
 import ui
 import payroll_finance as P
 
@@ -35,9 +36,9 @@ def render(conn):
                     try:
                         cur = conn.cursor()
                         cur.execute("""
-                            INSERT INTO teachers (national_id, full_name, salary, mobile, address, hire_date)
-                            VALUES (%s, %s, %s, %s, %s, %s)
-                        """, (national_id, full_name, salary, mobile, address, str(hire_date)))
+                            INSERT INTO teachers (national_id,display_national_id, full_name, salary, mobile, address, hire_date)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s)
+                        """, ('T'+uuid.uuid4().hex[:19],national_id, full_name, salary, mobile, address, str(hire_date)))
                         conn.commit()
                         cur.close()
                         st.success(f"✅ تم إضافة المعلمة ({full_name}) بنجاح!")
@@ -48,13 +49,15 @@ def render(conn):
 
     # ---------------------------------------- TAB 2: VIEW / EDIT / DELETE TEACHER --
     with tab_view:
-        teachers = ui.df(conn, "SELECT national_id, full_name, salary, mobile, address, hire_date FROM teachers WHERE archived_at IS NULL ORDER BY full_name")
+        teachers = ui.df(conn, "SELECT national_id,COALESCE(display_national_id,national_id) AS display_national_id, full_name, salary, mobile, address, hire_date FROM teachers WHERE archived_at IS NULL ORDER BY full_name")
         
         if teachers.empty:
             ui.empty_state("لا توجد معلمات مسجلات بعد.")
         else:
             # Display Table of Teachers
-            ui.dataframe(teachers.rename(columns={
+            display=teachers.copy()
+            display['national_id']=display['display_national_id']
+            ui.dataframe(display.drop(columns=['display_national_id']).rename(columns={
                 'national_id': 'رقم الهوية',
                 'full_name': 'الاسم',
                 'salary': 'الراتب الافتراضي',
@@ -66,7 +69,7 @@ def render(conn):
             st.markdown("---")
             st.markdown("##### ✏️ تعديل بيانات معلمة")
 
-            t_options = [(r['national_id'], f"{r['full_name']} ({r['national_id']})") for _, r in teachers.iterrows()]
+            t_options = [(r['national_id'], f"{r['full_name']} ({r['display_national_id']})") for _, r in teachers.iterrows()]
             selected_t = st.selectbox(
                 "اختر المعلمة للتعديل", 
                 options=t_options, 
@@ -78,6 +81,7 @@ def render(conn):
             if selected_t:
                 t_id = selected_t[0]
                 t_row = teachers[teachers['national_id'] == t_id].iloc[0]
+                ui.open_record_editor('teachers',t_id)
 
                 with st.form("edit_teacher_form"):
                     ec1, ec2 = st.columns(2)

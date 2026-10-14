@@ -283,10 +283,11 @@ def render(conn):
     report_title_str = ""
     summary_metrics = {}
 
-    years_df = ui.df(conn, "SELECT year_id FROM academic_years ORDER BY year_id DESC")
+    years_df = ui.df(conn, "SELECT year_id,COALESCE(display_year_id,year_id) AS display_year_id FROM academic_years ORDER BY year_id DESC")
     # Financial reports are independent of academic setup. Never invent a
     # year or access a nonexistent fallback when the year table is empty.
     year_list = years_df['year_id'].tolist() if not years_df.empty else []
+    year_labels=dict(zip(years_df.year_id,years_df.display_year_id)) if not years_df.empty else {}
 
     classes_df = ui.df(conn, """
         SELECT c.class_id, (c.class_type || ' ' || c.section) AS class_name
@@ -364,7 +365,7 @@ def render(conn):
         selected_class_name = c1.selectbox("اختر الصف *", list(class_options.keys()))
         selected_class_id = class_options[selected_class_name]
 
-        selected_year = c2.selectbox("السنة الدراسية", year_list)
+        selected_year = c2.selectbox("السنة الدراسية", year_list,format_func=lambda x:year_labels.get(x,x))
         include_attendance_cols = c3.checkbox("إضافة أعمدة لتسجيل الحضور والغياب", value=True)
 
         query = """
@@ -474,17 +475,18 @@ def render(conn):
     # --------------------------------------------------------------------------
     elif report_type == "📋 قائمة التسجيلات":
         c1, c2, c3 = st.columns(3)
-        year_filter = c1.selectbox("السنة الدراسية", ["الكل"] + year_list)
+        year_filter = c1.selectbox("السنة الدراسية", ["الكل"] + year_list,format_func=lambda x:year_labels.get(x,x))
         class_filter_options = ["الكل"] + list(classes_df['class_name']) if not classes_df.empty else ["الكل"]
         selected_class_filter = c2.selectbox("الصف", class_filter_options)
         status_filter = c3.selectbox("حالة التسجيل", ["الكل", "مسجل", "انسحب", "مؤجل"])
 
         query = """
             SELECT s.full_name AS "اسم الطالب", (c.class_type || ' ' || c.section) AS "الصف",
-                   r.year_id AS "السنة الدراسية", r.status AS "الحالة", r.registration_date AS "تاريخ التسجيل"
+                   COALESCE(y.display_year_id,r.year_id) AS "السنة الدراسية", r.status AS "الحالة", r.registration_date AS "تاريخ التسجيل"
             FROM registrations r
             JOIN students s ON r.student_id = s.student_id
             JOIN classes c ON c.class_id = r.class_id
+            LEFT JOIN academic_years y ON y.year_id=r.year_id
             WHERE 1=1
         """
         params = []
