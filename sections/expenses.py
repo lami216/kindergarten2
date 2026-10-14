@@ -60,7 +60,7 @@ def render(conn):
                 version=st.session_state.get("expense_add_version", 0)
                 with st.container(border=True, key=f"expense_intake_{version}"):
                     exp_date = st.date_input("تاريخ المصروف", key=f"expense_add_date_{version}", value=business_today())
-                    category = st.selectbox("بند المصروف", EXPENSE_CATEGORIES, key=f"expense_add_category_{version}")
+                    category = st.text_input("اسم المصروف *", placeholder="مثال: شراء دفاتر للأطفال", max_chars=100, key=f"expense_add_category_{version}").strip()
                     amount = st.number_input("إجمالي قيمة الفاتورة/المصروف (أوقية قديمة)", key=f"expense_add_amount_{version}", min_value=0.0, step=10.0, format="%.2f")
 
                     pay_status = st.selectbox("حالة الدفع", PAYMENT_STATUSES, key=f"expense_add_status_{version}")
@@ -90,7 +90,9 @@ def render(conn):
                         notes = st.text_area("ملاحظات / رقم الفاتورة", key=f"expense_add_notes_{version}", height=70)
 
                     if st.button("حفظ المصروف", key=f"expense_add_save_{version}", type="primary", use_container_width=True):
-                        if amount <= 0:
+                        if not category:
+                            st.error("أدخل اسم المصروف.")
+                        elif amount <= 0:
                             st.error("⚠️ يرجى إدخال مبلغ أكبر من صفر.")
                         else:
                             # ضمان حتمي لتطابق القيمة قبل الحفظ في قاعدة البيانات
@@ -111,7 +113,7 @@ def render(conn):
                     SELECT
                         expense_id AS "الرقم",
                         expense_date AS "التاريخ",
-                        category AS "البند",
+                        category AS "اسم المصروف",
                         amount AS "الإجمالي",
                         amount_paid AS "المدفوع",
                         (amount - amount_paid) AS "المتبقي (دين)",
@@ -153,7 +155,7 @@ def render(conn):
                             curr_date = business_today()
 
                         e_date = st.date_input("التاريخ", value=curr_date)
-                        e_cat = st.selectbox("البند", EXPENSE_CATEGORIES, index=EXPENSE_CATEGORIES.index(exp_data["category"]) if exp_data["category"] in EXPENSE_CATEGORIES else 0)
+                        e_cat = st.text_input("اسم المصروف *", value=exp_data["category"] or "", max_chars=100).strip()
                         e_amt = st.number_input("إجمالي الفاتورة", value=float(exp_data["amount"]), step=10.0, format="%.2f")
 
                         curr_status_idx = PAYMENT_STATUSES.index(exp_data["payment_status"]) if exp_data["payment_status"] in PAYMENT_STATUSES else 0

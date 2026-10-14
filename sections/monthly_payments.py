@@ -252,14 +252,25 @@ def financial_panel(conn, student, *, payment=True, scope=None, profile=False, s
 
 
 def render_accounts(conn):
+    from student_search import filter_children
     st.caption("الدفعات والأرصدة بالأوقية القديمة، ويمكن تهيئة الحساب للأطفال الموجودين.")
-    children=ui.df(conn,"""SELECT s.student_id,s.full_name,a.status
+    children=ui.df(conn,"""SELECT s.student_id,s.full_name,a.status,
+                   p.father_name,p.mother_name,p.father_mobile,p.mother_mobile
                    FROM students s LEFT JOIN monthly_accounts a ON a.student_id=s.student_id
+                   LEFT JOIN parents p ON p.father_id=s.father_id
                    ORDER BY s.full_name,s.student_id""")
     if children.empty:
         ui.empty_state("لا يوجد أطفال بعد. أضف طفلاً من صفحة الطلاب.")
         return
+    term=st.text_input("بحث باسم الطفل أو هاتف الأب أو الأم",key="monthly_finance_search",
+                       placeholder="اكتب الاسم أو رقم الهاتف...")
+    children=filter_children(children,term)
     choices=[(r["student_id"],r["full_name"]) for _,r in children.iterrows()]
+    if st.session_state.get("monthly_finance_child") not in choices:
+        st.session_state["monthly_finance_child"]=None
+    if not choices:
+        ui.empty_state("لا توجد نتائج لهذا البحث.")
+        return
     chosen=st.selectbox("اختر الطفل",choices,format_func=lambda x:x[1],
                        index=None,placeholder="اختر طفلاً...",key="monthly_finance_child")
     if chosen:

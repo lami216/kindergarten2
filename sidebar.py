@@ -11,14 +11,14 @@ import auth
 NAV_ITEMS = [
     ("dashboard", "📊", "الرئيسية"),
     ("students", "🎒", "الطلاب"),
-    ("registration", "📝", "التسجيل"),
+    ("registration", "🏷️", "الأقسام"),
     ("payments", "💵", "الدفعات المالية"),
     ("expenses", "📦", "المصروفات والأصول"), 
     ("reports", "📈", "التقارير"),
     ("salaries", "💸", "رواتب المعلمات"),
     ("parents", "👨‍👩‍👧", "أولياء الأمور"),
     ("teachers", "👩‍🏫", "المعلمات"),
-    ("classes", "🏷️", "الصفوف"),
+    ("classes", "📚", "سجل الصفوف"),
     ("years", "📅", "السنوات الدراسية"),
 ]
 
@@ -40,6 +40,9 @@ def backup_dialog(conn):
                         "أولياء الأمور": "parents",
                         "المعلمات": "teachers",
                         "التسجيل": "registrations",
+                        "الأقسام": "school_departments",
+                        "توزيع الأطفال": "student_departments",
+                        "نقل الأطفال": "department_transfers",
                         "الصفوف": "classes",
                         "الدفعات المالية": "payments",
                         "رواتب المعلمات": "teacher_payments",

@@ -80,6 +80,9 @@ def _run(expense_id, action, payload, actor, reason, token, handler):
 def correct(expense_id, *, amount_total, amount_paid, category, expense_date,
             payee="", notes="", reason, actor, token=None):
     """Change the recorded evidence, not the actual date money moved."""
+    category=str(category or "").strip()
+    if not category or len(category)>100:
+        raise ValueError("أدخل اسم مصروف لا يتجاوز 100 حرف.")
     total=cash(amount_total)
     newpaid=cash(amount_paid,zero=True)
     if newpaid>total: raise ValueError("المدفوع أكبر من قيمة الفاتورة.")

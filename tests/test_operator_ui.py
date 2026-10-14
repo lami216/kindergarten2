@@ -99,14 +99,16 @@ def test_partial_expense_reacts_and_saves_actual_cash_then_resets():
     app.number_input(key="expense_add_paid_0").set_value(2000)
     payee="مورد واجهة "+uuid.uuid4().hex
     app.text_input(key="expense_add_payee_0").set_value(payee)
+    app.text_input(key="expense_add_category_0").set_value("شراء ورق للرسم")
     app.button(key="expense_add_save_0").click().run(timeout=25)
     assert not app.exception
     assert app.number_input(key="expense_add_amount_1").value == 0
     with psycopg2.connect(os.environ["TEST_POSTGRES_DSN"]) as c:
         with c.cursor() as q:
-            q.execute("SELECT amount,amount_paid FROM expenses WHERE payee=%s",(payee,))
+            q.execute("SELECT amount,amount_paid,category FROM expenses WHERE payee=%s",(payee,))
             rows=q.fetchall()
-            assert len(rows)==1 and tuple(map(float,rows[0])) == (5000,2000)
+            assert len(rows)==1 and tuple(map(float,rows[0][:2])) == (5000,2000)
+            assert rows[0][2] == "شراء ورق للرسم"
             q.execute("SELECT amount FROM expense_cash_events WHERE expense_id IN "
                       "(SELECT expense_id FROM expenses WHERE payee=%s)",(payee,))
             assert [float(x[0]) for x in q.fetchall()] == [2000]

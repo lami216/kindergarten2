@@ -398,3 +398,5 @@ def init_db():
     # independent versioned monthly finance tables.
     import monthly_finance
     monthly_finance.migrate(conn)
+    import school_departments
+    school_departments.migrate(conn)

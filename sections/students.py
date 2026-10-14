@@ -235,12 +235,7 @@ def render(conn):
                     key=_form_key("kid_initial_amount"))
                 if tariff:
                     try:
-                        estimate = F.preview(int(initial_amount),reg_chosen,garment_chosen,tariff)
-                        st.caption(f"التسجيل {estimate['registration']:,} · الجيليه "
-                                   f"{estimate['gilet']:,} · للأشهر {estimate['monthly']:,} "
-                                   f"· أشهر مكتملة {estimate['full_months']}"
-                                   + (f" · دفعة للشهر التالي {estimate['next_partial']:,}"
-                                      if estimate["next_partial"] else ""))
+                        F.preview(int(initial_amount),reg_chosen,garment_chosen,tariff)
                     except ValueError as exc:
                         st.warning(str(exc))
             else:
@@ -311,10 +306,12 @@ def render(conn):
             SELECT s.student_id, s.full_name, s.birth_date, s.gender, s.birth_place,
                    s.address, s.medical_details, s.has_medical_condition,
                    s.allergies, s.general_notes, s.authorized_pickups, s.father_id,
-                   s.archived_at,
+                   s.archived_at,COALESCE(d.name,'بدون قسم') AS department_name,
                    COALESCE(p.father_name, p.mother_name) AS parent_name,
                     p.father_mobile,p.mother_mobile,p.father_name,p.mother_name
             FROM students s JOIN parents p ON p.father_id=s.father_id
+            LEFT JOIN student_departments m ON m.student_id=s.student_id
+            LEFT JOIN school_departments d ON d.department_id=m.department_id
             ORDER BY s.created_at DESC
         """)
         if students.empty:
@@ -343,8 +340,8 @@ def render(conn):
         display["العمر"] = display["birth_date"].apply(H.calculate_age)
         ui.dataframe(display.rename(columns={
             "full_name": "الاسم", "birth_date": "تاريخ الميلاد",
-            "gender": "الجنس", "parent_name": "ولي الأمر"})[
-            ["الاسم", "العمر", "تاريخ الميلاد", "الجنس", "ولي الأمر"]],
+            "gender": "الجنس", "parent_name": "ولي الأمر", "department_name": "القسم"})[
+            ["الاسم", "العمر", "تاريخ الميلاد", "الجنس", "ولي الأمر", "القسم"]],
             use_container_width=True, hide_index=True)
         st.markdown("---")
         st.markdown("##### فتح ملف طالب")
@@ -356,6 +353,7 @@ def render(conn):
             sid = chosen[0]
             row = students[students["student_id"] == sid].iloc[0]
             st.markdown(f"#### {row['full_name']}")
+            st.caption(f"القسم: {row['department_name']}")
             contacts=" / ".join(filter(None,[
                 _text(row["father_name"]),_text(row["mother_name"])]))
             phone=" / ".join(filter(None,[
