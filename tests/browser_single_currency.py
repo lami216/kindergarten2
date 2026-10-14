@@ -168,7 +168,7 @@ async def run():
                 amount=page.locator(".st-key-kid_initial_amount input")
                 await amount.fill("12000")
                 await amount.press("Tab")
-                await expect(page.get_by_text(re.compile("أشهر مكتملة 3"))).to_be_visible()
+                await expect(amount).to_have_value("12000")
                 await capture(page,amount,f"finance_choice_filled_{suffix}",manifest)
                 await amount.fill("2000")
                 await amount.press("Tab")

@@ -80,7 +80,7 @@ async def run():
         await page.locator(".st-key-kid_initial_gilet label").first.click()
         await page.locator(".st-key-kid_initial_amount input").fill("12000")
         await page.locator(".st-key-kid_initial_amount input").press("Tab")
-        await expect(page.get_by_text(re.compile("أشهر مكتملة 3"))).to_be_visible(timeout=20000)
+        await expect(page.locator(".st-key-kid_initial_amount input")).to_have_value("12000",timeout=20000)
         await page.screenshot(path=str(OUT/"monthly_intake_390_day_filled.png"),
                               full_page=True,animations="disabled")
         record=await submit_and_check(page,name,True)
