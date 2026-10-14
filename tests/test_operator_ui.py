@@ -7,6 +7,37 @@ import psycopg2
 from streamlit.testing.v1 import AppTest
 
 
+def test_dashboard_has_no_period_controls_and_shortcuts_select_after_click():
+    source = '''
+from unittest.mock import patch
+import pandas as pd
+import streamlit as st
+import monthly_finance as F
+import ui
+from sections import dashboard
+keys = ('total_cash', 'expenses', 'remaining_cash', 'due_now', 'registration_children',
+        'gilet_count', 'registration_cash', 'gilet_cash', 'monthly_cash', 'prepaid_cash',
+        'salary_cash', 'advance_cash', 'operational_cash')
+with patch.object(F, 'financial_overview', return_value=dict.fromkeys(keys, 0)), \\
+     patch.object(dashboard, '_get_scalar', return_value=0), \\
+     patch.object(ui, 'df', return_value=pd.DataFrame()):
+    dashboard.render(None)
+'''
+    app = AppTest.from_string(source).run(timeout=20)
+    assert not app.exception
+    assert not app.date_input
+    assert app.button(key='home_payment').proto.type == 'secondary'
+    app.button(key='home_payment').click().run(timeout=20)
+    assert not app.exception
+    assert app.session_state['current_page'] == 'payments'
+    assert app.button(key='home_payment').proto.type == 'primary'
+    assert app.button(key='home_add_student').proto.type == 'secondary'
+    app.button(key='home_expense').click().run(timeout=20)
+    assert app.session_state['current_page'] == 'expenses'
+    assert app.button(key='home_expense').proto.type == 'primary'
+    assert app.button(key='home_payment').proto.type == 'secondary'
+
+
 PROFILE = '''
 from unittest.mock import patch
 import streamlit as st

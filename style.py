@@ -283,94 +283,30 @@ div[data-testid="stDataFrame"] {
 }
 
 .kpi-card {
-    background: var(--card-bg);
-    border-radius: 16px;
-    padding: 14px 16px;
-    box-shadow: var(--shadow-sm);
-    border: 1px solid var(--card-border);
-    display: flex !important;
-    flex-direction: row !important;
-    align-items: center !important;
-    justify-content: space-between !important;
-    gap: 12px !important;
-    min-height: 126px;
-    border-inline-start: 3px solid var(--kpi-accent, var(--primary));
-    height: 100%;
-    box-sizing: border-box;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    background:var(--card-bg); border:1px solid var(--card-border);
+    border-inline-start:3px solid var(--kpi-accent,var(--primary));
+    border-radius:12px; padding:12px 14px; box-shadow:var(--shadow-sm);
+    display:grid !important; grid-template-columns:minmax(0,1fr) auto;
+    align-items:center !important;
+    gap:8px !important; min-height:88px; height:100%; box-sizing:border-box;
 }
-
-.kpi-card:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-md);
-}
-
-.kpi-content {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: flex-start;
-    text-align: right;
-    flex: 1;
-    min-width: 0;
-}
-
-.kpi-value {
-    font-size: 20px !important;
-    font-weight: 800 !important;
-    color: var(--text-main);
-    line-height: 1.2;
-    font-family: 'Cairo', sans-serif !important;
-    white-space: normal;
-    overflow-wrap: anywhere;
-    margin-block: 6px;
-}
-
-.kpi-label {
-    font-size: 13px !important;
-    font-weight: 600 !important;
-    color: var(--text-muted);
-    margin-top: 3px;
-    line-height: 1.3;
-    font-family: 'Cairo', sans-serif !important;
-}
-
-.kpi-icon {
-    width: 46px !important;
-    height: 46px !important;
-    min-width: 46px !important;
-    min-height: 46px !important;
-    border-radius: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 22px;
-    flex-shrink: 0 !important;
-    background: var(--primary-light);
-    color: var(--primary-dark);
-}
-
-.kpi-hint { color: var(--text-muted); font-size: 11px; min-height: 16px; }
-.stMainBlockContainer { max-width: 1400px; }
-
-/* Keep original dashboard KPI cards, but show the full values on tablets.
-   Five native dashboard columns otherwise ellipsize the currency at 768px. */
+.kpi-heading { display:flex; align-items:center; gap:8px; min-width:0; }
+.kpi-label { color:var(--text-muted); font-size:12px !important; line-height:1.5; font-weight:600; }
+.kpi-icon { display:inline-flex; align-items:center; justify-content:center;
+    width:28px; height:28px; min-width:28px; border-radius:8px; font-size:17px; flex-shrink:0; }
+.kpi-number { display:flex; flex-wrap:wrap; align-items:baseline; gap:7px; max-width:115px; }
+.kpi-value { font-size:23px !important; font-weight:800; line-height:1.3;
+    color:var(--text-main); overflow-wrap:anywhere; min-width:0; }
+.kpi-unit { color:var(--text-muted); font-size:11px; }
+.kpi-hint { grid-column:1/-1; color:var(--text-muted); font-size:11px; line-height:1.4; }
+.stMainBlockContainer { max-width:1400px; }
 @media (min-width:700px) and (max-width:1100px) {
-    .kpi-card { gap:6px !important; padding:9px !important; }
-    .kpi-icon {
-        width:32px !important; height:32px !important;
-        min-width:32px !important; min-height:32px !important;
-        font-size:17px !important;
-    }
-    .kpi-value {
-        font-size:clamp(11px,1.5vw,17px) !important;
-        white-space:normal !important;
-        overflow:visible !important;
-        text-overflow:clip !important;
-        overflow-wrap:anywhere !important;
-    }
+    .kpi-card { padding:10px; }
+    .kpi-heading { gap:5px; }
     .kpi-label { font-size:11px !important; }
+    .kpi-value { font-size:20px !important; }
 }
+[class*="st-key-home_"] button:active { background:var(--primary) !important; color:white !important; }
 
 /* ---------------------------------------------------------------- */
 /* ORIGINAL LOGIN FORM & INPUT FIELD STYLING (RESTORED)             */

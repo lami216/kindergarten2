@@ -40,8 +40,7 @@ def _render_printable_report_pdf(
         cells = "".join([f"<td>{str(val) if pd.notna(val) else ''}</td>" for val in row])
         rows_html += f"<tr>{cells}</tr>"
 
-    logo_b64 = ui._logo_base64()
-    logo_img_tag = f'<img src="data:image/png;base64,{logo_b64}" />' if logo_b64 else ""
+    logo_img_tag = ui.logo_html()
 
     meta_html = "".join([f"<div><strong>{k}:</strong> {v}</div>" for k, v in meta_info.items()])
 
@@ -205,8 +204,8 @@ def _render_printable_report_pdf(
             <div class="header-brand">
                 {logo_img_tag}
                 <div class="brand-titles">
-                    <div class="ar">روضة مؤسسة شباب البيرة</div>
-                    <div class="en">Al-Bireh Youth Foundation Kindergarten</div>
+                    <div class="ar">روضة أطفال فودي حبيب ساكرا</div>
+                    <div class="en">Jardin d’enfant FODIYE HABIB SAKERA</div>
                 </div>
             </div>
             <div class="report-meta">

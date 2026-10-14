@@ -230,8 +230,8 @@ TEACHER_SLIP_TEMPLATE = """
                 <div class="letterhead">
                     {logo_img_tag}
                     <div class="letterhead-text">
-                        <div class="lh-ar">روضة مؤسسة شباب البيرة</div>
-                        <div class="lh-en">Al-Bireh Youth Foundation Kindergarten</div>
+                        <div class="lh-ar">روضة أطفال فودي حبيب ساكرا</div>
+                        <div class="lh-en">Jardin d’enfant FODIYE HABIB SAKERA</div>
                     </div>
                 </div>
 
@@ -290,8 +290,8 @@ TEACHER_SLIP_TEMPLATE = """
                 <div class="letterhead">
                     {logo_img_tag}
                     <div class="letterhead-text">
-                        <div class="lh-ar">روضة مؤسسة شباب البيرة</div>
-                        <div class="lh-en">Al-Bireh Youth Foundation Kindergarten</div>
+                        <div class="lh-ar">روضة أطفال فودي حبيب ساكرا</div>
+                        <div class="lh-en">Jardin d’enfant FODIYE HABIB SAKERA</div>
                     </div>
                 </div>
 
@@ -350,8 +350,7 @@ TEACHER_SLIP_TEMPLATE = """
 def render_salary_slip(payment_id, teacher_name, national_id, payment_date, salary_month, base_salary, bonus, deductions, net_amount, notes=""):
     notes_html = f'<p style="font-size:11px; color:#666; margin: 4px 0 0 0;"><b>ملاحظات:</b> {notes}</p>' if notes else ''
     
-    logo_b64 = ui._logo_base64()
-    logo_img_tag = f'<img src="data:image/png;base64,{logo_b64}" />' if logo_b64 else ""
+    logo_img_tag = ui.logo_html()
 
     html = TEACHER_SLIP_TEMPLATE.format(
         logo_img_tag=logo_img_tag,

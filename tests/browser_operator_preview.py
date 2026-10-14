@@ -23,6 +23,10 @@ async def run():
             for width in (390,768,1280):
                 page=await browser.new_page(viewport={"width":width,"height":900})
                 await page.goto(url)
+                await expect(page.get_by_role("heading",name="روضة أطفال فودي حبيب ساكرا",exact=True)).to_be_visible()
+                await page.screenshot(path=str(OUT/f"login_{width}.png"),full_page=True)
+                await page.locator("#preview-enter").click()
+                assert await page.locator(".home-shortcut.primary").count() == 0
                 await expect(page.get_by_role("heading",name="الرئيسية",exact=True)).to_be_visible()
                 await page.screenshot(path=str(OUT/f"dashboard_{width}_day.png"),full_page=True)
                 await page.locator("#theme").click()

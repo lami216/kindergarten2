@@ -101,7 +101,7 @@ def render(conn):
 
         st.markdown("""
         <div class="brand-box">
-            <h2>روضة مؤسسة شباب البيرة</h2>
+            <h2>روضة أطفال فودي حبيب ساكرا</h2>
             <p>نظام الإدارة والمالية</p>
         </div>
         """, unsafe_allow_html=True)

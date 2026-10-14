@@ -35,15 +35,15 @@ def check_authentication():
         # Single Form Container (Acts as the Card)
         with st.form("login_form", clear_on_submit=False):
             # Render Logo
-            ui.render_logo(width=300, center=True, drop_shadow=False)
+            ui.render_logo(width=180, center=True, drop_shadow=False)
 
             # Header HTML inside the form card
             st.markdown("""
             <div class="login-header">
-                <h2>روضة مؤسسة شباب البيرة</h2>
-                <p class="subtitle-en">Al-Bireh Youth Foundation Kindergarten</p>
+                <h2>روضة أطفال فودي حبيب ساكرا</h2>
+                <p class="subtitle-en">Jardin d’enfant FODIYE HABIB SAKERA</p>
                 <div class="login-badge-wrapper">
-                    <span class="login-badge">تسجيل دخول المديرة 🔐</span>
+                    <span class="login-badge">تسجيل الدخول 🔐</span>
                 </div>
             </div>
             """, unsafe_allow_html=True)

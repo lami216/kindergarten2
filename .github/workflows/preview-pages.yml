@@ -39,7 +39,7 @@ jobs:
           output = Path('dist')
           output.mkdir(exist_ok=True)
           files = (
-              'index.html', 'preview.css', 'preview.js',
+              'index.html', 'preview.css', 'preview.js', 'school-logo.jpg',
               'IBMPlexSansArabic-Regular.ttf', 'IBM_Plex_Sans_Arabic_OFL.txt',
               '.nojekyll',
           )

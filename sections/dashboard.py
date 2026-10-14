@@ -7,7 +7,6 @@ import streamlit as st
 import ui
 import helpers as H
 import plotly.express as px
-from monthly_finance import today as business_today
 from sections.monthly_payments import money_number
 
 
@@ -33,36 +32,28 @@ def _get_scalar(conn, query, params=()):
 
 def render(conn):
     ui.section_header("📊", "الرئيسية", "كل ما تحتاجه لإدارة يومك، في مكان واحد")
+    selected = st.session_state.get("home_selected_action")
+    action_type = lambda name: "primary" if selected == name else "secondary"
     actions = st.columns(3)
-    if actions[0].button("➕ إضافة طالب", key="home_add_student", use_container_width=True):
-        ui.navigate("students")
-    if actions[1].button("💵 تسجيل دفعة", key="home_payment", type="primary", use_container_width=True):
-        ui.navigate("payments", payments_requested_tab="📅 حسابات الأطفال")
-    if actions[2].button("📦 إضافة مصروف", key="home_expense", use_container_width=True):
-        ui.navigate("expenses")
+    if actions[0].button("➕ إضافة طالب", key="home_add_student", type=action_type("students"), use_container_width=True):
+        ui.navigate("students", home_selected_action="students")
+    if actions[1].button("💵 تسجيل دفعة", key="home_payment", type=action_type("payments"), use_container_width=True):
+        ui.navigate("payments", home_selected_action="payments", payments_requested_tab="📅 حسابات الأطفال")
+    if actions[2].button("📦 إضافة مصروف", key="home_expense", type=action_type("expenses"), use_container_width=True):
+        ui.navigate("expenses", home_selected_action="expenses")
 
-    from monthly_finance import financial_report, CURRENCY
-    from datetime import date
-    current = business_today()
-    with st.expander("📅 تغيير الفترة المالية", expanded=False):
-        a, b = st.columns(2)
-        start = a.date_input("بداية الفترة المالية", value=date(current.year, current.month, 1),
-                             key="dashboard_finance_start")
-        end = b.date_input("نهاية الفترة المالية", value=current, key="dashboard_finance_end")
-    if start > end:
-        st.error("تاريخ البداية بعد تاريخ النهاية.")
-        return
+    from monthly_finance import financial_overview, CURRENCY
     try:
-        financial = financial_report(conn, start, end)
+        financial = financial_overview(conn)
     except Exception:
         st.error("تعذّر تحميل الملخص المالي. أعد المحاولة.")
         return
     money = money_number
     st.markdown("##### ملخص الروضة")
-    st.caption(f"الحركة المالية من {start} إلى {end} · جميع المبالغ بـ{CURRENCY}")
+    st.caption("إجمالي الحركة المسجلة حتى الآن · تقارير الفترات متاحة من صفحة التقارير")
     total_students = int(_get_scalar(conn, "SELECT COUNT(*) FROM students WHERE archived_at IS NULL"))
     c1, c2, c3, c4 = st.columns(4)
-    ui.kpi(c1, "🎒", "الطلاب الحاليون", total_students, hint="الملفات غير المؤرشفة")
+    ui.kpi(c1, "🎒", "الطلاب الحاليون", total_students, unit="طالب")
     ui.kpi(c2, "💵", "إجمالي المقبوضات", money(financial["total_cash"]), hint=CURRENCY)
     ui.kpi(c3, "📦", "إجمالي المصروفات", money(financial["expenses"]),
            bg="#FFF1F2", fg="#BE123C", hint=CURRENCY)
@@ -70,10 +61,10 @@ def render(conn):
            bg="#E0F2FE", fg="#0369A1", hint=CURRENCY)
     a, b, c = st.columns(3)
     ui.kpi(a, "⏳", "الباقي على الطلاب", money(financial["due_now"]),
-           bg="#FFFBEB", fg="#B45309", hint=f"المستحق حتى {end} · " + CURRENCY)
-    ui.kpi(b, "📝", "أطفال سددوا التسجيل", financial["registration_children"], hint="خلال الفترة المختارة")
+           bg="#FFFBEB", fg="#B45309", unit=CURRENCY)
+    ui.kpi(b, "📝", "أطفال سددوا التسجيل", financial["registration_children"], unit="طفل")
     ui.kpi(c, "🧥", "جيليه مدفوعة", financial["gilet_count"],
-           bg="#F5F3FF", fg="#7C3AED", hint="خلال الفترة المختارة")
+           bg="#F5F3FF", fg="#7C3AED", unit="قطعة")
 
     with st.expander("تفاصيل المقبوضات والالتزامات", expanded=False):
         st.caption("المستحق على الطلاب منفصل عن النقد المتبقي؛ لا يُحسب كمصروف.")
@@ -90,7 +81,7 @@ def render(conn):
         ui.kpi(a, "📋", "استحقاق الرواتب الشهري", money(_get_scalar(conn,
             "SELECT COALESCE(SUM(salary),0) FROM teachers")), hint=CURRENCY)
         ui.kpi(b, "⏳", "ديون الموردين", money(_get_scalar(conn,
-            "SELECT COALESCE(SUM(amount-amount_paid),0) FROM expenses")), hint="غير مدفوعة · " + CURRENCY)
+            "SELECT COALESCE(SUM(amount-amount_paid),0) FROM expenses")), unit=CURRENCY)
         ui.kpi(c, "🧩", "الأصول والتجهيزات", money(_get_scalar(conn,
             "SELECT COALESCE(SUM(total_cost),0) FROM assets")), hint=CURRENCY)
 

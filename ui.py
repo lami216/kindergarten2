@@ -8,7 +8,7 @@ import os
 import pandas as pd
 import streamlit as st
 
-LOGO_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "logo.png")
+LOGO_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "school-logo.jpg")
 
 
 def df(conn, sql, params=()):
@@ -41,16 +41,21 @@ def section_header(icon, title, subtitle=""):
         st.markdown(f"<div class='section-sub'>{subtitle}</div>", unsafe_allow_html=True)
 
 
-def kpi(col, icon, label, value, bg="#E9F5EC", fg="#219044", hint=""):
+def kpi(col, icon, label, value, bg="#E9F5EC", fg="#219044", hint="", unit=""):
+    # Existing currency hints become an inline unit; explanatory hints stay below.
+    if hint == "أوقية قديمة" and not unit:
+        unit, hint = hint, ""
+    unit_html = f'<span class="kpi-unit">{escape(str(unit))}</span>' if unit else ""
+    hint_html = f'<div class="kpi-hint">{escape(str(hint))}</div>' if hint else ""
     with col:
         st.markdown(f"""
         <div class="kpi-card" style="--kpi-accent:{fg}; --kpi-tint:{bg};">
-            <div class="kpi-icon" style="background:{bg}; color:{fg};">{escape(str(icon))}</div>
-            <div class="kpi-content">
-                <div class="kpi-label">{escape(str(label))}</div>
-                <div class="kpi-value">{escape(str(value))}</div>
-                <div class="kpi-hint">{escape(str(hint))}</div>
+            <div class="kpi-heading">
+                <span class="kpi-icon" style="background:{bg}; color:{fg};" aria-hidden="true">{escape(str(icon))}</span>
+                <span class="kpi-label">{escape(str(label))}</span>
             </div>
+            <div class="kpi-number"><strong class="kpi-value">{escape(str(value))}</strong>{unit_html}</div>
+            {hint_html}
         </div>
         """, unsafe_allow_html=True)
 
@@ -101,14 +106,25 @@ def _logo_base64():
         return base64.b64encode(f.read()).decode()
 
 
-def render_logo(width=140, center=True, drop_shadow=True):
+def logo_html(width=46):
     b64 = _logo_base64()
     if not b64:
+        return ""
+    return (f'<div style="width:{width}px; max-width:100%; aspect-ratio:1; position:relative; '
+            'overflow:hidden; border-radius:50%; flex-shrink:0;">'
+            f'<img alt="شعار روضة أطفال فودي حبيب ساكرا" src="data:image/jpeg;base64,{b64}" '
+            'style="position:absolute; width:100%; max-width:none; height:auto; '
+            'top:-64.06%; left:0; border-radius:0;" /></div>')
+
+
+def render_logo(width=140, center=True, drop_shadow=True):
+    logo = logo_html(width)
+    if not logo:
         return
-    shadow = "filter: drop-shadow(0 3px 6px rgba(0,0,0,.15));" if drop_shadow else ""
+    shadow = "box-shadow:0 3px 12px rgba(0,0,0,.12);" if drop_shadow else ""
     align = "display:flex; justify-content:center;" if center else ""
     st.markdown(f"""
     <div style="{align} margin-bottom:6px;">
-        <img src="data:image/png;base64,{b64}" style="max-width:{width}px; width:100%; height:auto; border-radius:50%; object-fit:cover; {shadow}" />
+        <div style="width:{width}px; max-width:100%; border-radius:50%; {shadow}">{logo}</div>
     </div>
     """, unsafe_allow_html=True)

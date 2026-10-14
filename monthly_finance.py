@@ -1087,3 +1087,12 @@ def financial_report(conn, start, end):
             "new_cash":cash,"total_cash":cash,
             "operational_cash":operational,"salary_cash":salaries,"advance_cash":advances,
             "expenses":outflow,"remaining_cash":cash-outflow,"due_now":outstanding}
+
+
+def financial_overview(conn):
+    """All recorded cash through the current business day; debt is current stock.
+
+    Reuse the report's receipt/cash-event projection, including cancellations,
+    payroll and advances, without imposing a month or school-year filter.
+    """
+    return financial_report(conn, date.min, today())

@@ -51,7 +51,7 @@ def render_receipt_pdf(conn, receipt_id, *, student_id=None):
            "مصحح لوصل سابق" if r["corrects_id"] else "ساري")
     c.setFillColor(colors.HexColor("#E4F1E9"))
     c.rect(0,h-112,w,112,stroke=0,fill=1)
-    _print(c,right,h-55,"روضة مؤسسة شباب البيرة",size=21)
+    _print(c,right,h-55,"روضة أطفال فودي حبيب ساكرا",size=21)
     _print(c,right,h-82,f"وصل قبض رقم #{int(r['receipt_id'])}",size=14)
     if r["state"]!="active":
         c.saveState()

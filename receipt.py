@@ -222,8 +222,8 @@ RECEIPT_TEMPLATE = """
                 <div class="letterhead">
                     {logo_img_tag}
                     <div class="letterhead-text">
-                        <div class="lh-ar">روضة مؤسسة شباب البيرة</div>
-                        <div class="lh-en">Al-Bireh Youth Foundation Kindergarten</div>
+                        <div class="lh-ar">روضة أطفال فودي حبيب ساكرا</div>
+                        <div class="lh-en">Jardin d’enfant FODIYE HABIB SAKERA</div>
                     </div>
                 </div>
                 <div class="receipt-header">
@@ -263,8 +263,8 @@ RECEIPT_TEMPLATE = """
                 <div class="letterhead">
                     {logo_img_tag}
                     <div class="letterhead-text">
-                        <div class="lh-ar">روضة مؤسسة شباب البيرة</div>
-                        <div class="lh-en">Al-Bireh Youth Foundation Kindergarten</div>
+                        <div class="lh-ar">روضة أطفال فودي حبيب ساكرا</div>
+                        <div class="lh-en">Jardin d’enfant FODIYE HABIB SAKERA</div>
                     </div>
                 </div>
                 <div class="receipt-header">
@@ -305,8 +305,7 @@ def render_receipt(receipt_id, date, student_name, payer, amount, reason, remain
                    currency="أوقية قديمة", remaining_label="المتبقي المستحق الآن"):
     reason_full = f"{reason} ({reason_other})" if reason_other else reason
 
-    logo_b64 = ui._logo_base64()
-    logo_img_tag = f'<img src="data:image/png;base64,{logo_b64}" />' if logo_b64 else ""
+    logo_img_tag = ui.logo_html()
 
     html = RECEIPT_TEMPLATE.format(
         logo_img_tag=logo_img_tag,

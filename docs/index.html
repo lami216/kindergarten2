@@ -2,13 +2,22 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>الروضة · معاينة التنظيم الجديد</title>
+<title>روضة أطفال فودي حبيب ساكرا · معاينة</title>
 <link rel="stylesheet" href="preview.css">
 </head>
-<body>
+<body class="login-mode">
+<section id="preview-login" class="login-screen" aria-label="صفحة تسجيل الدخول">
+  <div class="login-card">
+    <div class="school-logo login-logo"><img src="school-logo.jpg" alt="شعار روضة أطفال فودي حبيب ساكرا"></div>
+    <h1>روضة أطفال فودي حبيب ساكرا</h1><p class="login-french">Jardin d’enfant FODIYE HABIB SAKERA</p>
+    <span class="login-badge">تسجيل الدخول</span>
+    <p class="muted">معاينة الواجهة ببيانات تجريبية</p>
+    <button class="primary" id="preview-enter">دخول المعاينة</button>
+  </div>
+</section>
 <aside id="sidebar">
-  <div class="brand"><span class="brand-icon">🌱</span><div><strong>إدارة الروضة</strong><small>يوم أبسط. صورة أوضح.</small></div></div>
-  <div class="school">روضة مؤسسة شباب البيرة<span class="badge">معاينة التصميم</span></div>
+  <div class="brand"><span class="school-logo sidebar-logo"><img src="school-logo.jpg" alt="شعار روضة أطفال فودي حبيب ساكرا"></span><div><strong>إدارة الروضة</strong><small>يوم أبسط. صورة أوضح.</small></div></div>
+  <div class="school">روضة أطفال فودي حبيب ساكرا<span class="badge">معاينة التصميم</span></div>
   <span class="nav-caption">الإدارة اليومية</span>
   <nav aria-label="القائمة الرئيسية">
     <button data-page="dashboard" class="active">📊 <span>الرئيسية</span></button>
@@ -20,10 +29,10 @@
   <div class="sidebar-bottom"><p>بيانات تجريبية فقط</p><small>تقدر تضيف طالبًا أو دفعة أو مصروفًا وتجرب ترتيب الصفحات. التغييرات مؤقتة وتختفي عند تحديث الصفحة.</small></div>
 </aside>
 <main>
-  <header class="topbar"><button id="menu" class="quiet" aria-label="فتح القائمة" aria-expanded="false">☰ القائمة</button><span>الإدارة <b>/</b> <span id="crumb">الرئيسية</span></span><button id="theme" class="quiet" aria-label="تبديل الوضع الليلي">☾ الوضع الليلي</button></header>
+  <header class="topbar"><button id="menu" class="quiet" aria-label="فتح القائمة" aria-expanded="false">☰ القائمة</button><span>الإدارة <b>/</b> <span id="crumb">الرئيسية</span></span><button id="show-login" class="quiet">🔐 صفحة الدخول</button><button id="theme" class="quiet" aria-label="تبديل الوضع الليلي">☾ الوضع الليلي</button></header>
   <div class="demo-note"><span>✦</span> معاينة تفاعلية ببيانات وهمية — النظام الفعلي وحساباته يعملان في Streamlit.</div>
   <section id="content" aria-live="polite"></section>
-  <footer>الروضة · تنظيم العمل اليومي <span>معاينة الفرع الجديد</span></footer>
+  <footer>روضة أطفال فودي حبيب ساكرا <span>معاينة الفرع الجديد</span></footer>
 </main>
 <dialog id="receipt-dialog"><div id="receipt-content"></div><button class="secondary" id="receipt-close">إغلاق الوصل</button></dialog>
 <div id="toast" role="status"></div>

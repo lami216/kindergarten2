@@ -19,12 +19,12 @@ from sections import (
     classes, academic_years, registration, payments, salaries, expenses, reports,
 )
 
-LOGO_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "logo.png")
+LOGO_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "school-logo.jpg")
 
 # --------------------------------------------------------------------------
 # Setup
 # --------------------------------------------------------------------------
-st.set_page_config(page_title="روضة مؤسسة شباب البيرة", page_icon=LOGO_PATH, layout="wide")
+st.set_page_config(page_title="روضة أطفال فودي حبيب ساكرا", page_icon="🌱", layout="wide")
 apply_style()
 
 if not auth.check_authentication():
