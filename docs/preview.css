@@ -8,11 +8,12 @@ aside{position:fixed;inset:0 0 0 auto;width:250px;background:#073f31;color:#f0f7
 [hidden]{display:none!important}
 
 /* Compact counters: the icon shares its label row; the unit shares the amount. */
-.stat,.stats.three .stat,.stats.three .stat:last-child { padding:13px 15px; min-height:88px; display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:7px; }
+.stats { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.stat,.stats.three .stat,.stats.three .stat:last-child { padding:12px 15px; min-height:64px; display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:7px; }
 .stat-heading { display:flex; align-items:center; gap:8px; min-width:0; }
 .stat-icon { font-size:17px; padding:6px; border-radius:8px; }
-.stat-label { font-size:12px; line-height:1.5; }
-.stat-number { display:flex; flex-wrap:wrap; align-items:baseline; gap:7px; max-width:110px; }
+.stat-label { font-size:12px; line-height:1.5; min-width:0; overflow-wrap:break-word; }
+.stat-number { display:flex; flex-wrap:wrap; align-items:baseline; gap:6px; max-width:155px; }
 .stat-hint { grid-column:1/-1; }
 .stat-value { display:inline; margin:0; font-size:25px; min-width:0; line-height:1.25; }
 .stat-unit { color:var(--muted); font-size:11px; }
@@ -31,7 +32,8 @@ aside{position:fixed;inset:0 0 0 auto;width:250px;background:#073f31;color:#f0f7
 .login-card button { width:100%; margin-top:14px; }
 .login-mode main,.login-mode aside { display:none; }
 @media(max-width:768px) {
- .stat,.stats.three .stat,.stats.three .stat:last-child { padding:11px 12px; min-height:85px; }
+ .stats,.stats.three { grid-template-columns:1fr; gap:8px; }
+ .stat,.stats.three .stat,.stats.three .stat:last-child { grid-column:auto; padding:10px 12px; min-height:58px; }
  .stat-heading { gap:6px; }
  .stat-icon { padding:5px; font-size:16px; }
  .stat-value { font-size:22px; }

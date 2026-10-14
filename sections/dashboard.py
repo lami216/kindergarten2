@@ -52,9 +52,10 @@ def render(conn):
     st.markdown("##### ملخص الروضة")
     st.caption("إجمالي الحركة المسجلة حتى الآن · تقارير الفترات متاحة من صفحة التقارير")
     total_students = int(_get_scalar(conn, "SELECT COUNT(*) FROM students WHERE archived_at IS NULL"))
-    c1, c2, c3, c4 = st.columns(4)
+    c1, c2 = st.columns(2)
     ui.kpi(c1, "🎒", "الطلاب الحاليون", total_students, unit="طالب")
     ui.kpi(c2, "💵", "إجمالي المقبوضات", money(financial["total_cash"]), hint=CURRENCY)
+    c3, c4 = st.columns(2)
     ui.kpi(c3, "📦", "إجمالي المصروفات", money(financial["expenses"]),
            bg="#FFF1F2", fg="#BE123C", hint=CURRENCY)
     ui.kpi(c4, "💰", "الباقي من المداخيل", money(financial["remaining_cash"]),
