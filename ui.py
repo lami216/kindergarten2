@@ -3,6 +3,7 @@ ui.py — Shared mobile-safe UI building blocks.
 """
 
 import base64
+from html import escape
 import os
 import pandas as pd
 import streamlit as st
@@ -40,17 +41,25 @@ def section_header(icon, title, subtitle=""):
         st.markdown(f"<div class='section-sub'>{subtitle}</div>", unsafe_allow_html=True)
 
 
-def kpi(col, icon, label, value, bg="#E9F5EC", fg="#219044"):
+def kpi(col, icon, label, value, bg="#E9F5EC", fg="#219044", hint=""):
     with col:
         st.markdown(f"""
-        <div class="kpi-card">
-            <div class="kpi-icon" style="background:{bg}; color:{fg};">{icon}</div>
+        <div class="kpi-card" style="--kpi-accent:{fg}; --kpi-tint:{bg};">
+            <div class="kpi-icon" style="background:{bg}; color:{fg};">{escape(str(icon))}</div>
             <div class="kpi-content">
-                <div class="kpi-value">{value}</div>
-                <div class="kpi-label">{label}</div>
+                <div class="kpi-label">{escape(str(label))}</div>
+                <div class="kpi-value">{escape(str(value))}</div>
+                <div class="kpi-hint">{escape(str(hint))}</div>
             </div>
         </div>
         """, unsafe_allow_html=True)
+
+
+def navigate(page, **state):
+    """Internal shortcuts use the same router as the sidebar."""
+    st.session_state.update(state)
+    st.session_state.current_page = page
+    st.rerun()
 
 
 

@@ -171,8 +171,8 @@ def render(conn):
         if family_choices:
             existing = st.checkbox("اختيار ولي أمر موجود", key=_form_key("kid_use_existing"))
         version = st.session_state["kid_form_version"]
-        with st.container():
-            st.markdown("##### 🎒 بيانات الطفل")
+        with st.container(border=True):
+            st.markdown("##### ١ · بيانات الطفل")
             a, b = st.columns(2)
             name = a.text_input("اسم الطفل *", key=_form_key("kid_name")).strip()
             birth = b.date_input("تاريخ الميلاد *", value=date(2022, 1, 1),
@@ -185,7 +185,8 @@ def render(conn):
             family = dict(father_name="", father_mobile="", mother_name="",
                           mother_mobile="", contact_email="")
             parent_id = None
-            st.markdown("##### 👨‍👩‍👧 بيانات الأهل")
+            st.markdown("##### ٢ · بيانات الأهل")
+            st.caption("يكفي اسم ورقم هاتف أحد الوالدين.")
             if existing:
                 selected = st.selectbox("ولي الأمر الموجود", family_choices,
                     format_func=lambda option: option[1],
@@ -206,12 +207,12 @@ def render(conn):
 
             pickups = _pickup_editor(f"kid_add_{version}", in_form=False)
 
-            st.markdown("##### 💵 الرسوم والدفع")
+            st.markdown("##### ٣ · الرسوم والدفع")
             # Unlike fields inside st.form, native segmented and amount controls
             # trigger immediate reruns and therefore a live receipt breakdown.
-            mode = st.segmented_control("طريقة الرسوم", ["دفع", "معفي"],
-                selection_mode="single", default=None, key=_form_key("kid_finance_mode"),
-                help="اترك الخيار دون تحديد لتسجيل طفل عادي بلا دفعة.")
+            mode = st.segmented_control("طريقة الرسوم", ["بلا دفعة", "دفع", "معفي"],
+                selection_mode="single", default="بلا دفعة", key=_form_key("kid_finance_mode"),
+                help="يمكن تسجيل الدفعة لاحقًا من صفحة الدفعات.")
             tariff = F.prices(conn)
             start_date = F.today()
             with st.expander("تاريخ بدء التسجيل"):
@@ -244,7 +245,7 @@ def render(conn):
                     except ValueError as exc:
                         st.warning(str(exc))
             else:
-                st.caption("طفل عادي بلا دفعة أولى. تبقى رسوم التسجيل مستحقة، ولا يُطلب الجيليه.")
+                st.caption("يمكنك تسجيل الدفعة لاحقًا. رسوم التسجيل تبقى مستحقة.")
 
             submitted = st.button("💾 حفظ بيانات الطفل والأهل",
                                   type="primary", use_container_width=True,
@@ -347,7 +348,7 @@ def render(conn):
             ["الاسم", "العمر", "تاريخ الميلاد", "الجنس", "ولي الأمر"]],
             use_container_width=True, hide_index=True)
         st.markdown("---")
-        st.markdown("##### ✏️ تعديل أو حذف طالب")
+        st.markdown("##### فتح ملف طالب")
         options = [(row["student_id"], row["full_name"]) for _, row in shown.iterrows()]
         chosen = st.selectbox("اختر الطفل", options,
             format_func=lambda x: x[1], index=None, placeholder="ابحث عن طفل...",
@@ -363,7 +364,7 @@ def render(conn):
             st.caption(f"ولي الأمر: {contacts or 'غير مسجل'} · الهاتف: {phone or 'غير مسجل'}")
             st.caption(f"تاريخ الميلاد: {_text(row['birth_date']) or 'غير مسجل'}"
                        f" · الجنس: {_text(row['gender']) or 'غير مسجل'}")
-            financial_panel(conn, sid, payment=pd.isna(row["archived_at"]))
+            financial_panel(conn, sid, payment=pd.isna(row["archived_at"]), profile=True, student_name=row["full_name"])
             if pd.notna(row["archived_at"]):
                 st.warning("الطالب مؤرشف؛ سجله وحساباته باقية للمراجعة.")
                 archived_finance=F.projection(conn,sid,materialize=False)
@@ -372,7 +373,7 @@ def render(conn):
                              f"{archived_finance['due_now']:,} أوقية قديمة. "
                              "لم تُستأنف رسوم شهرية جديدة.")
                 return
-            with st.expander(f"⚙️ تعديل بيانات: {_text(row['full_name'])}", expanded=True):
+            with st.expander(f"⚙️ تعديل بيانات: {_text(row['full_name'])}", expanded=False):
                 with st.form(f"edit_student_form_{sid}"):
                     a, b, c = st.columns(3)
                     e_name = a.text_input("اسم الطفل", value=_text(row["full_name"]),

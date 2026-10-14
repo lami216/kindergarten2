@@ -43,6 +43,8 @@ jobs:
         run: python -m pytest -q tests/
       - name: Install Chromium for browser tests
         run: python -m playwright install --with-deps chromium
+      - name: Synthetic Pages preview journeys and mobile screenshots
+        run: python tests/browser_operator_preview.py
       - name: Start isolated QA previews
         shell: bash
         run: |

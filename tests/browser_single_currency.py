@@ -183,6 +183,7 @@ async def run():
                 await open_section(page,"payments")
                 await night_theme(page,night)
                 await select_account(page,regular_name)
+                await page.get_by_text("تفاصيل الأشهر والرسوم",exact=True).click()
                 await capture(page,page.get_by_text("أول شهر غير مكتمل أو موعد الدفعة القادمة",exact=False),
                               f"finance_account_partial_{suffix}",manifest)
                 await select_account(page,exempt_name)

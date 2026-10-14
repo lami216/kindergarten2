@@ -105,14 +105,14 @@ div[data-testid="stHeadingWithHeadline"]:hover a {
 .section-title {
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
     gap: 10px;
     font-size: 26px;
     font-weight: 800 !important;
     font-family: 'Cairo', sans-serif !important;
     color: var(--primary-dark);
     margin-bottom: 4px;
-    text-align: center;
+    text-align: right;
 }
 
 .section-sub {
@@ -121,7 +121,7 @@ div[data-testid="stHeadingWithHeadline"]:hover a {
     font-size: 15px;
     font-weight: 600 !important;
     font-family: 'Cairo', sans-serif !important;
-    text-align: center;
+    text-align: right;
 }
 
 /* ---------------------------------------------------------------- */
@@ -289,11 +289,12 @@ div[data-testid="stDataFrame"] {
     box-shadow: var(--shadow-sm);
     border: 1px solid var(--card-border);
     display: flex !important;
-    flex-direction: row-reverse !important;
+    flex-direction: row !important;
     align-items: center !important;
     justify-content: space-between !important;
     gap: 12px !important;
-    min-height: 86px;
+    min-height: 126px;
+    border-inline-start: 3px solid var(--kpi-accent, var(--primary));
     height: 100%;
     box-sizing: border-box;
     transition: transform 0.2s ease, box-shadow 0.2s ease;
@@ -320,9 +321,9 @@ div[data-testid="stDataFrame"] {
     color: var(--text-main);
     line-height: 1.2;
     font-family: 'Cairo', sans-serif !important;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    margin-block: 6px;
 }
 
 .kpi-label {
@@ -348,6 +349,9 @@ div[data-testid="stDataFrame"] {
     background: var(--primary-light);
     color: var(--primary-dark);
 }
+
+.kpi-hint { color: var(--text-muted); font-size: 11px; min-height: 16px; }
+.stMainBlockContainer { max-width: 1400px; }
 
 /* Keep original dashboard KPI cards, but show the full values on tablets.
    Five native dashboard columns otherwise ellipsize the currency at 768px. */

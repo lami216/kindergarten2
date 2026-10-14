@@ -10,16 +10,16 @@ import auth
 
 NAV_ITEMS = [
     ("dashboard", "📊", "الرئيسية"),
-    ("parents", "👨‍👩‍👧", "أولياء الأمور"),
     ("students", "🎒", "الطلاب"),
+    ("registration", "📝", "التسجيل"),
+    ("payments", "💵", "الدفعات المالية"),
+    ("expenses", "📦", "المصروفات والأصول"), 
+    ("reports", "📈", "التقارير"),
+    ("salaries", "💸", "رواتب المعلمات"),
+    ("parents", "👨‍👩‍👧", "أولياء الأمور"),
     ("teachers", "👩‍🏫", "المعلمات"),
     ("classes", "🏷️", "الصفوف"),
     ("years", "📅", "السنوات الدراسية"),
-    ("registration", "📝", "التسجيل"),
-    ("payments", "💵", "الدفعات المالية"),
-    ("salaries", "💸", "رواتب المعلمات"), 
-    ("expenses", "📦", "المصروفات والأصول"), 
-    ("reports", "📈", "التقارير"),
 ]
 
 
@@ -97,7 +97,7 @@ def render(conn):
         st.session_state.current_page = NAV_ITEMS[0][0]
 
     with st.sidebar:
-        ui.render_logo(width=130)
+        ui.render_logo(width=80)
 
         st.markdown("""
         <div class="brand-box">
@@ -106,18 +106,17 @@ def render(conn):
         </div>
         """, unsafe_allow_html=True)
 
-        raw_students = _get_scalar(conn, "SELECT COUNT(*) FROM students")
+        raw_students = _get_scalar(conn, "SELECT COUNT(*) FROM students WHERE archived_at IS NULL")
         try:
             students_count = int(raw_students)
         except (ValueError, TypeError):
             students_count = 0
 
         st.markdown(f"""
-        <div class="sidebar-stat">👦 إجمالي الطلاب: <b>{students_count}</b></div>
+        <div class="sidebar-stat">🎒 الطلاب الحاليون: <b>{students_count}</b></div>
         """, unsafe_allow_html=True)
 
-        # Render navigation buttons
-        for key, icon, label in NAV_ITEMS:
+        def nav_button(key, icon, label):
             is_active = st.session_state.current_page == key
             if st.button(
                 f"{icon}  {label}",
@@ -127,6 +126,16 @@ def render(conn):
             ):
                 st.session_state.current_page = key
                 st.rerun()
+
+        st.caption("الإدارة اليومية")
+        for item in NAV_ITEMS[:5]:
+            nav_button(*item)
+        st.caption("المالية والتقارير")
+        for item in NAV_ITEMS[5:7]:
+            nav_button(*item)
+        with st.expander("ملفات الروضة", expanded=st.session_state.current_page in {x[0] for x in NAV_ITEMS[7:]}):
+            for item in NAV_ITEMS[7:]:
+                nav_button(*item)
 
         st.markdown("<div style='margin-top:16px;'></div>", unsafe_allow_html=True)
         st.markdown("---")

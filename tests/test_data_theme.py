@@ -29,7 +29,7 @@ ui.plotly_chart(go.Figure(go.Bar(x=['اختبار'], y=[1250])))
         import ast
         from pathlib import Path
         for path in (Path(__file__).resolve().parents[1] / 'sections').glob('*.py'):
-            tree = ast.parse(path.read_text())
+            tree = ast.parse(path.read_text(encoding="utf-8"))
             direct = [n.func.attr for n in ast.walk(tree)
                 if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
                 and isinstance(n.func.value, ast.Name) and n.func.value.id == 'st'

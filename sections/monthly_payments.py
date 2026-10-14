@@ -25,10 +25,30 @@ def actor():
     return F._actor(st.session_state.get("auth_user"))
 
 
-def financial_panel(conn, student, *, payment=True, scope=None):
+def financial_panel(conn, student, *, payment=True, scope=None, profile=False, student_name=""):
     # Keep database identity separate from per-view widget/session identity.
     panel_id=student if scope is None else f"{scope}_{student}"
     result=F.projection(conn,student)
+    if profile:
+        if not result:
+            st.info("الحساب المالي يحتاج تهيئة من صفحة الدفعات.")
+        else:
+            a, b, c = st.columns(3)
+            ui.kpi(a, "💵", "مجموع المدفوع", money_number(result["cash_paid"]), hint=F.CURRENCY)
+            ui.kpi(b, "⏳", "الباقي للدفع الآن", money_number(result["due_now"]),
+                   bg="#FFFBEB", fg="#B45309", hint=F.CURRENCY)
+            ui.kpi(c, "📅", "الرسوم", "معفي" if result["exempt"] else "عادي",
+                   hint="بداية الاشتراك: " + str(result["account"]["start_date"]))
+        left, right = st.columns(2)
+        if payment and left.button("💵 تسجيل دفعة", key=f"profile_payment_{panel_id}",
+                                    type="primary", use_container_width=True):
+            ui.navigate("payments", monthly_finance_child=(student, student_name),
+                        payments_requested_tab="📅 حسابات الأطفال")
+        if right.button("🧾 عرض الوصولات", key=f"profile_receipts_{panel_id}", use_container_width=True):
+            ui.navigate("payments", monthly_receipt_search=student_name,
+                        payments_receipt_child=student, payments_requested_tab="🧾 الوصولات",
+                        finance_receipt_receipt_open=None, finance_receipt_receipt_mode=None)
+        return
     if not result:
         info=F.account_setup_suggestion(conn,student)
         with st.expander("تهيئة الحساب الشهري لهذا الطفل",expanded=True):
@@ -87,89 +107,14 @@ def financial_panel(conn, student, *, payment=True, scope=None):
             if fee["paid"] >= fee["price"]:
                 return "**مدفوع بالكامل**"
             return "**باقي** " + fmt(max(0,fee["price"]-fee["paid"]-fee.get("waived",0)))
-        st.write("التسجيل: " + item_state(registration))
-        st.write("الجيليه: " + item_state(garment))
-        st.caption("الحالة: "+("مؤرشف" if result["account"].get("archived_at") else "عادي")
-                   +" · بداية الاشتراك: "+str(result["account"]["start_date"]))
-        st.write(f"**مجموع القبض الصحيح: {fmt(result['cash_paid'])}**")
-        st.write(f"شهور مدفوعة فعليًا: **{result['paid_periods']}**"
-                 + (f" · تغطية متصلة مدفوعة حتى: {result['paid_through']}" if result["paid_through"] else
-                    " · لا توجد تغطية مدفوعة متصلة حتى الآن"))
-        st.write(f"**الباقي للدفع الآن: {fmt(result['due_now'])}**")
+        a,b,c=st.columns(3)
+        ui.kpi(a,"💵","مجموع المدفوع",money_number(result["cash_paid"]),hint=F.CURRENCY)
+        ui.kpi(b,"⏳","الباقي للدفع الآن",money_number(result["due_now"]),
+               bg="#FFFBEB",fg="#B45309",hint=F.CURRENCY)
+        ui.kpi(c,"📅","أشهر مدفوعة",result["paid_periods"],
+               hint="حتى: "+str(result["paid_through"]) if result["paid_through"] else "لا توجد تغطية مكتملة")
         if result["account"].get("archived_at"):
             st.warning("حساب مؤرشف: لم تُمحَ الرسوم أو الوصولات، ولن تُصدر شهور جديدة.")
-        if result["future_partial"]:
-            st.caption(f"فترات مستقبلية غير مستحقة بعد: {fmt(result['future_partial'])}"
-                       f" · المدفوع مقدماً: {fmt(result['prepaid_paid'])}")
-        st.caption(f"أول شهر غير مكتمل أو موعد الدفعة القادمة: {result['next_unpaid']}")
-        today=F.today()
-        def period_state(p):
-            remaining=max(0,p["price"]-p["paid"]-p.get("waived",0))
-            if p.get("waived",0) and remaining==0:
-                return "ألغي الدين — ليس قبضاً" if not p["paid"] else "مدفوع جزئياً ودينه ملغى"
-            if p["paid"]==p["price"]:
-                return "مدفوع بالكامل (مقدّم)" if p["start"]>today else "مدفوع بالكامل"
-            if p["paid"]>0:
-                return "مدفوع جزئياً — لم يستحق" if p["start"]>today else "مدفوع جزئياً — مستحق"
-            return "غير مدفوع — لم يستحق" if p["start"]>today else "غير مدفوع — مستحق"
-        rows=[{"الفترة":f"{period['start']} إلى {period['end']-timedelta(days=1)}",
-               "المستحق":fmt(period["price"]),"المدفوع فعلياً":fmt(period["paid"]),
-               "دين ملغى":fmt(period.get("waived",0)),
-               "الباقي":fmt(max(0,period["price"]-period["paid"]-period.get("waived",0))),
-               "الحالة":period_state(period)}
-              for period in result["periods"]]
-        if rows:
-            ui.dataframe(__import__("pandas").DataFrame(rows),hide_index=True,
-                         use_container_width=True)
-        if result["periods"]:
-            with st.expander("فتح مصادر تمويل فترة شهرية — الوصولات الفعلية"):
-                periods=result["periods"]
-                selected_period=st.selectbox("اختر الفترة",list(range(len(periods))),
-                     format_func=lambda index:
-                        f"الشهر {periods[index]['no']+1} · "
-                        f"{periods[index]['start']} إلى "
-                        f"{periods[index]['end']-timedelta(days=1)}",
-                     key=f"child_month_sources_{panel_id}")
-                period=periods[selected_period]
-                with conn.cursor() as cur:
-                    cur.execute("""SELECT r.receipt_id,r.state,r.received_on,
-                          a.amount AS period_amount,a.active AS allocation_active
-                          FROM monthly_periods p
-                          JOIN monthly_allocations a ON a.period_id=p.period_id
-                          JOIN monthly_receipts r ON r.receipt_id=a.receipt_id
-                          WHERE p.student_id=%s AND p.period_no=%s
-                          ORDER BY r.receipt_id DESC""",
-                          (student,period["no"]))
-                    original_sources=[dict(x) for x in cur.fetchall()]
-                if not original_sources:
-                    st.caption("لا توجد وصولات لهذا الشهر؛ لا يُنشأ وصل من مجموع الفترة.")
-                for source in original_sources:
-                    rid=int(source["receipt_id"])
-                    label=("ساري" if source["state"]=="active"
-                           and source["allocation_active"] else "ملغى / مصحح")
-                    left,right=st.columns([3,1])
-                    left.write(f"وصل #{rid} · {source['received_on']}"
-                               f" · {fmt(source['period_amount'])} · {label}")
-                    if right.button("فتح الوصل",key=f"month_source_{panel_id}_{period['no']}_{rid}"):
-                        st.session_state[f"child_receipt_{panel_id}_receipt_open"]=rid
-                        st.rerun()
-        with conn.cursor() as cur:
-            cur.execute("""SELECT w.waiver_id,w.effective_on,w.amount,w.actor,w.reason,
-                    COALESCE(f.kind, 'month ' || p.period_no::text) AS item
-                    FROM monthly_waivers w
-                    LEFT JOIN monthly_fees f ON f.fee_id=w.fee_id
-                    LEFT JOIN monthly_periods p ON p.period_id=w.period_id
-                    WHERE w.student_id=%s ORDER BY w.waiver_id DESC""",(student,))
-            waivers=[dict(x) for x in cur.fetchall()]
-        if waivers:
-            st.markdown("##### قرارات إلغاء الدين (بدون قبض)")
-            ui.dataframe(__import__("pandas").DataFrame([
-                {"البند":r["item"],"أُلغي من الدين":fmt(r["amount"]),
-                 "تاريخ القرار":r["effective_on"],"المسؤول":r["actor"],
-                 "السبب":r["reason"]} for r in waivers
-            ]),hide_index=True,use_container_width=True)
-            st.caption("الرسوم الأصلية محفوظة؛ هذه القرارات ليست إيصالات ولا مبالغ مدفوعة.")
-        receipts=result["receipts"]
         if payment:
             token_key=f"monthly_pay_token_{panel_id}"
             version_key=f"monthly_pay_version_{panel_id}"
@@ -211,7 +156,6 @@ def financial_panel(conn, student, *, payment=True, scope=None):
                             st.session_state[token_key]=str(uuid.uuid4())
                             st.session_state[version_key]=version+1
                             st.session_state.pop(f"monthly_preview_{panel_id}",None)
-                            st.session_state[f"child_receipt_{panel_id}_receipt_open"]=rid
                             st.session_state[f"monthly_payment_success_{panel_id}"]=(
                                 f"تم تسجيل الدفعة — وصل #{rid}" if new
                                 else f"هذه الدفعة محفوظة بالفعل — وصل #{rid}")
@@ -222,10 +166,86 @@ def financial_panel(conn, student, *, payment=True, scope=None):
                             st.error("تعذّر تسجيل الدفعة؛ لم تُنشأ حركة نقدية.")
             message=st.session_state.pop(f"monthly_payment_success_{panel_id}",None)
             if message: st.success(message)
+        with st.expander("تفاصيل الأشهر والرسوم", expanded=False):
+            st.write("التسجيل: " + item_state(registration))
+            st.write("الجيليه: " + item_state(garment))
+            st.caption("بداية الاشتراك: "+str(result["account"]["start_date"]))
+            st.caption(f"أول شهر غير مكتمل أو موعد الدفعة القادمة: {result['next_unpaid']}")
+            if result["future_partial"]:
+                st.caption(f"فترات مستقبلية غير مستحقة بعد: {fmt(result['future_partial'])}"
+                           f" · المدفوع مقدماً: {fmt(result['prepaid_paid'])}")
+            today=F.today()
+            def period_state(p):
+                remaining=max(0,p["price"]-p["paid"]-p.get("waived",0))
+                if p.get("waived",0) and remaining==0:
+                    return "ألغي الدين — ليس قبضاً" if not p["paid"] else "مدفوع جزئياً ودينه ملغى"
+                if p["paid"]==p["price"]:
+                    return "مدفوع بالكامل (مقدّم)" if p["start"]>today else "مدفوع بالكامل"
+                if p["paid"]>0:
+                    return "مدفوع جزئياً — لم يستحق" if p["start"]>today else "مدفوع جزئياً — مستحق"
+                return "غير مدفوع — لم يستحق" if p["start"]>today else "غير مدفوع — مستحق"
+            rows=[{"الفترة":f"{period['start']} إلى {period['end']-timedelta(days=1)}",
+                   "المستحق":fmt(period["price"]),"المدفوع فعلياً":fmt(period["paid"]),
+                   "دين ملغى":fmt(period.get("waived",0)),
+                   "الباقي":fmt(max(0,period["price"]-period["paid"]-period.get("waived",0))),
+                   "الحالة":period_state(period)}
+                  for period in result["periods"]]
+            if rows:
+                ui.dataframe(__import__("pandas").DataFrame(rows),hide_index=True,
+                             use_container_width=True)
+            if result["periods"]:
+                with st.expander("فتح مصادر تمويل فترة شهرية — الوصولات الفعلية"):
+                    periods=result["periods"]
+                    selected_period=st.selectbox("اختر الفترة",list(range(len(periods))),
+                         format_func=lambda index:
+                            f"الشهر {periods[index]['no']+1} · "
+                            f"{periods[index]['start']} إلى "
+                            f"{periods[index]['end']-timedelta(days=1)}",
+                         key=f"child_month_sources_{panel_id}")
+                    period=periods[selected_period]
+                    with conn.cursor() as cur:
+                        cur.execute("""SELECT r.receipt_id,r.state,r.received_on,
+                              a.amount AS period_amount,a.active AS allocation_active
+                              FROM monthly_periods p
+                              JOIN monthly_allocations a ON a.period_id=p.period_id
+                              JOIN monthly_receipts r ON r.receipt_id=a.receipt_id
+                              WHERE p.student_id=%s AND p.period_no=%s
+                              ORDER BY r.receipt_id DESC""",
+                              (student,period["no"]))
+                        original_sources=[dict(x) for x in cur.fetchall()]
+                    if not original_sources:
+                        st.caption("لا توجد وصولات لهذا الشهر؛ لا يُنشأ وصل من مجموع الفترة.")
+                    for source in original_sources:
+                        rid=int(source["receipt_id"])
+                        label=("ساري" if source["state"]=="active"
+                               and source["allocation_active"] else "ملغى / مصحح")
+                        left,right=st.columns([3,1])
+                        left.write(f"وصل #{rid} · {source['received_on']}"
+                                   f" · {fmt(source['period_amount'])} · {label}")
+                        if right.button("فتح الوصل",key=f"month_source_{panel_id}_{period['no']}_{rid}"):
+                            st.session_state[f"child_receipt_{panel_id}_receipt_open"]=rid
+                            st.rerun()
+            with conn.cursor() as cur:
+                cur.execute("""SELECT w.waiver_id,w.effective_on,w.amount,w.actor,w.reason,
+                        COALESCE(f.kind, 'month ' || p.period_no::text) AS item
+                        FROM monthly_waivers w
+                        LEFT JOIN monthly_fees f ON f.fee_id=w.fee_id
+                        LEFT JOIN monthly_periods p ON p.period_id=w.period_id
+                        WHERE w.student_id=%s ORDER BY w.waiver_id DESC""",(student,))
+                waivers=[dict(x) for x in cur.fetchall()]
+            if waivers:
+                st.markdown("##### قرارات إلغاء الدين (بدون قبض)")
+                ui.dataframe(__import__("pandas").DataFrame([
+                    {"البند":r["item"],"أُلغي من الدين":fmt(r["amount"]),
+                     "تاريخ القرار":r["effective_on"],"المسؤول":r["actor"],
+                     "السبب":r["reason"]} for r in waivers
+                ]),hide_index=True,use_container_width=True)
+                st.caption("الرسوم الأصلية محفوظة؛ هذه القرارات ليست إيصالات ولا مبالغ مدفوعة.")
+        receipts=result["receipts"]
         if receipts:
-            st.markdown("##### 🧾 الوصولات الحقيقية وعملياتها")
-            RI.render_receipt_list(conn,receipts,scope="child_receipt_"+panel_id,
-                                   student_id=student,limit=20)
+            with st.expander("🧾 عرض وصولات هذا الطالب", expanded=False):
+                RI.render_receipt_list(conn,receipts,scope="child_receipt_"+panel_id,
+                                       student_id=student,limit=20)
         with st.expander("سجل العمليات الخاصة بهذا الطفل",expanded=False):
             RI.render_history(conn,scope="child_receipt_"+panel_id+"_history",
                               student_id=student)
@@ -271,10 +291,18 @@ def render_settings(conn):
 
 def render_receipts(conn):
     st.caption("الوصولات الأصلية والمصححة والملغاة محفوظة. افتح الوثيقة الفعلية لإجراءاتها.")
+    child=st.session_state.get("payments_receipt_child")
     receipts=ui.df(conn,"""SELECT r.receipt_id,r.student_id,r.amount,r.received_on,
         r.payer,r.state,s.full_name
         FROM monthly_receipts r JOIN students s ON s.student_id=r.student_id
-        ORDER BY r.receipt_id DESC LIMIT 200""")
+        WHERE (%s::text IS NULL OR r.student_id=%s)
+        ORDER BY r.receipt_id DESC LIMIT 200""",(child,child))
+    if child:
+        st.caption("وصولات الطالب المحدد")
+        if st.button("عرض وصولات جميع الطلاب", key="receipts_clear_child"):
+            st.session_state.pop("payments_receipt_child", None)
+            st.session_state["monthly_receipt_search"]=""
+            st.rerun()
     if receipts.empty:
         ui.empty_state("لا توجد وصولات شهرية.")
         return

@@ -11,18 +11,18 @@ from monthly_finance import today as business_today
 import uuid
 
 EXPENSE_CATEGORIES = [
-    "قرطاسية ومطبوعات", 
-    "ضيافة وتنظيف", 
-    "صيانة وإصلاحات", 
-    "كهرباء ومياه واشتراكات", 
-    "فعاليات وأنشطة", 
+    "قرطاسية ومطبوعات",
+    "ضيافة وتنظيف",
+    "صيانة وإصلاحات",
+    "كهرباء ومياه واشتراكات",
+    "فعاليات وأنشطة",
     "مصروفات أخرى"
 ]
 
 ASSET_CATEGORIES = [
-    "ألعاب وتجهيزات أطفال", 
-    "أثاث ومفروشات", 
-    "أجهزة إلكترونية وتقنية", 
+    "ألعاب وتجهيزات أطفال",
+    "أثاث ومفروشات",
+    "أجهزة إلكترونية وتقنية",
     "معدات تحسين الروضة"
 ]
 
@@ -33,7 +33,8 @@ PAYMENT_STATUSES = ["مدفوع بالكامل", "آجل / دين (غير مدف
 def render(conn):
     ui.section_header("📦", "المصروفات والأصول", "إدارة المصروفات التشغيلية والديون وجرد حالة الأصول")
 
-    st.caption("رواتب المعلمات وسلفهن محسوبة تلقائياً في تقرير النقدية من سجل الصرف نفسه؛ لا تسجّل نسخة منها كمصروف مستقل.")
+    with st.expander("عن الرواتب والسلف"):
+        st.caption("سجّل الرواتب والسلف من صفحة الرواتب؛ تظهر تلقائيًا في الملخص المالي.")
     main_tab1, main_tab2 = st.tabs(["💰 المصروفات والديون التشغيلية", "🧸 الأصول والتجهيزات"])
 
     # ==================================================================
@@ -46,68 +47,78 @@ def render(conn):
         # SUB TAB 1: View Log & Add Expense
         # --------------------------------------------------------------
         with sub_tab1:
-            col_list, col_form = st.columns([1.8, 1])
+            col_form, col_list = st.columns([1, 1.4])
 
             with col_form:
                 # --------------------------------------------------------------
                 # داخل نموذج إضافة مصروف جديد (Add Expense Form)
                 # --------------------------------------------------------------
                 st.markdown("##### ➕ تسجيل مصروف جديد")
-                with st.form("add_expense_form", clear_on_submit=True):
-                    exp_date = st.date_input("تاريخ المصروف", value=business_today())
-                    category = st.selectbox("بند المصروف", EXPENSE_CATEGORIES)
-                    amount = st.number_input("إجمالي قيمة الفاتورة/المصروف (أوقية قديمة)", min_value=0.0, step=10.0, format="%.2f")
-                    
-                    pay_status = st.selectbox("حالة الدفع", PAYMENT_STATUSES)
-                    
+                notice=st.session_state.pop("expense_add_notice", None)
+                if notice:
+                    st.success(notice)
+                version=st.session_state.get("expense_add_version", 0)
+                with st.container(border=True, key=f"expense_intake_{version}"):
+                    exp_date = st.date_input("تاريخ المصروف", key=f"expense_add_date_{version}", value=business_today())
+                    category = st.selectbox("بند المصروف", EXPENSE_CATEGORIES, key=f"expense_add_category_{version}")
+                    amount = st.number_input("إجمالي قيمة الفاتورة/المصروف (أوقية قديمة)", key=f"expense_add_amount_{version}", min_value=0.0, step=10.0, format="%.2f")
+
+                    pay_status = st.selectbox("حالة الدفع", PAYMENT_STATUSES, key=f"expense_add_status_{version}")
+
                     # تحكم ديناميكي بالمبلغ المدفوع بناءً على الحالة
                     if pay_status == "مدفوع بالكامل":
                         amount_paid = amount
                     elif pay_status == "آجل / دين (غير مدفوع)":
                         amount_paid = 0.0
                     else:  # مدفوع جزئياً
+                        paid_key=f"expense_add_paid_{version}"
+                        if paid_key in st.session_state:
+                            st.session_state[paid_key]=min(float(st.session_state[paid_key]),float(amount))
                         amount_paid = st.number_input(
-                            "المبلغ المدفوع فعلياً (أوقية قديمة)", 
-                            min_value=0.0, 
-                            max_value=float(amount) if amount > 0 else 0.0, 
+                            "المبلغ المدفوع فعلياً (أوقية قديمة)",
+                            key=f"expense_add_paid_{version}",
+                            min_value=0.0,
+                            max_value=float(amount) if amount > 0 else 0.0,
                             value=float(amount)/2 if amount > 0 else 0.0,
-                            step=10.0, 
+                            step=10.0,
                             format="%.2f"
                         )
 
-                    payee = st.text_input("المستلم / المورد (اختياري)")
-                    method = st.selectbox("طريقة الدفع", ["كاش", "تحويل بنكي", "شيك"])
-                    notes = st.text_area("ملاحظات / رقم الفاتورة", height=70)
+                    payee = st.text_input("المستلم / المورد (اختياري)", key=f"expense_add_payee_{version}")
+                    method = st.selectbox("طريقة الدفع", ["كاش", "تحويل بنكي", "شيك"], key=f"expense_add_method_{version}")
+                    with st.expander("ملاحظات أو رقم فاتورة (اختياري)"):
+                        notes = st.text_area("ملاحظات / رقم الفاتورة", key=f"expense_add_notes_{version}", height=70)
 
-                    if st.form_submit_button("حفظ المصروف", type="primary", use_container_width=True):
+                    if st.button("حفظ المصروف", key=f"expense_add_save_{version}", type="primary", use_container_width=True):
                         if amount <= 0:
                             st.error("⚠️ يرجى إدخال مبلغ أكبر من صفر.")
                         else:
                             # ضمان حتمي لتطابق القيمة قبل الحفظ في قاعدة البيانات
                             final_paid = amount if pay_status == "مدفوع بالكامل" else (0.0 if pay_status == "آجل / دين (غير مدفوع)" else amount_paid)
-                            
+
                             with conn.cursor() as cur:
                                 cur.execute("""
                                     INSERT INTO expenses (expense_date, category, amount, amount_paid, payment_status, payment_method, payee, notes)
                                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                                 """, (exp_date, category, amount, final_paid, pay_status, method, payee, notes))
-                            st.success("✅ تم تسجيل المصروف بنجاح!")
+                            st.session_state["expense_add_version"]=version+1
+                            st.session_state["expense_add_notice"]="تم تسجيل المصروف بنجاح."
                             st.rerun()
 
             with col_list:
                 st.markdown("##### 📋 سجل المصروفات والالتزامات")
                 df_exp = ui.df(conn, """
-                    SELECT 
-                        expense_id AS "الرقم", 
-                        expense_date AS "التاريخ", 
-                        category AS "البند", 
-                        amount AS "الإجمالي", 
+                    SELECT
+                        expense_id AS "الرقم",
+                        expense_date AS "التاريخ",
+                        category AS "البند",
+                        amount AS "الإجمالي",
                         amount_paid AS "المدفوع",
                         (amount - amount_paid) AS "المتبقي (دين)",
                         payment_status AS "حالة الدفع",
-                        payee AS "المورد", 
-                        notes AS "ملاحظات" 
-                    FROM expenses 
+                        payee AS "المورد",
+                        notes AS "ملاحظات"
+                    FROM expenses
                     ORDER BY expense_date DESC
                 """)
                 if df_exp.empty:
@@ -124,7 +135,7 @@ def render(conn):
                 ui.empty_state("لا توجد مصروفات للتعديل أو الحذف.")
             else:
                 exp_options = {
-                    row["expense_id"]: f"#{row['expense_id']} - {row['category']} (المتبقي: {float(row['amount']) - float(row['amount_paid'])} أوقية قديمة) - {row['payment_status']}" 
+                    row["expense_id"]: f"#{row['expense_id']} - {row['category']} (المتبقي: {float(row['amount']) - float(row['amount_paid'])} أوقية قديمة) - {row['payment_status']}"
                     for _, row in df_exp_manage.iterrows()
                 }
                 selected_id = st.selectbox("اختر المصروف لتعديله، تسديد الدين، أو الحذف:", options=list(exp_options.keys()), format_func=lambda x: exp_options[x])
@@ -144,12 +155,12 @@ def render(conn):
                         e_date = st.date_input("التاريخ", value=curr_date)
                         e_cat = st.selectbox("البند", EXPENSE_CATEGORIES, index=EXPENSE_CATEGORIES.index(exp_data["category"]) if exp_data["category"] in EXPENSE_CATEGORIES else 0)
                         e_amt = st.number_input("إجمالي الفاتورة", value=float(exp_data["amount"]), step=10.0, format="%.2f")
-                        
+
                         curr_status_idx = PAYMENT_STATUSES.index(exp_data["payment_status"]) if exp_data["payment_status"] in PAYMENT_STATUSES else 0
                         e_status = st.selectbox("حالة الدفع", PAYMENT_STATUSES, index=curr_status_idx)
-                        
+
                         e_paid = st.number_input("المبلغ المدفوع فعلياً", value=float(exp_data["amount_paid"]), min_value=0.0, max_value=float(e_amt), step=10.0, format="%.2f")
-                        
+
                         e_payee = st.text_input("المورد", value=exp_data["payee"] or "")
                         e_notes = st.text_area("ملاحظات", value=exp_data["notes"] or "", height=70)
 
@@ -256,16 +267,16 @@ def render(conn):
             with col_ast_list:
                 st.markdown("##### 🧸 جدول جرد الأصول والألعاب")
                 df_ast = ui.df(conn, """
-                    SELECT 
-                        asset_id AS "الرقم", 
-                        purchase_date AS "تاريخ الشراء", 
-                        item_name AS "الاسم", 
-                        category AS "الفئة", 
-                        quantity AS "الكمية", 
-                        unit_cost AS "سعر القطعة", 
-                        total_cost AS "الإجمالي", 
+                    SELECT
+                        asset_id AS "الرقم",
+                        purchase_date AS "تاريخ الشراء",
+                        item_name AS "الاسم",
+                        category AS "الفئة",
+                        quantity AS "الكمية",
+                        unit_cost AS "سعر القطعة",
+                        total_cost AS "الإجمالي",
                         condition_status AS "الحالة"
-                    FROM assets 
+                    FROM assets
                     ORDER BY purchase_date DESC
                 """)
                 if df_ast.empty:
@@ -301,9 +312,9 @@ def render(conn):
                             new_total = e_qty * e_ucost
                             with conn.cursor() as cur:
                                 cur.execute("""
-                                    UPDATE assets 
-                                    SET item_name = %s, category = %s, quantity = %s, unit_cost = %s, 
-                                        total_cost = %s, condition_status = %s, notes = %s 
+                                    UPDATE assets
+                                    SET item_name = %s, category = %s, quantity = %s, unit_cost = %s,
+                                        total_cost = %s, condition_status = %s, notes = %s
                                     WHERE asset_id = %s
                                 """, (e_name, e_cat, e_qty, e_ucost, new_total, e_status, e_notes, selected_ast_id))
                             st.success("✅ تم تحديث بيانات الأصل بنجاح!")

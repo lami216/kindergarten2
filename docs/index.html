@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>الروضة · معاينة التنظيم الجديد</title>
+<link rel="stylesheet" href="preview.css">
+</head>
+<body>
+<aside id="sidebar">
+  <div class="brand"><span class="brand-icon">🌱</span><div><strong>إدارة الروضة</strong><small>يوم أبسط. صورة أوضح.</small></div></div>
+  <div class="school">روضة مؤسسة شباب البيرة<span class="badge">معاينة التصميم</span></div>
+  <span class="nav-caption">الإدارة اليومية</span>
+  <nav aria-label="القائمة الرئيسية">
+    <button data-page="dashboard" class="active">📊 <span>الرئيسية</span></button>
+    <button data-page="students">🎒 <span>الطلاب</span></button>
+    <button data-page="registration">📝 <span>التسجيل المدرسي</span></button>
+    <button data-page="payments">💵 <span>الدفعات المالية</span></button>
+    <button data-page="expenses">📦 <span>المصروفات</span></button>
+  </nav>
+  <div class="sidebar-bottom"><p>بيانات تجريبية فقط</p><small>تقدر تضيف طالبًا أو دفعة أو مصروفًا وتجرب ترتيب الصفحات. التغييرات مؤقتة وتختفي عند تحديث الصفحة.</small></div>
+</aside>
+<main>
+  <header class="topbar"><button id="menu" class="quiet" aria-label="فتح القائمة" aria-expanded="false">☰ القائمة</button><span>الإدارة <b>/</b> <span id="crumb">الرئيسية</span></span><button id="theme" class="quiet" aria-label="تبديل الوضع الليلي">☾ الوضع الليلي</button></header>
+  <div class="demo-note"><span>✦</span> معاينة تفاعلية ببيانات وهمية — النظام الفعلي وحساباته يعملان في Streamlit.</div>
+  <section id="content" aria-live="polite"></section>
+  <footer>الروضة · تنظيم العمل اليومي <span>معاينة الفرع الجديد</span></footer>
+</main>
+<dialog id="receipt-dialog"><div id="receipt-content"></div><button class="secondary" id="receipt-close">إغلاق الوصل</button></dialog>
+<div id="toast" role="status"></div>
+<script src="preview.js"></script>
+</body></html>

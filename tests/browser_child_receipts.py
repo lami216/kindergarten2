@@ -76,6 +76,10 @@ async def open_child(page,name):
     await chooser.click()
     await chooser.fill(name)
     await page.locator('[role="listbox"]').get_by_text(name,exact=True).last.click(timeout=18000)
+    # Student files contain a compact summary; financial intake is explicit.
+    await expect(page.get_by_role("spinbutton",name="المبلغ المدفوع")).to_have_count(0)
+    await expect(page.get_by_role("button",name="تصدير PDF")).to_have_count(0)
+    await page.get_by_role("button",name="💵 تسجيل دفعة",exact=True).click()
     await expect(page.get_by_text("تسجيل دفعة — مبلغ فقط")).to_be_visible(timeout=20000)
 
 
@@ -132,6 +136,13 @@ async def run_variant(browser,width,dark):
     with_receipt=query("SELECT receipt_id,state,amount FROM monthly_receipts WHERE student_id=%s",(sid,))
     assert len(with_receipt)==1 and with_receipt[0]["amount"]==6000,with_receipt
     original=with_receipt[0]["receipt_id"]
+    # Saving a payment does not open its document. Open it deliberately.
+    await expect(page.get_by_text(f"وصل قبض #{original}")).not_to_be_visible()
+    await page.get_by_role("tab",name="🧾 الوصولات",exact=True).click()
+    search=page.get_by_role("textbox",name="بحث بالطفل أو رقم الوصل")
+    await search.fill(str(original))
+    await search.press("Enter")
+    await page.locator(f".st-key-finance_receipt_open_{original} button").click()
     await expect(page.get_by_text(f"وصل قبض #{original}")).to_be_visible(timeout=20000)
     for title in ("تعديل الوصل","إلغاء الوصل","تصدير PDF","سجل العمليات"):
         await expect(page.get_by_role("button",name=title)).to_be_visible()

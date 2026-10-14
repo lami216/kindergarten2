@@ -45,7 +45,7 @@ c.close()
         assert not app.exception
         if section=='dashboard':
             assert any('الباقي من المداخيل' in m.value for m in app.markdown)
-            assert any(m.label=='الباقي على الطلاب' for m in app.metric)
+            assert any('الباقي على الطلاب' in m.value for m in app.markdown)
         else:
             assert any(m.label=='الباقي من المداخيل' for m in app.metric)
         if section=='reports':

@@ -13,9 +13,9 @@ import helpers as H
 
 
 def render(conn):
-    ui.section_header("📝", "التسجيل المدرسي", "تسجيل طالب في صف لسنة دراسية محددة")
+    ui.section_header("📝", "التسجيل المدرسي", "اختر الطالب والصف والسنة الدراسية")
 
-    students_df = ui.df(conn, "SELECT student_id, full_name FROM students")
+    students_df = ui.df(conn, "SELECT student_id, full_name FROM students WHERE archived_at IS NULL ORDER BY full_name")
     classes_df = ui.df(conn, "SELECT class_id, class_type, section, class_name FROM classes")
     years_df = ui.df(conn, "SELECT year_id FROM academic_years ORDER BY start_date DESC")
 
@@ -47,7 +47,8 @@ def render(conn):
             class_label = c2.selectbox("الصف والشعبة *", list(class_options.keys()))
             year_label = c3.selectbox("السنة الدراسية *", years_df['year_id'])
 
-            st.caption("التسجيل الدراسي لتحديد الصف والسنة فقط؛ الرسوم في حساب الطفل الشهري.")
+            with st.expander("أين أسجل الدفعة؟"):
+                st.caption("سجّل الدفعة من صفحة الدفعات المالية. هذه الخطوة تحدد الصف والسنة.")
 
             submitted = st.form_submit_button("💾 تسجيل الطالب", type="primary", use_container_width=True)
 
