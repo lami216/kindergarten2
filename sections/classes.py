@@ -34,7 +34,7 @@ def render(conn):
             submitted = st.form_submit_button("💾 حفظ الصف", type="primary", use_container_width=True)
 
             if submitted:
-                existing = ui.df(conn, "SELECT 1 FROM classes WHERE class_type=%s AND section=%s",
+                existing = ui.df(conn, "SELECT 1 FROM classes WHERE class_type=%s AND section=%s AND archived_at IS NULL",
                                   (class_type, section))
                 if not existing.empty:
                     st.error("❌ هذا الصف (النوع + الشعبة) موجود مسبقاً.")
@@ -65,7 +65,7 @@ def render(conn):
         else:
             counts = ui.df(conn, """
                 SELECT class_id, COUNT(*) AS n FROM registrations
-                WHERE year_id = (SELECT year_id FROM academic_years ORDER BY start_date DESC LIMIT 1)
+                WHERE archived_at IS NULL AND year_id = (SELECT year_id FROM academic_years WHERE archived_at IS NULL ORDER BY start_date DESC NULLS LAST,year_id DESC LIMIT 1)
                 GROUP BY class_id
             """)
             

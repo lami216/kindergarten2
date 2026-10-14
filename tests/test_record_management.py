@@ -264,3 +264,67 @@ conn.close()
     for table in ('assets','expenses','teachers','classes','academic_years','registrations','monthly_receipts','payments','teacher_payments','teacher_advances','monthly_accounts','monthly_waivers','monthly_tariffs'):
         app.selectbox(key='records_type').set_value(table).run(timeout=40)
         assert not app.exception,table
+
+
+def test_cancelled_records_leave_actual_class_counts_and_reports(ledger):
+    from streamlit.testing.v1 import AppTest
+    conn,marker=ledger; sid=child(conn,marker); year='Y'+marker
+    with conn.cursor() as c:
+        c.execute('INSERT INTO academic_years(year_id,start_date,end_date) VALUES(%s,%s,%s)',(year,'2098-09-01','2099-06-30'))
+        c.execute('SELECT year_id FROM academic_years WHERE archived_at IS NULL ORDER BY start_date DESC NULLS LAST,year_id DESC LIMIT 1')
+        active_year=c.fetchone()['year_id']
+        c.execute("INSERT INTO classes(class_type,section) VALUES(%s,'أ') RETURNING class_id",(marker,)); cid=c.fetchone()['class_id']
+        c.execute("INSERT INTO registrations(student_id,class_id,year_id,status) VALUES(%s,%s,%s,'مسجل') RETURNING registration_id",(sid,cid,active_year)); reg=c.fetchone()['registration_id']
+        c.execute("INSERT INTO assets(item_name,category,quantity,unit_cost,total_cost) VALUES(%s,'معدات',1,100,100) RETURNING asset_id",(marker,)); asset=c.fetchone()['asset_id']
+    script='''import os,psycopg2,streamlit as st
+from psycopg2.extras import RealDictCursor
+from sections import classes,reports
+st.session_state['auth_user']='report QA'
+c=psycopg2.connect(os.environ['TEST_POSTGRES_DSN'],cursor_factory=RealDictCursor)
+c.autocommit=True
+SECTION.render(c)
+c.close()
+'''
+    app=AppTest.from_string(script.replace('SECTION','classes')).run(timeout=60)
+    assert not app.exception
+    data=app.dataframe[0].value
+    assert int(data[data['النوع']==marker]['عدد الطلاب (السنة الحالية)'].iloc[0])==1
+    R.cancel('registrations',reg,actor='report QA',reason='إلغاء التسجيل')
+    R.cancel('assets',asset,actor='report QA',reason='إلغاء الأصل')
+    app.run(timeout=60); assert not app.exception
+    data=app.dataframe[0].value
+    assert int(data[data['النوع']==marker]['عدد الطلاب (السنة الحالية)'].iloc[0])==0
+    report=AppTest.from_string(script.replace('SECTION','reports')).run(timeout=60)
+    report.radio[0].set_value('📋 قائمة التسجيلات').run(timeout=60)
+    assert not report.exception
+    for frame in report.dataframe:
+        if 'اسم الطالب' in frame.value:
+            assert 'طفل اختبار '+marker not in frame.value['اسم الطالب'].tolist()
+    report.radio[0].set_value('🏛️ تقرير الأصول والموجودات الثابتة').run(timeout=60)
+    assert not report.exception
+    for frame in report.dataframe:
+        if 'اسم الصنف' in frame.value: assert marker not in frame.value['اسم الصنف'].tolist()
+
+
+def test_deleted_natural_identifiers_can_be_registered_again(ledger):
+    conn,marker=ledger; teacher='T'+marker; year='Y'+marker
+    with conn.cursor() as c:
+        c.execute("INSERT INTO teachers(national_id,full_name) VALUES(%s,'معلمة')",(teacher,))
+        c.execute('INSERT INTO academic_years(year_id) VALUES(%s)',(year,))
+        c.execute("INSERT INTO classes(class_type,section) VALUES(%s,'أ') RETURNING class_id",(marker,)); group=c.fetchone()['class_id']
+    for table,ident in [('teachers',teacher),('academic_years',year),('classes',group)]:
+        R.cancel(table,ident,actor='record QA',reason='إلغاء إدخال مكرر')
+    with conn.cursor() as c:
+        c.execute("INSERT INTO teachers(national_id,display_national_id,full_name) VALUES(%s,%s,'معلمة مصححة')",('N'+marker,teacher))
+        c.execute('INSERT INTO academic_years(year_id,display_year_id) VALUES(%s,%s)',('N'+marker,year))
+        c.execute("INSERT INTO classes(class_type,section) VALUES(%s,'أ')",(marker,))
+    assert row(conn,'teachers',teacher)['archived_at'] is not None
+
+
+def test_mother_only_edit_does_not_create_empty_father_or_false_changes(ledger):
+    conn,marker=ledger; parent='P'+marker
+    with conn.cursor() as c:
+        c.execute("INSERT INTO parents(father_id,mother_name,mother_mobile) VALUES(%s,'أم فقط','22220000')",(parent,))
+    R.edit('parents',parent,{'father_name':'','father_mobile':'','mother_name':'أم مصححة'},actor='record QA',reason='تصحيح الاسم')
+    assert row(conn,'parents',parent)['father_name'] is None
+    assert R.edit('parents',parent,{'father_name':'','father_mobile':'','mother_name':'أم مصححة'},actor='record QA',reason='تكرار') is False

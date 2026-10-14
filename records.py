@@ -51,10 +51,15 @@ def migrate(conn):
         # No foreign-key policies or historical references are changed.
         c.execute('''ALTER TABLE teachers ADD COLUMN IF NOT EXISTS display_national_id VARCHAR(20);
             ALTER TABLE academic_years ADD COLUMN IF NOT EXISTS display_year_id VARCHAR(20);
-            CREATE UNIQUE INDEX IF NOT EXISTS teacher_public_identity_unique
-                ON teachers(COALESCE(display_national_id,national_id));
-            CREATE UNIQUE INDEX IF NOT EXISTS academic_public_identity_unique
-                ON academic_years(COALESCE(display_year_id,year_id));''')
+            DROP INDEX IF EXISTS teacher_public_identity_unique;
+            CREATE UNIQUE INDEX teacher_public_identity_unique
+                ON teachers(COALESCE(display_national_id,national_id)) WHERE archived_at IS NULL;
+            DROP INDEX IF EXISTS academic_public_identity_unique;
+            CREATE UNIQUE INDEX academic_public_identity_unique
+                ON academic_years(COALESCE(display_year_id,year_id)) WHERE archived_at IS NULL;
+            ALTER TABLE classes DROP CONSTRAINT IF EXISTS classes_class_type_section_key;
+            CREATE UNIQUE INDEX IF NOT EXISTS class_active_type_section_unique
+                ON classes(class_type,section) WHERE archived_at IS NULL;''')
     H.migrate(conn)
 
 
@@ -122,7 +127,7 @@ def edit(table, ident, updates, *, actor, reason, expected=None):
                 c.execute("SELECT pg_advisory_xact_lock(hashtextextended('department_mutation',0))")
             old=_lock(c,table,ident,expected)
             if old.get('archived_at'): raise ValueError('السجل محذوف؛ اعرضه في سجل التغييرات.')
-            updates=dict(updates)
+            updates={key:(value.strip() or None) if isinstance(value,str) else value for key,value in updates.items()}
             _validate(c,table,old,updates)
             identity={'teachers':('national_id','display_national_id'),'academic_years':('year_id','display_year_id')}.get(table)
             if identity and identity[0] in updates:

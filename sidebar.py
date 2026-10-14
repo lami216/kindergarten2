@@ -139,9 +139,12 @@ def render(conn):
         st.caption("المالية والتقارير")
         for item in NAV_ITEMS[5:7]:
             nav_button(*item)
-        with st.expander("ملفات الروضة", expanded=st.session_state.current_page in {x[0] for x in NAV_ITEMS[7:]}):
-            for item in NAV_ITEMS[7:]:
+        with st.expander("ملفات الروضة", expanded=st.session_state.current_page in {x[0] for x in NAV_ITEMS[7:11]}):
+            for item in NAV_ITEMS[7:11]:
                 nav_button(*item)
+        st.caption('المراجعة والتعديل')
+        for item in NAV_ITEMS[11:]:
+            nav_button(*item)
 
         st.markdown("<div style='margin-top:16px;'></div>", unsafe_allow_html=True)
         st.markdown("---")

@@ -33,7 +33,7 @@ def render(conn):
                 if not year_id:
                     st.warning("⚠️ يرجى إدخال السنة الدراسية.")
                 else:
-                    existing = ui.df(conn, "SELECT 1 FROM academic_years WHERE COALESCE(display_year_id,year_id)=%s", (year_id,))
+                    existing = ui.df(conn, "SELECT 1 FROM academic_years WHERE COALESCE(display_year_id,year_id)=%s AND archived_at IS NULL", (year_id,))
                     if not existing.empty:
                         st.error("❌ هذه السنة الدراسية موجودة مسبقاً.")
                     else:

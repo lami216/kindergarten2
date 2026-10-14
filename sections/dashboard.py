@@ -80,11 +80,11 @@ def render(conn):
         ui.kpi(c, "📦", "تشغيلية مدفوعة", money(financial["operational_cash"]), hint=CURRENCY)
         a, b, c = st.columns(3)
         ui.kpi(a, "📋", "استحقاق الرواتب الشهري", money(_get_scalar(conn,
-            "SELECT COALESCE(SUM(salary),0) FROM teachers")), hint=CURRENCY)
+            "SELECT COALESCE(SUM(salary),0) FROM teachers WHERE archived_at IS NULL")), hint=CURRENCY)
         ui.kpi(b, "⏳", "ديون الموردين", money(_get_scalar(conn,
             "SELECT COALESCE(SUM(amount-amount_paid),0) FROM expenses")), unit=CURRENCY)
         ui.kpi(c, "🧩", "الأصول والتجهيزات", money(_get_scalar(conn,
-            "SELECT COALESCE(SUM(total_cost),0) FROM assets")), hint=CURRENCY)
+            "SELECT COALESCE(SUM(total_cost),0) FROM assets WHERE archived_at IS NULL")), hint=CURRENCY)
 
     with st.expander("📈 الرسوم البيانية وآخر التسجيلات", expanded=False):
         left, right = st.columns([1.3, 1])
@@ -154,6 +154,7 @@ def render(conn):
                 exp_chart_df = ui.df(conn, """
                     SELECT category AS "الفئة", SUM(amount_paid) AS "الإجمالي"
                     FROM expenses
+                    WHERE cancelled_at IS NULL
                     GROUP BY category
                     ORDER BY "الإجمالي" DESC
                 """)
@@ -184,6 +185,7 @@ def render(conn):
                 ast_chart_df = ui.df(conn, """
                     SELECT category AS "الفئة", SUM(total_cost) AS "الإجمالي"
                     FROM assets
+                    WHERE archived_at IS NULL
                     GROUP BY category
                     ORDER BY "الإجمالي" DESC
                 """)
@@ -215,10 +217,12 @@ def render(conn):
             st.markdown("##### 🕓 آخر عمليات التسجيل")
             recent = ui.df(conn, """
                 SELECT s.full_name AS "اسم الطالب", (c.class_type || ' ' || c.section) AS "الصف",
-                       r.year_id AS "السنة الدراسية", r.status AS "الحالة"
+                       COALESCE(y.display_year_id,r.year_id) AS "السنة الدراسية", r.status AS "الحالة"
                 FROM registrations r
                 JOIN students s ON s.student_id = r.student_id
                 JOIN classes c ON c.class_id = r.class_id
+                LEFT JOIN academic_years y ON y.year_id=r.year_id
+                WHERE r.archived_at IS NULL AND s.archived_at IS NULL
                 ORDER BY r.registration_id DESC LIMIT 8
             """)
             if recent.empty:

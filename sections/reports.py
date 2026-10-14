@@ -314,10 +314,10 @@ def render(conn):
             return
         summary=F.financial_report(conn,start,end)
         money=lambda n: f"{H.format_money(n)} {F.CURRENCY}"
-        students_count=int(_get_scalar(conn,"SELECT COUNT(*) FROM students"))
-        teachers_count=int(_get_scalar(conn,"SELECT COUNT(*) FROM teachers"))
-        classes_count=int(_get_scalar(conn,"SELECT COUNT(*) FROM classes"))
-        assets=_get_scalar(conn,"SELECT COALESCE(SUM(total_cost),0) FROM assets")
+        students_count=int(_get_scalar(conn,"SELECT COUNT(*) FROM students WHERE archived_at IS NULL"))
+        teachers_count=int(_get_scalar(conn,"SELECT COUNT(*) FROM teachers WHERE archived_at IS NULL"))
+        classes_count=int(_get_scalar(conn,"SELECT COUNT(*) FROM classes WHERE archived_at IS NULL"))
+        assets=_get_scalar(conn,"SELECT COALESCE(SUM(total_cost),0) FROM assets WHERE archived_at IS NULL")
         st.markdown("### 📑 تقرير إدارة الروضة")
         a,b,c=st.columns(3)
         a.metric("الطلاب",students_count)
@@ -381,7 +381,7 @@ def render(conn):
             FROM registrations r
             JOIN students s ON r.student_id = s.student_id
             JOIN parents p ON s.father_id = p.father_id
-            WHERE r.class_id = %s AND r.year_id = %s
+            WHERE r.class_id = %s AND r.year_id = %s AND r.archived_at IS NULL AND s.archived_at IS NULL
             ORDER BY s.full_name ASC
         """
         result = ui.df(conn, query, (selected_class_id, selected_year))
@@ -447,9 +447,9 @@ def render(conn):
                    (c.class_type || ' ' || c.section) AS "الصف الحالي"
             FROM students s 
             JOIN parents p ON s.father_id = p.father_id
-            LEFT JOIN registrations r ON s.student_id = r.student_id
-            LEFT JOIN classes c ON r.class_id = c.class_id
-            WHERE 1=1
+            LEFT JOIN registrations r ON s.student_id = r.student_id AND r.archived_at IS NULL
+            LEFT JOIN classes c ON r.class_id = c.class_id AND c.archived_at IS NULL
+            WHERE s.archived_at IS NULL
         """
         params = []
         if gender_filter != "الكل":
@@ -487,7 +487,7 @@ def render(conn):
             JOIN students s ON r.student_id = s.student_id
             JOIN classes c ON c.class_id = r.class_id
             LEFT JOIN academic_years y ON y.year_id=r.year_id
-            WHERE 1=1
+            WHERE r.archived_at IS NULL AND s.archived_at IS NULL
         """
         params = []
         if year_filter != "الكل":
@@ -644,7 +644,7 @@ def render(conn):
                    unit_cost AS "سعر الوحدة", total_cost AS "التكلفة الكلية",
                    condition_status AS "الحالة", purchase_date AS "تاريخ الشراء"
             FROM assets
-            WHERE 1=1
+            WHERE archived_at IS NULL
         """
         params = []
         if condition_filter != "الكل":

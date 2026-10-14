@@ -132,6 +132,8 @@ def amend(table, ident, *, actor, reason, cancel=False, month=None, notes=None):
     connection=db.new_transaction_connection()
     try:
         with connection.cursor() as c:
+            import record_history
+            record_history.context(c,actor,reason)
             c.execute(f"SELECT * FROM {table} WHERE {column}=%s FOR UPDATE",(ident,))
             old=c.fetchone()
             if not old: raise ValueError("القسيمة غير موجودة.")
