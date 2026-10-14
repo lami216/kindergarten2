@@ -1,4 +1,4 @@
-name: Publish interface preview
+name: Build and publish interface preview
 
 on:
   push:
@@ -10,26 +10,68 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: interface-preview-pages
   cancel-in-progress: true
 
 jobs:
-  deploy:
+  build:
     if: github.ref == 'refs/heads/design/simpler-owner-workflow'
     runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check JavaScript
+        run: node --check docs/preview.js
+      - name: Build static preview
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import shutil
+
+          source = Path('docs')
+          output = Path('dist')
+          output.mkdir(exist_ok=True)
+          files = (
+              'index.html', 'preview.css', 'preview.js',
+              'IBMPlexSansArabic-Regular.ttf', 'IBM_Plex_Sans_Arabic_OFL.txt',
+              '.nojekyll',
+          )
+          for name in files:
+              asset = source / name
+              if not asset.is_file():
+                  raise SystemExit(f'Missing preview asset: {name}')
+              shutil.copy2(asset, output / name)
+          print(f'Built {len(files)} preview assets in dist/')
+          PY
+      - name: Downloadable preview build
+        uses: actions/upload-artifact@v4
+        with:
+          name: interface-preview-build
+          path: dist
+          include-hidden-files: true
+          retention-days: 14
+      - name: Prepare Pages build
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: docs
       - name: Publish synthetic preview
         id: deployment
         uses: actions/deploy-pages@v4
