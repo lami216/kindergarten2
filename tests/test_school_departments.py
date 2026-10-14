@@ -20,6 +20,7 @@ def placement(monkeypatch):
     monkeypatch.setattr(db,'new_transaction_connection',connection)
     admin=connection()
     admin.autocommit=True
+    F.update_tariffs(1000,2000,3000,'department-fixture')
     suffix=uuid.uuid4().hex[:8]
     groups=[D.create('قسم '+suffix+' '+str(i)) for i in (1,2)]
     children=[]
