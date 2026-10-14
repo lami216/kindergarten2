@@ -41,6 +41,10 @@ def section_header(icon, title, subtitle=""):
         st.markdown(f"<div class='section-sub'>{subtitle}</div>", unsafe_allow_html=True)
 
 
+def form_section_title(title):
+    st.markdown(f'<h3 class="form-section-title">{escape(str(title))}</h3>', unsafe_allow_html=True)
+
+
 def kpi(col, icon, label, value, bg="#E9F5EC", fg="#219044", hint="", unit=""):
     # Existing currency hints become an inline unit; explanatory hints stay below.
     if hint == "أوقية قديمة" and not unit:

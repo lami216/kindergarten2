@@ -33,7 +33,15 @@ async def run():
                 await page.screenshot(path=str(OUT/f"dashboard_{width}_night.png"),full_page=True)
                 assert await page.evaluate("document.documentElement.scrollWidth <= innerWidth+1")
                 await page.locator("#theme").click()
+                # Returning from a shortcut must not retain its green selection.
+                await page.get_by_role("button",name="💵 تسجيل دفعة",exact=True).click()
+                if width<=768:
+                    await page.locator("#menu").click()
+                await page.locator('nav [data-page="dashboard"]').click()
+                assert await page.locator(".home-shortcut.primary").count() == 0
                 await page.locator("#home-student").click()
+                await expect(page.locator("#student-form .steps")).to_have_count(0)
+                await expect(page.locator("#student-form .student-section-title")).to_have_count(3)
                 await page.get_by_label("اسم الطفل *",exact=True).fill("طفل معاينة")
                 await page.get_by_label("اسم الأم",exact=True).fill("أم معاينة")
                 await page.get_by_label("هاتف الأم",exact=True).fill("00000007")

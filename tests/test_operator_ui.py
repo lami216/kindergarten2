@@ -7,7 +7,7 @@ import psycopg2
 from streamlit.testing.v1 import AppTest
 
 
-def test_dashboard_has_no_period_controls_and_shortcuts_select_after_click():
+def test_dashboard_has_no_period_controls_or_sticky_shortcut_selection():
     source = '''
 from unittest.mock import patch
 import pandas as pd
@@ -30,11 +30,11 @@ with patch.object(F, 'financial_overview', return_value=dict.fromkeys(keys, 0)),
     app.button(key='home_payment').click().run(timeout=20)
     assert not app.exception
     assert app.session_state['current_page'] == 'payments'
-    assert app.button(key='home_payment').proto.type == 'primary'
+    assert app.button(key='home_payment').proto.type == 'secondary'
     assert app.button(key='home_add_student').proto.type == 'secondary'
     app.button(key='home_expense').click().run(timeout=20)
     assert app.session_state['current_page'] == 'expenses'
-    assert app.button(key='home_expense').proto.type == 'primary'
+    assert app.button(key='home_expense').proto.type == 'secondary'
     assert app.button(key='home_payment').proto.type == 'secondary'
 
 

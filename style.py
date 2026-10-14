@@ -286,20 +286,30 @@ div[data-testid="stDataFrame"] {
     background:var(--card-bg); border:1px solid var(--card-border);
     border-inline-start:3px solid var(--kpi-accent,var(--primary));
     border-radius:12px; padding:12px 14px; box-shadow:var(--shadow-sm);
-    display:grid !important; grid-template-columns:minmax(0,1fr) auto;
+    display:grid !important; grid-template-columns:minmax(0,1fr);
     align-items:center !important;
-    gap:8px !important; min-height:64px; height:100%; box-sizing:border-box;
+    gap:8px !important; min-height:92px; height:100%; box-sizing:border-box;
 }
 .kpi-heading { display:flex; align-items:center; gap:8px; min-width:0; }
 .kpi-label { color:var(--text-muted); font-size:12px !important; line-height:1.5; font-weight:600; min-width:0; overflow-wrap:break-word; }
 .kpi-icon { display:inline-flex; align-items:center; justify-content:center;
     width:28px; height:28px; min-width:28px; border-radius:8px; font-size:17px; flex-shrink:0; }
-.kpi-number { display:flex; flex-wrap:wrap; align-items:baseline; gap:6px; max-width:155px; }
+.kpi-number { display:flex; flex-wrap:wrap; align-items:baseline; gap:6px; max-width:100%; }
 .kpi-value { font-size:23px !important; font-weight:800; line-height:1.3;
     color:var(--text-main); overflow-wrap:anywhere; min-width:0; }
 .kpi-unit { color:var(--text-muted); font-size:11px; }
 .kpi-hint { grid-column:1/-1; color:var(--text-muted); font-size:11px; line-height:1.4; }
 .stMainBlockContainer { max-width:1400px; }
+.form-section-title {
+    display:table; background:var(--primary-light); color:var(--primary-dark) !important;
+    padding:8px 12px; border-radius:8px; font-size:15px !important;
+    font-weight:600 !important; margin:12px 0 !important; line-height:1.6;
+}
+.st-key-dashboard_summary [data-testid="stHorizontalBlock"] { flex-wrap:nowrap !important; }
+.st-key-dashboard_summary [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {
+    min-width:0 !important; width:auto !important; flex:1 1 0 !important;
+}
+
 @media (min-width:700px) and (max-width:1100px) {
     .kpi-card { padding:10px; }
     .kpi-heading { gap:5px; }

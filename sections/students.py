@@ -172,7 +172,7 @@ def render(conn):
             existing = st.checkbox("اختيار ولي أمر موجود", key=_form_key("kid_use_existing"))
         version = st.session_state["kid_form_version"]
         with st.container(border=True):
-            st.markdown("##### ١ · بيانات الطفل")
+            ui.form_section_title("١ · بيانات الطفل")
             a, b = st.columns(2)
             name = a.text_input("اسم الطفل *", key=_form_key("kid_name")).strip()
             birth = b.date_input("تاريخ الميلاد *", value=date(2022, 1, 1),
@@ -185,8 +185,7 @@ def render(conn):
             family = dict(father_name="", father_mobile="", mother_name="",
                           mother_mobile="", contact_email="")
             parent_id = None
-            st.markdown("##### ٢ · بيانات الأهل")
-            st.caption("يكفي اسم ورقم هاتف أحد الوالدين.")
+            ui.form_section_title("٢ · بيانات الأهل")
             if existing:
                 selected = st.selectbox("ولي الأمر الموجود", family_choices,
                     format_func=lambda option: option[1],
@@ -207,7 +206,7 @@ def render(conn):
 
             pickups = _pickup_editor(f"kid_add_{version}", in_form=False)
 
-            st.markdown("##### ٣ · الرسوم والدفع")
+            ui.form_section_title("٣ · الرسوم والدفع")
             # Unlike fields inside st.form, native segmented and amount controls
             # trigger immediate reruns and therefore a live receipt breakdown.
             mode = st.segmented_control("طريقة الرسوم", ["بلا دفعة", "دفع", "معفي"],
