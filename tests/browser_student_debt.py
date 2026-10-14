@@ -57,9 +57,11 @@ async def open_student(page,name,*,include_archived=False):
     await expect(select).to_be_visible()
     await select.click()
     await select.fill(name)
-    # Select by the exact visible student label. A transient BaseWeb
-    # highlight attribute is not guaranteed on virtualized options.
-    await page.get_by_text(name,exact=True).last.click(timeout=15000)
+    # The table exposes an offscreen accessibility cell with the same name.
+    # Select the actual dropdown option rather than that hidden duplicate.
+    option=page.get_by_role("option",name=name,exact=True)
+    await expect(option).to_be_visible(timeout=15000)
+    await option.click()
     if include_archived:
         await expect(page.get_by_text("الطالب مؤرشف",exact=False).first).to_be_visible(timeout=20000)
     else:
