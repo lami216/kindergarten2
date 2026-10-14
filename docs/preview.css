@@ -50,3 +50,7 @@ aside{position:fixed;inset:0 0 0 auto;width:250px;background:#073f31;color:#f0f7
  border-radius:8px; margin:26px 0 16px; font-size:14px; line-height:1.6;
 }
 .student-section-title:first-child { margin-top:0; }
+/* Name/count lists fit on a phone; financial tables retain their wider columns. */
+.table-wrap table:has(thead tr th:nth-child(2):last-child) { min-width:0; table-layout:fixed; }
+.table-wrap table:has(thead tr th:nth-child(2):last-child) th:first-child { width:70%; }
+.table-wrap table:has(thead tr th:nth-child(2):last-child) td { overflow-wrap:anywhere; }
