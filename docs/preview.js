@@ -86,7 +86,6 @@ $('#theme').onclick=()=>{document.body.classList.toggle('dark');$('#theme').text
 $('#menu').onclick=()=>{$('#sidebar').classList.toggle('open');$('#menu').setAttribute('aria-expanded',$('#sidebar').classList.contains('open'));};
 document.addEventListener('click',e=>{if(window.innerWidth<=768&&!$('#sidebar').contains(e.target)&&!$('#menu').contains(e.target)){$('#sidebar').classList.remove('open');$('#menu').setAttribute('aria-expanded','false');}});
 $('#preview-enter').onclick=()=>{document.body.classList.remove('login-mode');$('#preview-login').hidden=true;render();};
-$('#show-login').onclick=()=>{document.body.classList.add('login-mode');$('#preview-login').hidden=false;$('#sidebar').classList.remove('open');window.scrollTo(0,0);};
 $('#receipt-close').onclick=()=>$('#receipt-dialog').close();
 render();
 
