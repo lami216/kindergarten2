@@ -634,7 +634,7 @@ def initialize_in_transaction(c, student, options, actor, token):
         if options.get("registration") or buy_gilet:
             raise ValueError("حدد مبلغاً يغطي الرسوم المختارة.")
         return None
-    account={"student_id":student,"start_date":anchor}
+    account={"student_id":student,"start_date":anchor,"status":"regular"}
     receipt,_=_issue(c,account,cash,options.get("payer","ولي الأمر"),actor,
          uuid.uuid5(uuid.UUID(str(token)),"initial"),_hash(options),
          selected_registration=bool(options.get("registration")),

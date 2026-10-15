@@ -35,7 +35,7 @@ def _pin_business_timezone(conn, *, autocommit):
 
 @st.cache_resource(scope="session", validate=lambda connection: not connection.closed,
                    on_release=lambda connection: connection.close())
-def get_connection():
+def _session_connection(session_key):
     """
     Returns a PostgreSQL connection owned by one Streamlit session.
     The session cache reuses it across reruns and closes it on release.
@@ -58,6 +58,12 @@ def get_connection():
     
     return _pin_business_timezone(conn, autocommit=True)
 
+
+def get_connection():
+    # Explicit session identity also isolates callers whose runtime contexts
+    # happen to reuse the same session ID (including Streamlit AppTest).
+    st.session_state.setdefault('_db_session_key',str(uuid.uuid4()))
+    return _session_connection(st.session_state['_db_session_key'])
 
 
 def new_transaction_connection():
