@@ -118,6 +118,9 @@ def financial_panel(conn, student, *, payment=True, scope=None, profile=False, s
                hint="حتى: "+str(result["paid_through"]) if result["paid_through"] else "لا توجد تغطية مكتملة")
         if result["account"].get("archived_at"):
             st.warning("حساب مؤرشف: لم تُمحَ الرسوم أو الوصولات، ولن تُصدر شهور جديدة.")
+            if st.session_state.pop(f'monthly_preview_{panel_id}',None):
+                st.info('أُبطلت معاينة الدفع لأن الحساب أُرشف؛ لم تُسجل دفعة جديدة.')
+            payment=False
         if payment:
             token_key=f"monthly_pay_token_{panel_id}"
             version_key=f"monthly_pay_version_{panel_id}"
@@ -164,6 +167,7 @@ def financial_panel(conn, student, *, payment=True, scope=None, profile=False, s
                                 else f"هذه الدفعة محفوظة بالفعل — وصل #{rid}")
                             st.rerun()
                         except ValueError as error:
+                            st.session_state.pop(f'monthly_preview_{panel_id}',None)
                             st.error(str(error))
                         except Exception:
                             st.error("تعذّر تسجيل الدفعة؛ لم تُنشأ حركة نقدية.")

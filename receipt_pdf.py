@@ -81,6 +81,8 @@ def render_receipt_pdf(conn, receipt_id, *, student_id=None):
         stamp=r["cancelled_at"]
         if stamp is not None:
             line("تاريخ القرار",stamp.astimezone(ZoneInfo("Africa/Nouakchott")).strftime("%Y-%m-%d %H:%M"))
+    if any(item.get('snapshot_source')=='legacy_at_migration' for item in data['items']):
+        line('توثيق التفاصيل','ثُبتت البيانات المتاحة عند تحديث سجل الوصولات',font_size=9)
     y-=12
     c.setStrokeColor(colors.HexColor("#C3D7CE"))
     c.line(left,y,right,y)

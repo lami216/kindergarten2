@@ -379,6 +379,8 @@ def migrate(conn):
                 ON monthly_receipts(corrects_id);
         """)
         c.execute("INSERT INTO finance_schema_versions(version) VALUES(8) ON CONFLICT DO NOTHING")
+        import receipt_snapshots
+        receipt_snapshots.migrate(c)
     if not conn.autocommit:
         conn.commit()
 
@@ -418,7 +420,7 @@ def update_tariffs(registration, gilet, tuition, actor, *, reason='', expected=N
             # before updating prices. Future periods use the new tariff.
             c.execute("SELECT student_id FROM monthly_accounts WHERE status='regular' ORDER BY student_id")
             for row in c.fetchall():
-                locked=_lock(c,row["student_id"])
+                locked=_lock(c,row["student_id"],for_payment=False)
                 _due_started(c,row["student_id"],locked)
             c.execute("SELECT registration,gilet,tuition FROM monthly_tariffs WHERE id=1")
             old = c.fetchone()
@@ -447,6 +449,8 @@ def _lock(c, student, *, for_payment=True):
     row = c.fetchone()
     if not row:
         raise ValueError("لا يوجد حساب شهري لهذا الطفل.")
+    if for_payment and row.get('archived_at'):
+        raise ValueError('الحساب مؤرشف؛ أُبطلت معاينة الدفع ولا تُقبل دفعات جديدة.')
     if for_payment and row["status"] != "regular":
         raise ValueError("هذا الطفل معفي من الرسوم؛ لا تُسجل له دفعات.")
     return row
@@ -557,6 +561,9 @@ def _issue(c, account, cash, payer, actor, token, fingerprint,
         if duplicate["request_hash"] != fingerprint:
             raise ValueError("تعارض طلب الدفعة؛ تغيرت البيانات لنفس رمز الحفظ.")
         return duplicate["receipt_id"],False
+    # Every cash-creation caller rechecks the canonical locked account. A
+    # historical replacement is distinct from receiving new cash.
+    account=_lock(c,account['student_id'],for_payment=corrects_id is None)
     day = as_of or today()
     c.execute("""INSERT INTO monthly_receipts
       (student_id,amount,received_on,payer,request_token,request_hash,created_by,corrects_id)
@@ -573,8 +580,10 @@ def _issue(c, account, cash, payer, actor, token, fingerprint,
               (receipt,))
     if int(c.fetchone()["total"]) != cash:
         raise ValueError("تعذّر توزيع مبلغ الدفعة بالكامل.")
-    c.execute("""SELECT allocation_id,fee_id,period_id,amount FROM monthly_allocations
-                 WHERE receipt_id=%s ORDER BY allocation_id""",(receipt,))
+    c.execute("""SELECT a.allocation_id,a.fee_id,a.period_id,a.amount,
+                 s.fee_kind,s.period_no,s.starts,s.ends,s.stored_fee_price
+                 FROM monthly_allocations a JOIN monthly_allocation_snapshots s USING(allocation_id)
+                 WHERE a.receipt_id=%s ORDER BY a.allocation_id""",(receipt,))
     allocation_snapshot=[dict(x) for x in c.fetchall()]
     _audit(c,account["student_id"],receipt,"receipt_issued",actor,{},
            {"receipt_id":receipt,"amount":cash,"received_on":str(day),
@@ -820,7 +829,9 @@ def correct_receipt(receipt_id, new_amount, reason, *, actor="مديرة الر�
             old = c.fetchone()
             if not old:
                 raise ValueError("الوصل غير موجود.")
-            account = _lock(c,old["student_id"])
+            account = _lock(c,old["student_id"],for_payment=False)
+            if account['status']!='regular':
+                raise ValueError('الحساب معفي؛ يمكن إلغاء الوصل القديم دون تسجيل قبض جديد.')
             correct_date = received_on if received_on is not None else old["received_on"]
             if isinstance(correct_date,str):
                 correct_date = date.fromisoformat(correct_date)
@@ -881,7 +892,7 @@ def ensure_started(student, as_of=None):
     conn=db.new_transaction_connection()
     try:
         with conn.cursor() as c:
-            account=_lock(c,student)
+            account=_lock(c,student,for_payment=False)
             _due_started(c,student,account,as_of)
         conn.commit()
     except Exception:

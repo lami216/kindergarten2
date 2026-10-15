@@ -28,18 +28,18 @@ def receipt_detail(conn, receipt_id, *, student_id=None):
         if row is None or (student_id is not None and row["student_id"]!=student_id):
             raise ValueError("الوصل غير موجود في ملف الطفل.")
         receipt=dict(row)
-        c.execute("""SELECT a.allocation_id,a.amount,a.active,f.kind AS fee_kind,
-             p.period_no,p.starts,p.ends,
-             COALESCE(f.price,p.price) AS stored_fee_price
+        c.execute("""SELECT a.allocation_id,a.amount,a.active,s.fee_kind,
+             s.period_no,s.starts,s.ends,s.stored_fee_price,s.source AS snapshot_source
           FROM monthly_allocations a
-          LEFT JOIN monthly_fees f ON f.fee_id=a.fee_id
-          LEFT JOIN monthly_periods p ON p.period_id=a.period_id
+          LEFT JOIN monthly_allocation_snapshots s ON s.allocation_id=a.allocation_id
           WHERE a.receipt_id=%s ORDER BY a.allocation_id""",(int(receipt_id),))
         items=[dict(r) for r in c.fetchall()]
         c.execute("""SELECT receipt_id,amount,received_on,state
                      FROM monthly_receipts WHERE corrects_id=%s
                      ORDER BY receipt_id""",(int(receipt_id),))
         replacements=[dict(r) for r in c.fetchall()]
+    if any(i['snapshot_source'] is None for i in items):
+        raise ValueError('تفصيل الوصل الثابت غير مكتمل؛ يلزم تدقيقه قبل التصدير.')
     if sum(int(i["amount"]) for i in items)!=int(receipt["amount"]):
         raise ValueError("أصل الوصل وتفصيل تخصيصاته غير متطابقين؛ يلزم تدقيق مالي.")
     return {"receipt":receipt,"items":items,"replacements":replacements}
