@@ -22,7 +22,7 @@ aside{position:fixed;inset:0 0 0 auto;width:250px;background:#073f31;color:#f0f7
 .school-logo img { position:absolute; width:100%; max-width:none; height:auto; top:-64.06%; left:0; }
 .sidebar-logo { width:58px; }
 .brand { align-items:center; }
-.login-screen { min-height:100dvh; display:grid; place-items:center; padding:24px; }
+.login-screen { min-height:100dvh; display:grid; place-items:start center; padding:clamp(28px,8dvh,80px) 24px 24px; }
 .login-screen[hidden] { display:none; }
 .login-card { width:min(100%,420px); padding:32px; background:var(--surface); border:1px solid var(--border); border-radius:20px; text-align:center; box-shadow:0 18px 60px #153e2f0a; }
 .login-logo { width:180px; margin:0 auto 22px; }
