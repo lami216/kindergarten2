@@ -9,7 +9,9 @@ sections/*.py — edit those files independently without touching this one.
 import os
 import streamlit as st
 
-from db import init_db, get_connection
+from db import assert_schema_ready, get_connection
+from schema_migrations import SchemaNotReady
+import psycopg2
 from style import apply_style
 import auth
 import sidebar
@@ -30,8 +32,17 @@ apply_style()
 if not auth.check_authentication():
     st.stop()
 
-init_db()
-conn = get_connection()
+try:
+    conn = get_connection()
+    assert_schema_ready(conn)
+except SchemaNotReady:
+    st.info('التطبيق قيد التحديث. يرجى المحاولة بعد إتمام التحديث من المسؤول.')
+    st.stop()
+except psycopg2.Error:
+    st.error('تعذّر الاتصال بقاعدة البيانات. يرجى المحاولة مجددًا بعد قليل.')
+    if st.button('إعادة المحاولة'):
+        st.rerun()
+    st.stop()
 import record_history
 with conn.cursor() as cursor:
     record_history.context(cursor, st.session_state.get('auth_user'), local=False)

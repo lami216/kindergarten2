@@ -617,6 +617,33 @@ div[data-testid="stForm"] div[data-baseweb="input"]:focus-within,
 [role="option"], [data-baseweb="calendar"], [data-baseweb="calendar"] button {
     background:var(--card-bg) !important; color:var(--text-main) !important;
 }
+/* BaseWeb renders the calendar in a portal, outside .stApp. Day cells are
+   divs with inline light-theme colors, not buttons. Paint the whole surface. */
+[data-baseweb="calendar"], [data-baseweb="calendar"] :is(div,button,span,select) {
+    background-color:var(--card-bg) !important;
+    color:var(--text-main) !important;
+    opacity:1 !important;
+}
+[data-baseweb="calendar"] svg { fill:currentColor !important; }
+[data-baseweb="calendar"] [aria-disabled="true"],
+[data-baseweb="calendar"] [aria-disabled="true"] *,
+[data-baseweb="calendar"] [aria-label^="Not available"],
+[data-baseweb="calendar"] [aria-label^="Not available"] * {
+    color:var(--text-muted) !important; cursor:not-allowed;
+}
+[data-baseweb="calendar"] [role="gridcell"]:not([aria-disabled="true"]):hover,
+[data-baseweb="calendar"] [role="gridcell"]:not([aria-disabled="true"]):hover * {
+    background-color:var(--primary-light) !important;
+}
+[data-baseweb="calendar"] [aria-selected="true"],
+[data-baseweb="calendar"] [aria-selected="true"] *,
+[data-baseweb="calendar"] [aria-label^="Selected"],
+[data-baseweb="calendar"] [aria-label^="Selected"] * {
+    background-color:#006348 !important; color:#fff !important;
+}
+[data-baseweb="calendar"] :focus-visible {
+    outline:2px solid #8dd9bc !important; outline-offset:-2px;
+}
 [data-baseweb="select"] span { color:var(--text-main) !important; }
 [role="option"]:hover, [role="option"][aria-selected="true"] {
     background:var(--primary-light) !important;

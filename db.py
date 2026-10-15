@@ -209,11 +209,25 @@ def save_child_with_family(child, family, existing_parent_id, request_token,
 
 
 def init_db():
-    """
-    Ensures required PostgreSQL tables exist on startup.
-    Runs fast schema checks and structural migrations.
-    """
-    conn = get_connection()
+    """Explicit setup/test compatibility entrypoint. Never called by pages."""
+    from schema_migrations import upgrade
+    return upgrade(get_connection())
+
+
+def assert_schema_ready(conn):
+    """Readiness only: opening a page must never execute schema changes."""
+    from schema_migrations import VERSION, SchemaNotReady
+    with conn.cursor() as cursor:
+        cursor.execute("SELECT to_regclass('app_schema_migrations') AS relation")
+        if not cursor.fetchone()['relation']:
+            raise SchemaNotReady()
+        cursor.execute('SELECT MAX(version) AS version FROM app_schema_migrations')
+        if cursor.fetchone()['version'] != VERSION:
+            raise SchemaNotReady()
+
+
+def _apply_schema(conn):
+    """Schema body; caller owns the migration lock and the entire transaction."""
     with conn.cursor() as cur:
         cur.execute("""
             CREATE TABLE IF NOT EXISTS academic_years (

@@ -381,8 +381,6 @@ def migrate(conn):
         c.execute("INSERT INTO finance_schema_versions(version) VALUES(8) ON CONFLICT DO NOTHING")
         import receipt_snapshots
         receipt_snapshots.migrate(c)
-    if not conn.autocommit:
-        conn.commit()
 
 
 def prices(conn):
@@ -1038,6 +1036,77 @@ def initialize_existing_account(student, start_date, mode, confirmed, *, actor="
         connection.close()
 
 
+def _ensure_all_started(as_of):
+    """One transaction, ordered account locks and a set-based period insert.
+
+    The tariff lock matches update_tariffs; existing prices are immutable here.
+    Intervals are always added to the original anchor (Jan 31 -> Mar 31).
+    """
+    cutoff = min(as_of, today())
+    connection = db.new_transaction_connection()
+    try:
+        with connection.cursor() as c:
+            c.execute('SELECT pg_advisory_xact_lock(82416079)')
+            c.execute("""SELECT student_id,start_date,departure_on FROM monthly_accounts
+                         WHERE status='regular' AND start_date<=%s
+                         ORDER BY student_id FOR UPDATE""", (cutoff,))
+            accounts = c.fetchall()
+            if accounts:
+                for account in accounts:
+                    end = min(cutoff, account['departure_on'] or cutoff)
+                    if anniversary(account['start_date'],1199)<=end:
+                        raise ValueError('الجدول الزمني أطول من المسموح.')
+                tariff = _tariffs(c)
+                c.execute("""INSERT INTO monthly_periods(student_id,period_no,starts,ends,price)
+                    SELECT a.student_id,n,
+                        (a.start_date+make_interval(months=>n))::date,
+                        (a.start_date+make_interval(months=>n+1))::date,%s
+                    FROM monthly_accounts a CROSS JOIN LATERAL generate_series(0,
+                        LEAST(1198, GREATEST(0,
+                            (extract(year FROM %s::date)::int-extract(year FROM a.start_date)::int)*12
+                            +extract(month FROM %s::date)::int-extract(month FROM a.start_date)::int))) n
+                    WHERE a.status='regular' AND a.start_date<=%s
+                        AND (a.start_date+make_interval(months=>n))::date
+                            <=LEAST(%s::date,COALESCE(a.departure_on,%s::date))
+                    ON CONFLICT(student_id,period_no) DO NOTHING""",
+                    (tariff['tuition'],cutoff,cutoff,cutoff,cutoff,cutoff))
+        connection.commit()
+    except Exception:
+        connection.rollback()
+        raise
+    finally:
+        connection.close()
+
+
+def _total_due(conn, day):
+    """Same obligations/cutoffs as projection, aggregated without child queries."""
+    with conn.cursor() as c:
+        c.execute("""WITH obligations AS (
+            SELECT 'fee' AS kind,f.fee_id AS id, f.price
+            FROM monthly_fees f JOIN monthly_accounts a USING(student_id)
+            WHERE a.start_date<=%(day)s
+            UNION ALL
+            SELECT 'period',p.period_id,p.price
+            FROM monthly_periods p JOIN monthly_accounts a USING(student_id)
+            WHERE a.start_date<=%(day)s AND p.starts<=LEAST(%(day)s,
+                COALESCE(a.departure_on,%(day)s),
+                CASE WHEN a.status='exempt' THEN COALESCE(a.exempt_from,%(day)s) ELSE %(day)s END)
+        ), paid AS (
+            SELECT CASE WHEN fee_id IS NOT NULL THEN 'fee' ELSE 'period' END AS kind,
+                COALESCE(fee_id,period_id) AS id,SUM(x.amount) AS amount
+            FROM monthly_allocations x JOIN monthly_receipts r USING(receipt_id)
+            WHERE x.active AND r.state='active' AND r.received_on<=%(day)s
+            GROUP BY fee_id,period_id
+        ), waived AS (
+            SELECT CASE WHEN fee_id IS NOT NULL THEN 'fee' ELSE 'period' END AS kind,
+                COALESCE(fee_id,period_id) AS id,SUM(amount) AS amount FROM monthly_waivers
+            WHERE effective_on<=%(day)s GROUP BY fee_id,period_id
+        ) SELECT COALESCE(SUM(GREATEST(0,o.price-COALESCE(p.amount,0)-COALESCE(w.amount,0))),0) AS due
+        FROM obligations o LEFT JOIN paid p USING(kind,id)
+        LEFT JOIN waived w USING(kind,id)""", {'day':day})
+        return int(c.fetchone()['due'])
+
+
 def financial_report(conn, start, end):
     """ONE old-ouguiya cash projection; allocations partition receipts, not extra cash.
 
@@ -1047,12 +1116,7 @@ def financial_report(conn, start, end):
     Student debt is a stock at the selected end date, not a cash expense.
     """
     _assert_date_range(start,end)
-    with conn.cursor() as c:
-        c.execute("SELECT student_id,status FROM monthly_accounts")
-        accounts=[dict(r) for r in c.fetchall()]
-    students=[r["student_id"] for r in accounts]
-    for account in accounts:
-        if account["status"]=="regular": ensure_started(account["student_id"],as_of=end)
+    _ensure_all_started(end)
     with conn.cursor() as c:
         c.execute("""SELECT COALESCE(SUM(amount),0) AS n FROM monthly_receipts
                      WHERE state='active' AND received_on BETWEEN %s AND %s""",(start,end))
@@ -1106,7 +1170,7 @@ def financial_report(conn, start, end):
         c.execute("""SELECT COALESCE(SUM(COALESCE(cash_amount,amount)),0) AS n FROM teacher_advances
                      WHERE advance_date BETWEEN %s AND %s""",(start,end))
         advances=c.fetchone()["n"]
-    outstanding=sum(projection(conn,s,end,materialize=False)["due_now"] for s in students)
+    outstanding=_total_due(conn,end)
     outflow=operational+salaries+advances
     # An advance deducted later from salary is not another disbursement.
     return {"registration_children":counts.get("registration",0),

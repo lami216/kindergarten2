@@ -20,14 +20,14 @@ st.set_page_config(page_title="QA — الروضة", layout="wide", initial_side
 st.session_state["auth_user"] = "Chromium QA"
 apply_style()
 
-@st.cache_resource
-def _connection():
-    conn = psycopg2.connect(os.environ["TEST_POSTGRES_DSN"],
-                            cursor_factory=RealDictCursor)
-    conn.autocommit = True
-    return conn
-
-conn = _connection()
+import db
+conn = db.get_connection()
+st.markdown(f'<div id="qa-session" data-backend="{conn.get_backend_pid()}"></div>',unsafe_allow_html=True)
+if hasattr(db, 'assert_schema_ready'):
+    db.assert_schema_ready(conn)
+    import record_history
+    with conn.cursor() as cursor:
+        record_history.context(cursor, st.session_state['auth_user'], local=False)
 section = sidebar.render(conn)
 if section == "students":
     students.render(conn)
