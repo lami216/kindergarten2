@@ -45,7 +45,9 @@ jobs:
         env:
           TZ: Pacific/Honolulu
           PGOPTIONS: -c timezone=Europe/Berlin
-        run: python -m pytest -q tests/
+        run: |
+          python -m pytest -q tests/
+          cat visual-evidence/overview-500.json
       - name: Install Chromium for browser tests
         run: python -m playwright install --with-deps chromium
       - name: Synthetic Pages preview journeys and mobile screenshots
