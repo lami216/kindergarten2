@@ -49,7 +49,9 @@ async def calendar(page,width):
     await expect(field).to_have_value(F.today().strftime('%Y/%m/%d'))
     samples=[]
     for attempt in range(2):
-        await field.click()
+        # ArrowDown opens or enters the calendar without toggling an already
+        # open popover after committing a manually typed date.
+        await field.press('ArrowDown')
         popup=page.locator('[data-baseweb="calendar"]')
         await expect(popup).to_be_visible()
         probe=await popup.evaluate('''root=>{
@@ -75,7 +77,7 @@ async def calendar(page,width):
         await page.keyboard.press('Escape')
         await expect(popup).to_be_hidden()
     # Actual selection works, then daylight remains readable and draft survives.
-    await field.click()
+    await field.press('ArrowDown')
     cell=page.locator('[data-baseweb="calendar"] [role="gridcell"][aria-label^="Choose"]').first
     if not await cell.count():
         cell=page.locator('[data-baseweb="calendar"] [role="gridcell"][aria-label^="Selected"]').first
