@@ -82,7 +82,7 @@ def test_old_child_form_cannot_erase_new_medical_information(ledger):
 def test_complete_export_includes_monthly_cash_and_full_json_history(ledger):
     conn, marker = ledger
     student = child(conn, marker, cash=12000)
-    long_note = 'نص ' * 12000
+    long_note = ('نص ' * 12000).strip()
     R.edit('students', student, {'general_notes': long_note}, actor='export QA', reason='نص طويل')
     payload, manifest = build_export()
     assert verify_export(payload) == manifest
@@ -104,6 +104,36 @@ def test_complete_export_includes_monthly_cash_and_full_json_history(ledger):
                 damaged.writestr(name, b'[]' if name == 'data/monthly_receipts.json' else archive.read(name))
         with pytest.raises(ValueError):
             verify_export(broken.getvalue())
+
+
+def test_export_failure_is_reported_instead_of_skipping_a_table(ledger, monkeypatch):
+    conn, marker = ledger
+    child(conn, marker)
+    def fail(value):
+        raise RuntimeError('export failure')
+    monkeypatch.setattr('data_export._cell', fail)
+    with pytest.raises(RuntimeError, match='export failure'):
+        build_export()
+
+
+@pytest.mark.parametrize('table', ['teacher_payments', 'teacher_advances'])
+def test_payroll_document_and_cash_voids_are_distinct_and_stale_forms_fail(ledger, table):
+    import payroll_finance as P
+    conn, marker = ledger
+    teacher = 'T'+marker
+    with conn.cursor() as c:
+        c.execute('INSERT INTO teachers(national_id,full_name,salary) VALUES(%s,%s,1000)', (teacher, marker))
+    create = P.save_salary if table == 'teacher_payments' else P.save_advance
+    ident, _ = create(teacher, str(F.today())[:7], 1000, actor='review')
+    previous = row(conn, table, ident)
+    P.amend(table, ident, month=str(F.today())[:7], notes='معلومة أحدث', actor='other', reason='تعديل آخر')
+    with pytest.raises(ValueError, match='تغيّر'):
+        P.amend(table, ident, cancel=True, actor='review', reason='نموذج قديم', expected=R.revision(previous))
+    fresh = row(conn, table, ident)
+    P.amend(table, ident, cancel=True, actor='review', reason='إلغاء المستند فقط', expected=R.revision(fresh))
+    assert row(conn, table, ident)['cash_amount'] == 1000
+    P.correct_cash_entry(table, ident, cancel=True, actor='review', reason='إلغاء إدخال مالي خاطئ')
+    assert row(conn, table, ident)['cash_amount'] == 0
 
 
 def test_session_connections_and_audit_identity_cannot_interleave(ledger):
