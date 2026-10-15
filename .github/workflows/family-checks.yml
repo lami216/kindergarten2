@@ -68,6 +68,8 @@ jobs:
           done
       # Historical receipt code/audit is retained and tested by pytest, but the
       # old annual-payment operator tab is intentionally no longer reachable.
+      - name: Chromium stale payment window after archive
+        run: PYTHONPATH=. python tests/browser_archive_receipt.py
       - name: Chromium salary and advance double-submission
         run: PYTHONPATH=. python tests/browser_payroll_review.py
       - name: Chromium student debt refusal and waiver on mobile
