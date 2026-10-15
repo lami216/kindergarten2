@@ -294,44 +294,4 @@ def render(conn):
 
                 ast_data = df_ast_manage[df_ast_manage["asset_id"] == selected_ast_id].iloc[0]
 
-                col_ast_edit, col_ast_act = st.columns([2, 1])
-                with col_ast_edit:
-                    st.markdown("##### ✏️ تعديل بيانات الأصل")
-                    with st.form(f"edit_ast_{selected_ast_id}"):
-                        e_name = st.text_input("اسم الأصل", value=ast_data["item_name"])
-                        e_cat = st.selectbox("الفئة", ASSET_CATEGORIES, index=ASSET_CATEGORIES.index(ast_data["category"]) if ast_data["category"] in ASSET_CATEGORIES else 0)
-                        e_qty = st.number_input("الكمية", min_value=1, value=int(ast_data["quantity"]))
-                        e_ucost = st.number_input("سعر القطعة", value=float(ast_data["unit_cost"]), format="%.2f")
-                        e_status = st.selectbox("الحالة", ASSET_CONDITIONS, index=ASSET_CONDITIONS.index(ast_data["condition_status"]) if ast_data["condition_status"] in ASSET_CONDITIONS else 0)
-                        e_notes = st.text_area("ملاحظات", value=ast_data["notes"] or "", height=70)
-
-                        if st.form_submit_button("تحديث الأصل", type="primary", use_container_width=True):
-                            new_total = e_qty * e_ucost
-                            with conn.cursor() as cur:
-                                cur.execute("""
-                                    UPDATE assets
-                                    SET item_name = %s, category = %s, quantity = %s, unit_cost = %s,
-                                        total_cost = %s, condition_status = %s, notes = %s
-                                    WHERE asset_id = %s
-                                """, (e_name, e_cat, e_qty, e_ucost, new_total, e_status, e_notes, selected_ast_id))
-                            st.success("✅ تم تحديث بيانات الأصل بنجاح!")
-                            st.rerun()
-
-                with col_ast_act:
-                    st.markdown("##### 🚨 إتاحة والإتلاف")
-                    with st.container(border=True):
-                        if ast_data["condition_status"] != "تالفة/مستهلكة":
-                            if st.button("🔥 تسجيل كـ (تالفة/مستهلكة)", key=f"scrap_{selected_ast_id}", use_container_width=True):
-                                with conn.cursor() as cur:
-                                    cur.execute("UPDATE assets SET condition_status = 'تالفة/مستهلكة' WHERE asset_id = %s", (selected_ast_id,))
-                                st.warning("⚠️ تم تغيير الحالة إلى تالفة/مستهلكة.")
-                                st.rerun()
-                        else:
-                            st.info("ℹ️ الأصل مسجل كـ تالف حالياً.")
-
-                        st.write("---")
-                        if st.button("🗑️ حذف الأصل نهائياً", key=f"del_ast_{selected_ast_id}", use_container_width=True):
-                            with conn.cursor() as cur:
-                                cur.execute("DELETE FROM assets WHERE asset_id = %s", (selected_ast_id,))
-                            st.success("🗑️ تم الحذف بنجاح!")
-                            st.rerun()
+                ui.open_record_editor('assets',int(selected_ast_id),'تعديل بيانات الأصل / تغيير حالته / حذفه')

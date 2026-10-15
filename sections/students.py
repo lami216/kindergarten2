@@ -372,6 +372,8 @@ def render(conn):
                              "لم تُستأنف رسوم شهرية جديدة.")
                 return
             with st.expander(f"⚙️ تعديل بيانات: {_text(row['full_name'])}", expanded=False):
+                snapshot,snapshot_key=ui.edit_snapshot(conn,'students',sid,scope='student_'+sid,widget_prefix=f'edit_{sid}_')
+                row=pd.Series(snapshot)
                 with st.form(f"edit_student_form_{sid}"):
                     a, b, c = st.columns(3)
                     e_name = a.text_input("اسم الطفل", value=_text(row["full_name"]),
@@ -418,19 +420,14 @@ def render(conn):
                                 raise ValueError("يرجى كتابة اسم طفل صحيح.")
                             if len(e_place.strip()) > 100:
                                 raise ValueError("مكان الميلاد أطول من المسموح.")
-                            with conn.cursor() as cur:
-                                cur.execute("""
-                                    UPDATE students SET full_name=%s, birth_date=%s,
-                                        gender=%s, birth_place=%s, address=%s,
-                                        medical_details=%s, has_medical_condition=%s,
-                                        allergies=%s, general_notes=%s,
-                                        authorized_pickups=%s::jsonb WHERE student_id=%s
-                                """, (e_name.strip(), e_birth, e_gender,
-                                      e_place.strip() or None, e_address.strip() or None,
-                                      e_medical.strip() or None,
-                                      _medical_flag(old_medical, old_flag, e_medical, clear_legacy),
-                                      e_allergy.strip() or None, e_notes.strip() or None,
-                                      json.dumps(people, ensure_ascii=False), sid))
+                            import records as R
+                            R.edit('students',sid,dict(full_name=e_name,birth_date=e_birth,
+                                gender=e_gender,birth_place=e_place,address=e_address,
+                                medical_details=e_medical,allergies=e_allergy,general_notes=e_notes,
+                                authorized_pickups=people),actor=st.session_state.get('auth_user'),
+                                reason='تعديل بيانات الطفل من ملفه',expected=R.revision(snapshot),
+                                clear_legacy_medical=clear_legacy)
+                            st.session_state.pop(snapshot_key,None)
                             st.success("تم حفظ التعديلات.")
                             st.rerun()
                         except ValueError as exc:

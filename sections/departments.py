@@ -2,7 +2,7 @@
 import streamlit as st
 import ui
 import school_departments as D
-from student_search import filter_children
+from student_search import filter_children, child_labels
 
 
 def render(conn):
@@ -49,7 +49,8 @@ def render(conn):
     term=st.text_input('بحث باسم الطفل أو هاتف الأب أو الأم',key='department_search')
     shown=filter_children(shown,term)
     ui.dataframe(shown.rename(columns={'full_name':'الطفل','department_name':'القسم'})[['الطفل','القسم']],hide_index=True,use_container_width=True)
-    labels={r.student_id:f'{r.full_name} — {r.department_name}' for r in shown.itertuples()}
+    context=child_labels(shown)
+    labels={r.student_id:context[r.student_id]+f' — {r.department_name}' for r in shown.itertuples()}
     version=st.session_state.get('department_transfer_version',0)
     key=f'department_children_{version}'
     if key in st.session_state:

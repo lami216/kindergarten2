@@ -120,7 +120,7 @@ def save_advance(national_id, month, cash, notes="", *, actor, token=None,on_dat
          "notes":str(notes or "")},actor=actor,token=token)
 
 
-def amend(table, ident, *, actor, reason, cancel=False, month=None, notes=None):
+def amend(table, ident, *, actor, reason, cancel=False, month=None, notes=None, expected=None):
     """Document correction/void, not a refund: cash_amount never changes."""
     if table not in ("teacher_payments","teacher_advances"):
         raise ValueError("نوع القسيمة غير صالح.")
@@ -137,6 +137,9 @@ def amend(table, ident, *, actor, reason, cancel=False, month=None, notes=None):
             c.execute(f"SELECT * FROM {table} WHERE {column}=%s FOR UPDATE",(ident,))
             old=c.fetchone()
             if not old: raise ValueError("القسيمة غير موجودة.")
+            import records as R
+            if expected is not None and R.revision(old)!=expected:
+                raise ValueError('تغيّر السجل منذ فتحه؛ حدّث النموذج وراجع البيانات الجديدة.')
             if old["record_state"]!="active":
                 raise ValueError("القسيمة ملغاة بالفعل.")
             if cancel:

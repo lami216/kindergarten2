@@ -142,3 +142,24 @@ def render_logo(width=140, center=True, drop_shadow=True):
         <div style="width:{width}px; max-width:100%; border-radius:50%; {shadow}">{logo}</div>
     </div>
     """, unsafe_allow_html=True)
+
+
+def edit_snapshot(conn, table, ident, *, scope, widget_prefix):
+    """Freeze the version paired with displayed widget values, never a submit-time row."""
+    import records as R
+    from psycopg2 import sql
+    import record_history as H
+    key='edit_snapshot_'+scope
+    if st.button('تحديث بيانات النموذج',key='refresh_'+key):
+        st.session_state.pop(key,None)
+        for name in list(st.session_state):
+            if name.startswith(widget_prefix): del st.session_state[name]
+        st.rerun()
+    with conn.cursor() as c:
+        c.execute(sql.SQL('SELECT * FROM {} WHERE {}=%s').format(sql.Identifier(table),sql.Identifier(H.TABLES[table])),(ident,))
+        fresh=dict(c.fetchone())
+    if key not in st.session_state: st.session_state[key]=fresh
+    old=st.session_state[key]
+    if R.revision(old)!=R.revision(fresh):
+        st.warning('تغيّرت البيانات بعد فتح النموذج؛ حدّثه وراجع المعلومات الجديدة قبل الحفظ.')
+    return old,key

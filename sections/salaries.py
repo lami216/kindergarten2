@@ -140,7 +140,8 @@ def render(conn):
                     )
 
                 ui.open_record_editor('teacher_payments',int(p_id),'تعديل مبلغ الراتب أو إلغاء الإدخال')
-                # ✏️ Edit & Delete Form
+                salary_snapshot,salary_snapshot_key=ui.edit_snapshot(conn,'teacher_payments',int(p_id),scope='salary_'+str(p_id),widget_prefix='salary_meta_')
+                # Document-only review keeps cash; monetary corrections use the full editor.
                 with st.expander(f"✏️ تصحيح بيانات / إلغاء القسيمة #{p_id}", expanded=False):
                     with st.form("edit_salary_form"):
                         ec1, ec2, ec3 = st.columns(3)
@@ -157,13 +158,17 @@ def render(conn):
 
                         st.caption("التصحيح هنا للبيانات فقط؛ النقد المصروف أصلاً لا يتغير ولا تُعتبر الإزالة استردادًا.")
                         reason = st.text_input("سبب التصحيح أو الإلغاء *",key=f"payroll_reason_{p_id}")
+                        confirm_document=st.checkbox('أفهم أن إلغاء القسيمة يبقي مبلغ الصرف في الحسابات',key=f'salary_meta_confirm_{p_id}')
                         btn1, btn2 = st.columns(2)
                         save_edit = btn1.form_submit_button("حفظ التصحيح", type="primary")
                         delete_sal = btn2.form_submit_button("إلغاء القسيمة مع الاحتفاظ بالصرف")
                         if save_edit or delete_sal:
                             try:
+                                if delete_sal and not confirm_document: raise ValueError('أكد بقاء النقد المصروف قبل إلغاء المستند.')
+                                import records as R
                                 P.amend("teacher_payments", p_id, actor=st.session_state.get("auth_user","مديرة الروضة"),
-                                        reason=reason, cancel=delete_sal, month=e_month, notes=e_notes)
+                                        reason=reason, cancel=delete_sal, month=e_month, notes=e_notes,expected=R.revision(salary_snapshot))
+                                st.session_state.pop(salary_snapshot_key,None)
                                 st.session_state["salary_saved_notice"] = "تم حفظ قرار التدقيق دون تغيير مبلغ النقد المصروف."
                                 st.rerun()
                             except ValueError as error:
@@ -222,18 +227,23 @@ def render(conn):
             if aid:
                 entry=advances[advances["رقم السلفة"]==aid].iloc[0]
                 ui.open_record_editor('teacher_advances',int(aid),'تعديل مبلغ السلفة أو إلغاء الإدخال')
-                st.caption("إلغاء المستند لا يعني رجوع النقد؛ ويظل الصرف في التقرير.")
+                advance_snapshot,advance_snapshot_key=ui.edit_snapshot(conn,'teacher_advances',int(aid),scope='advance_'+str(aid),widget_prefix='advance_meta_')
+                st.caption("إلغاء المستند يبقي مبلغ الصرف في التقرير. إلغاء إدخال مالي خاطئ من المحرر يزيل أثره من الصرف.")
                 with st.form(f"advance_audit_{aid}"):
                     corrected_month=st.text_input("شهر الخصم الصحيح",value=entry["شهر الخصم"])
                     corrected_notes=st.text_input("ملاحظات",value=entry["ملاحظات"] or "")
                     audit_reason=st.text_input("السبب *")
                     a,b=st.columns(2)
                     edit=a.form_submit_button("تصحيح بيانات السلفة")
+                    confirm_advance=st.checkbox('أفهم أن إلغاء مستند السلفة يبقي النقد المصروف',key=f'advance_meta_confirm_{aid}')
                     void=b.form_submit_button("إلغاء مستند السلفة")
                     if edit or void:
                         try:
+                            if void and not confirm_advance: raise ValueError('أكد بقاء النقد المصروف قبل إلغاء المستند.')
+                            import records as R
                             P.amend("teacher_advances",int(aid),actor=st.session_state.get("auth_user","مديرة الروضة"),
-                                    reason=audit_reason,cancel=void,month=corrected_month,notes=corrected_notes)
+                                    reason=audit_reason,cancel=void,month=corrected_month,notes=corrected_notes,expected=R.revision(advance_snapshot))
+                            st.session_state.pop(advance_snapshot_key,None)
                             st.success("حُفظ التدقيق؛ النقد المصروف محفوظ.")
                             st.rerun()
                         except ValueError as error:

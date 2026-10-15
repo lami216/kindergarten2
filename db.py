@@ -33,12 +33,13 @@ def _pin_business_timezone(conn, *, autocommit):
     return conn
 
 
-@st.cache_resource
+@st.cache_resource(scope="session", validate=lambda connection: not connection.closed,
+                   on_release=lambda connection: connection.close())
 def get_connection():
     """
-    Returns a cached PostgreSQL database connection.
-    st.cache_resource ensures the TCP connection to Supabase stays alive
-    and is reused across page reruns instead of reconnecting on every click.
+    Returns a PostgreSQL connection owned by one Streamlit session.
+    The session cache reuses it across reruns and closes it on release.
+    Audit context and autocommit writes cannot cross into another user session.
     """
     if "postgres" in st.secrets:
         conn = psycopg2.connect(

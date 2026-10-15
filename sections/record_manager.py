@@ -43,9 +43,10 @@ def render(conn):
         return (person+' · ' if person and not r.get('full_name') else '')+_title(r,table)
     if term: rows=[r for r in rows if term in (title(r)+' '+' '.join(str(v or '') for v in r.values())).lower()]
     if not rows: ui.empty_state('لا توجد سجلات مطابقة.'); return
+    titles=[title(r) for r in rows]
     pk=H.TABLES[table]; mapping={r[pk]:r for r in rows}
     chosen=st.selectbox('اختر السجل',list(mapping),index=None,
-        format_func=lambda key:title(mapping[key]),key='records_pick_'+table)
+        format_func=lambda key:title(mapping[key])+(f' · {key}' if titles.count(title(mapping[key]))>1 else ''),key='records_pick_'+table)
     if chosen is None: return
     fresh=mapping[chosen]
     scope=f'{table}:{chosen}'
@@ -72,9 +73,23 @@ def render(conn):
         types={r['column_name']:r for r in c.fetchall()}
     with st.form('records_edit_'+str(version)):
         values={}
-        cols=st.columns(2)
-        for i,field in enumerate(fields):
-            with cols[i%2]: values[field]=_input(conn,table,field,row.get(field),types[field],version)
+        primary={
+            'students':('full_name','birth_date','gender','father_id','address'),
+            'parents':('father_name','father_mobile','mother_name','mother_mobile','contact_email'),
+            'teachers':('full_name','national_id','salary','mobile'),
+            'assets':('item_name','category','quantity','unit_cost','condition_status'),
+        }.get(table,fields)
+        def inputs(group):
+            cols=st.columns(2)
+            for i,field in enumerate(group):
+                with cols[i%2]: values[field]=_input(conn,table,field,row.get(field),types[field],version)
+        inputs(primary)
+        extra=[field for field in fields if field not in primary]
+        if extra:
+            with st.expander('تفاصيل إضافية'+(' · الصحة والاستلام' if table=='students' else '')):
+                inputs(extra)
+        if table=='students' and row.get('has_medical_condition') and not row.get('medical_details'):
+            values['_clear_legacy_medical']=st.checkbox('إزالة علامة الحالة الصحية القديمة',key=f'clear_health_{version}')
         reason=st.text_input('سبب التعديل *',max_chars=2000)
         confirmed=True
         if table in FINANCE:
@@ -90,6 +105,11 @@ def render(conn):
         except Exception: st.error('تعذر الحفظ؛ لم يُطبّق التعديل جزئيًا.')
     with st.expander('حذف / إلغاء السجل'):
         st.caption('يزول من القوائم الحالية. بياناته السابقة وقرار الحذف يبقيان في سجل التغييرات.')
+        if table in ('teacher_payments','teacher_advances','expenses','payments'):
+            value=row.get('cash_amount') if row.get('cash_amount') is not None else row.get('amount_paid',row.get('amount',0))
+            st.warning(f'هذا إلغاء لإدخال مالي خاطئ: سيُزال أثره من النقد المسجل ({value:,} أوقية قديمة). لا يعني استرجاع نقد فعلي.')
+            if table in ('teacher_payments','teacher_advances'):
+                st.caption('إذا كان المطلوب إلغاء المستند مع بقاء النقد المصروف، استخدم مراجعة القسيمة في صفحة الرواتب.')
         destination=None
         waiver=False
         if table=='school_departments':
@@ -104,7 +124,7 @@ def render(conn):
         if table=='parents': st.caption('يبقى ارتباط الأطفال بهذا السجل محفوظًا؛ يمكن اختيار ولي أمر آخر من تعديل الطالب.')
         if table=='registrations': st.caption('يلغى أثر الوصولات السنوية التابعة لهذا التسجيل كذلك.')
         why=st.text_input('سبب الحذف أو الإلغاء *',max_chars=2000,key='records_delete_reason_'+str(version))
-        agree=st.checkbox('أؤكد إلغاء هذا الإدخال',key='records_delete_agree_'+str(version))
+        agree=st.checkbox('أؤكد إلغاء الإدخال المالي وإزالة أثره من النقد' if table in ('teacher_payments','teacher_advances','expenses','payments') else 'أؤكد إلغاء هذا الإدخال',key='records_delete_agree_'+str(version))
         if st.button('تأكيد الحذف / الإلغاء',disabled=not agree,key='records_delete_'+str(version)):
             try:
                 _cancel(table,chosen,row,why,destination,waiver)
@@ -132,7 +152,8 @@ def _title(row,table):
     key=row[H.TABLES[table]]
     name=row.get('full_name') or row.get('name') or row.get('item_name') or row.get('category') or row.get('father_name') or row.get('mother_name') or row.get('salary_month') or row.get('cohort_name') or ''
     public=row.get('display_national_id') or row.get('display_year_id') or key
-    return f'{name} · #{public}'+(' · ملغى' if _cancelled(row,table) else '')
+    suffix=f' · #{public}' if table not in ('school_departments','students','parents','assets','classes') else ''
+    return f'{name}{suffix}'+(' · ملغى' if _cancelled(row,table) else '')
 
 
 def _input(conn,table,field,value,meta,version):
@@ -152,7 +173,7 @@ def _input(conn,table,field,value,meta,version):
             options={r['key']:r['name'] for r in c.fetchall()}
         items=[None]+list(options)
         return st.selectbox(label,items,index=items.index(value) if value in items else 0,
-                            format_func=lambda x:'بدون' if x is None else str(options[x]) if target in ('teachers','academic_years') else f'{options[x]} · {x}',key=key)
+                            format_func=lambda x:'بدون' if x is None else str(options[x])+(f' · {x}' if list(options.values()).count(options[x])>1 else ''),key=key)
     kind=meta['data_type']
     if table=='monthly_accounts' and field=='status':
         return st.selectbox(label,['regular','exempt'],index=0 if value=='regular' else 1,
@@ -182,7 +203,7 @@ def _edit(table,ident,values,row,reason):
         from account_records import change_waiver
         return change_waiver(ident,new_amount=values['amount'],on_date=values['effective_on'],actor=actor,reason=reason,expected=expected)
     if table in R.FIELDS:
-        return R.edit(table,ident,values,actor=actor,reason=reason,expected=expected)
+        return R.edit(table,ident,{k:v for k,v in values.items() if not k.startswith('_')},actor=actor,reason=reason,expected=expected,clear_legacy_medical=values.get('_clear_legacy_medical',False))
     if table=='expenses':
         import expense_finance as E
         return E.correct(ident,amount_total=values['amount'],amount_paid=values['amount_paid'],category=values['category'],

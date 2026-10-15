@@ -98,44 +98,4 @@ def render(conn):
             if selected:
                 cid = selected[0]
                 row = classes[classes['class_id'] == cid].iloc[0]
-
-                with st.expander(f"⚙️ تعديل بيانات: {row['label']}", expanded=True):
-                    with st.form("edit_class_form"):
-                        e_name = st.text_input("اسم الصف", value=row['class_name'] or "")
-                        current_teacher = row['teacher_name'] if pd.notna(row['teacher_name']) else "— بدون تعيين —"
-                        idx = list(teacher_options.keys()).index(current_teacher) if current_teacher in teacher_options else 0
-                        e_teacher = st.selectbox("المعلم/ة المسؤول/ة", list(teacher_options.keys()), index=idx)
-
-                        b1, b2 = st.columns(2)
-                        save = b1.form_submit_button("💾 حفظ", type="primary", use_container_width=True)
-                        delete = b2.form_submit_button("🗑️ حذف الصف", use_container_width=True)
-
-                        if save:
-                            try:
-                                cur = conn.cursor()
-                                cur.execute("UPDATE classes SET class_name=%s, teacher_id=%s WHERE class_id=%s",
-                                            (e_name, teacher_options[e_teacher], cid))
-                                conn.commit()
-                                cur.close()
-                                st.success("✅ تم الحفظ.")
-                                st.rerun()
-                            except Exception as e:
-                                conn.rollback()
-                                st.error(f"❌ حدث خطأ أثناء الحفظ: {e}")
-
-                        if delete:
-                            linked_df = ui.df(conn, "SELECT COUNT(*) AS c FROM registrations WHERE class_id=%s", (cid,))
-                            linked = linked_df.iloc[0]['c'] if not linked_df.empty else 0
-                            if linked > 0:
-                                st.error(f"⚠️ يوجد {linked} تسجيل مرتبط بهذا الصف. لا يمكن الحذف.")
-                            else:
-                                try:
-                                    cur = conn.cursor()
-                                    cur.execute("DELETE FROM classes WHERE class_id=%s", (cid,))
-                                    conn.commit()
-                                    cur.close()
-                                    st.warning("🗑️ تم حذف الصف بنجاح!")
-                                    st.rerun()
-                                except Exception as e:
-                                    conn.rollback()
-                                    st.error(f"❌ حدث خطأ أثناء الحذف: {e}")
+                ui.open_record_editor('classes',cid)

@@ -441,18 +441,20 @@ def update_tariffs(registration, gilet, tuition, actor, *, reason='', expected=N
         conn.close()
 
 
-def _lock(c, student):
-    c.execute("SELECT student_id,status,start_date,departure_on,archived_at FROM monthly_accounts WHERE student_id=%s FOR UPDATE",
+def _lock(c, student, *, for_payment=True):
+    c.execute("SELECT * FROM monthly_accounts WHERE student_id=%s FOR UPDATE",
               (student,))
     row = c.fetchone()
     if not row:
         raise ValueError("لا يوجد حساب شهري لهذا الطفل.")
-    if row["status"] != "regular":
+    if for_payment and row["status"] != "regular":
         raise ValueError("هذا الطفل معفي من الرسوم؛ لا تُسجل له دفعات.")
     return row
 
 
 def _due_started(c, student, account, as_of=None):
+    if account["status"] != "regular":
+        return
     as_of = as_of or today()
     if isinstance(as_of,str):
         as_of = date.fromisoformat(as_of)
@@ -777,7 +779,7 @@ def cancel_receipt(receipt_id, reason, *, actor="مديرة الروضة",
             row = c.fetchone()
             if not row:
                 raise ValueError("الوصل غير موجود.")
-            account = _lock(c,row["student_id"])
+            account = _lock(c,row["student_id"],for_payment=False)
             c.execute("SELECT request_hash FROM monthly_receipt_operations "
                       "WHERE request_token=%s",(token,))
             duplicate = c.fetchone()
@@ -1035,10 +1037,11 @@ def financial_report(conn, start, end):
     """
     _assert_date_range(start,end)
     with conn.cursor() as c:
-        c.execute("SELECT student_id FROM monthly_accounts WHERE status='regular'")
-        students=[r["student_id"] for r in c.fetchall()]
-    for student in students:
-        ensure_started(student,as_of=end)
+        c.execute("SELECT student_id,status FROM monthly_accounts")
+        accounts=[dict(r) for r in c.fetchall()]
+    students=[r["student_id"] for r in accounts]
+    for account in accounts:
+        if account["status"]=="regular": ensure_started(account["student_id"],as_of=end)
     with conn.cursor() as c:
         c.execute("""SELECT COALESCE(SUM(amount),0) AS n FROM monthly_receipts
                      WHERE state='active' AND received_on BETWEEN %s AND %s""",(start,end))

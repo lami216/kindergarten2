@@ -33,3 +33,17 @@ def filter_children(frame,term):
     if not normalized(term) or frame.empty:
         return frame
     return frame[frame.apply(lambda row:matches(row,term),axis=1)]
+
+
+def child_labels(frame):
+    """Human context disambiguates names; stable ID is only a last resort."""
+    from collections import Counter
+    def clean(value):
+        return value.strip() if isinstance(value,str) else ''
+    labels={}
+    for row in frame.to_dict('records'):
+        family=' / '.join(filter(None,(clean(row.get('father_name')),clean(row.get('mother_name')))))
+        phones=' / '.join(filter(None,(clean(row.get('father_mobile')),clean(row.get('mother_mobile')))))
+        labels[row['student_id']]=' · '.join(filter(None,(clean(row.get('full_name')),family,phones)))
+    duplicates=Counter(labels.values())
+    return {key:text+(f' · {key}' if duplicates[text]>1 else '') for key,text in labels.items()}

@@ -92,7 +92,10 @@ def financial_panel(conn, student, *, payment=True, scope=None, profile=False, s
     with st.expander("💵 الرسوم والدفعات الشهرية", expanded=True):
         if result["exempt"]:
             st.write("التسجيل: **معفي** · الجيليه: **معفي** · الشهرية: **معفي**")
-            st.caption("الإعفاء يشمل الرسوم الثلاث ولا يعني تسليم الجيليه.")
+            st.caption("الإعفاء يمنع رسومًا جديدة، ولا يلغي دينًا سابقًا أو يعني تسليم الجيليه.")
+            if result['due_now']:
+                st.error(f"دين سابق ما زال مستحقًا: {fmt(result['due_now'])}")
+                st.caption('راجع ملف الطفل لتسوية الدين أو تسجيل قرار صريح بإلغائه.')
             st.caption(f"بدأ الحساب: {result['account']['start_date']}")
             return
         fees=result["fees"]

@@ -91,7 +91,9 @@ def _validate(c, table, old, updates):
         for person in data.get('authorized_pickups',[]):
             if not isinstance(person,dict) or not str(person.get('name','')).strip() or not str(person.get('phone','')).strip():
                 raise ValueError('كل شخص مخول يحتاج اسمًا ورقم هاتف.')
-        updates['has_medical_condition']=int(bool(str(data.get('medical_details') or '').strip()))
+        if 'medical_details' in updates:
+            updates['has_medical_condition']=int(bool(str(data.get('medical_details') or '').strip()) or
+                (not str(old.get('medical_details') or '').strip() and bool(old.get('has_medical_condition'))))
     if table=='academic_years' and data.get('start_date') and data.get('end_date'):
         if str(data['start_date'])>=str(data['end_date']): raise ValueError('نهاية السنة يجب أن تكون بعد بدايتها.')
     for key in ('salary','unit_cost','annual_tuition'):
@@ -116,7 +118,7 @@ def _validate(c, table, old, updates):
         raise ValueError('اختر قسمًا؛ لإزالة توزيع الطالب استخدم الحذف.')
 
 
-def edit(table, ident, updates, *, actor, reason, expected=None):
+def edit(table, ident, updates, *, actor, reason, expected=None, clear_legacy_medical=False):
     if table not in FIELDS or set(updates)-set(FIELDS[table]): raise ValueError('حقل غير قابل للتعديل من هذا النموذج.')
     if not str(actor or '').strip() or not str(reason or '').strip(): raise ValueError('أدخل سبب التغيير وتأكد من تسجيل الدخول.')
     conn=db.new_transaction_connection()
@@ -129,6 +131,8 @@ def edit(table, ident, updates, *, actor, reason, expected=None):
             if old.get('archived_at'): raise ValueError('السجل محذوف؛ اعرضه في سجل التغييرات.')
             updates={key:(value.strip() or None) if isinstance(value,str) else value for key,value in updates.items()}
             _validate(c,table,old,updates)
+            if table=='students' and clear_legacy_medical:
+                updates['has_medical_condition']=int(bool(str(updates.get('medical_details',old.get('medical_details')) or '').strip()))
             identity={'teachers':('national_id','display_national_id'),'academic_years':('year_id','display_year_id')}.get(table)
             if identity and identity[0] in updates:
                 key,display=identity
@@ -182,9 +186,8 @@ def cancel(table, ident, *, actor, reason, expected=None, destination=None, waiv
                 import student_debt as D
                 c.execute('SELECT * FROM monthly_accounts WHERE student_id=%s FOR UPDATE',(ident,))
                 account=c.fetchone()
-                if account and account['status']=='regular':
-                    F._due_started(c,ident,account)
-                    debts=D._debt(c,ident,F.today())
+                if account:
+                    debts=D.current_debt(c,ident,account)
                     due=sum(max(0,r['remaining']) for r in debts)
                     if due and not waive_student_debt:
                         raise ValueError(f'على الطالب {due:,} أوقية قديمة؛ أكد إسقاط المتبقي إذا أردت إلغاء ملفه.')

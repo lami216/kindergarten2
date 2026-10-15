@@ -25,58 +25,25 @@ NAV_ITEMS = [
 ]
 
 
-# تعريف النافذة المنبثقة للنسخ الاحتياطي
-@st.dialog("💾 النسخ الاحتياطي الشامل لقاعدة البيانات")
+@st.dialog("💾 تصدير كامل للبيانات")
 def backup_dialog(conn):
-    st.markdown(
-        "اضغط على الزر أدناه لتصدير كافة جداول النظام (الطلاب، المعلمات، الرسوم، المصروفات، وغيرها) في ملف Excel واحد مقسم إلى تبويبات."
-    )
-    
-    if st.button("🚀 البدء بتجهيز ملف الإكسل", type="primary", use_container_width=True):
+    st.write('ملف ZIP يضم جميع جداول البيانات، بما فيها الدفعات الشهرية والتخصيصات والديون وسجلات التغييرات، مع فهرس بعدد السجلات.')
+    st.caption('ملفات JSON تحفظ القيم كاملة، وملف Excel لتصفحها. هذا تصدير للبيانات وليس نسخة قاعدة بيانات جاهزة للاستعادة.')
+    if st.button("تجهيز ملف التصدير",type="primary",use_container_width=True):
+        st.session_state.pop('verified_export',None)
         try:
-            with st.spinner("جاري جلب البيانات من قاعدة البيانات..."):
-                output = io.BytesIO()
-                with pd.ExcelWriter(output, engine="openpyxl") as writer:
-                    tables = {
-                        "الطلاب": "students",
-                        "أولياء الأمور": "parents",
-                        "المعلمات": "teachers",
-                        "التسجيل": "registrations",
-                        "الأقسام": "school_departments",
-                        "توزيع الأطفال": "student_departments",
-                        "نقل الأطفال": "department_transfers",
-                        "الصفوف": "classes",
-                        "الدفعات المالية": "payments",
-                        "رواتب المعلمات": "teacher_payments",
-                        "المصروفات": "expenses",
-                        "الأصول": "assets",
-                        "السنوات الدراسية": "academic_years",
-                        "سجل التغييرات": "record_changes",
-                    }
-                    
-                    cur = conn.cursor()
-                    for sheet_name, table_name in tables.items():
-                        try:
-                            cur.execute(f"SELECT * FROM {table_name}")
-                            rows = cur.fetchall()
-                            df = pd.DataFrame(rows) if rows else pd.DataFrame()
-                            df.to_excel(writer, sheet_name=sheet_name, index=False)
-                        except Exception:
-                            continue
-                    cur.close()
-                    
-                output.seek(0)
-                
-            st.success("تم تجهيز الملف بنجاح!")
-            st.download_button(
-                label="📥 تحميل ملف Excel الآن",
-                data=output,
-                file_name="kindergarten_full_backup.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True,
-            )
-        except Exception as e:
-            st.error(f"حدث خطأ أثناء إنشاء النسخة الاحتياطية: {e}")
+            from data_export import build_export
+            with st.spinner('جاري جمع البيانات والتحقق من اكتمالها...'):
+                payload,manifest=build_export()
+            st.session_state['verified_export']=(payload,manifest)
+        except Exception:
+            st.error('تعذّر إكمال التصدير والتحقق منه؛ لم يُجهّز ملف جزئي. حاول مجددًا.')
+    if exported:=st.session_state.get('verified_export'):
+        payload,manifest=exported
+        total=sum(t['rows'] for t in manifest['tables'])
+        st.success(f"تم التحقق من {len(manifest['tables'])} جدولًا و{total:,} سجلًا.")
+        st.download_button('📥 تحميل البيانات كاملة',data=payload,
+            file_name='kindergarten_data_export.zip',mime='application/zip',use_container_width=True)
 
 
 def _get_scalar(conn, query, params=()):
@@ -150,7 +117,7 @@ def render(conn):
         st.markdown("---")
 
         # زر افتتاحي للنافذة المنبثقة في الشريط الجانبي
-        if st.button("💾 نسخ احتياطي شامل", use_container_width=True, key="nav_backup_dialog"):
+        if st.button("💾 تصدير كامل للبيانات", use_container_width=True, key="nav_backup_dialog"):
             backup_dialog(conn)
 
         st.markdown("<div style='margin-top:8px;'></div>", unsafe_allow_html=True)

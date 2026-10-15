@@ -17,9 +17,7 @@ def change_account(student, *, actor, reason, start_date=None, status=None, canc
             if old['archived_at']: raise ValueError('الحساب ملغى بالفعل.')
             if cancel:
                 import student_debt as D
-                if old['status']=='regular': F._due_started(c,student,old)
-                cutoff=min(F.today(),old['exempt_from']) if old['status']=='exempt' and old.get('exempt_from') else F.today()
-                if any(r['remaining']>0 for r in D._debt(c,student,cutoff)):
+                if any(r['remaining']>0 for r in D.current_debt(c,student,old)):
                     raise ValueError('سدّد أو ألغِ الدين المتبقي أولًا؛ الدفعات والإعفاءات متاحة في إدارة السجلات.')
                 c.execute('UPDATE monthly_accounts SET archived_at=now(),archived_by=%s,departure_on=%s WHERE student_id=%s',(actor,F.today(),student))
             else:

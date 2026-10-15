@@ -38,6 +38,16 @@ def _debt(c, student, when):
             for x in fees+periods]
 
 
+def current_debt(c, student, account, *, as_of=None):
+    """Read issued debt for every status; only regular accounts issue new months."""
+    day=as_of or F.today()
+    F._due_started(c,student,account,as_of=day)
+    for boundary in (account.get('departure_on'),
+                     account.get('exempt_from') if account['status']=='exempt' else None):
+        if boundary: day=min(day,boundary)
+    return _debt(c,student,day)
+
+
 def waiver_preview(conn, student, *, as_of=None):
     """Read-only preview (may omit an as-yet-unissued started month)."""
     result=F.projection(conn,student,as_of=as_of,materialize=True)
@@ -63,7 +73,7 @@ def waive_debt(student, reason, confirmed, *, actor, token=None, effective_on=No
     conn=db.new_transaction_connection()
     try:
         with conn.cursor() as c:
-            account=F._lock(c,student)
+            account=F._lock(c,student,for_payment=False)
             c.execute("SELECT gross_waived,request_hash FROM monthly_waiver_batches WHERE request_token=%s",
                       (token,))
             old=c.fetchone()
@@ -75,8 +85,7 @@ def waive_debt(student, reason, confirmed, *, actor, token=None, effective_on=No
                 return total,False
             if account["archived_at"]:
                 raise ValueError("الحساب مؤرشف؛ لا تلغِ ديناً جديداً دون مراجعة مالية.")
-            F._due_started(c,student,account,as_of=day)
-            rows=_debt(c,student,day)
+            rows=current_debt(c,student,account,as_of=day)
             total=sum(max(0,r["remaining"]) for r in rows)
             if not total:
                 raise ValueError("لا يوجد دين مستحق لإلغائه.")
@@ -160,11 +169,10 @@ def archive_student(student, *, actor):
             child=c.fetchone()
             if not child: raise ValueError("الطالب غير موجود.")
             if child["archived_at"]: raise ValueError("هذا الطالب مؤرشف بالفعل.")
-            c.execute("SELECT student_id,status,start_date,departure_on FROM monthly_accounts WHERE student_id=%s FOR UPDATE",(student,))
+            c.execute("SELECT * FROM monthly_accounts WHERE student_id=%s FOR UPDATE",(student,))
             account=c.fetchone()
-            if account and account["status"]=="regular":
-                F._due_started(c,student,account)
-                rows=_debt(c,student,F.today())
+            if account:
+                rows=current_debt(c,student,account)
                 due=sum(max(0,r["remaining"]) for r in rows)
                 if due:
                     raise ValueError(f"لا يمكن حذف الطالب؛ عليه مبلغ {due:,} أوقية قديمة.")
@@ -198,12 +206,11 @@ def remove_guardian_if_unlinked(guardian_id):
             if children:
                 # Real child identities must remain linked, even when archived.
                 child=children[0]
-                c.execute("""SELECT student_id,status,start_date,departure_on FROM monthly_accounts
+                c.execute("""SELECT * FROM monthly_accounts
                              WHERE student_id=%s FOR UPDATE""",(child["student_id"],))
                 account=c.fetchone()
-                if account and account["status"]=="regular":
-                    F._due_started(c,child["student_id"],account)
-                    due=sum(max(0,x["remaining"]) for x in _debt(c,child["student_id"],F.today()))
+                if account:
+                    due=sum(max(0,x["remaining"]) for x in current_debt(c,child["student_id"],account))
                     if due:
                         raise ValueError(f"لا يمكن حذف ولي الأمر؛ الطفل {child['full_name']} عليه مبلغ {due:,} أوقية قديمة.")
                 raise ValueError("لا يمكن حذف ولي الأمر؛ ما زالت به ملفات أطفال مرتبطة، بما فيها المؤرشفة.")
