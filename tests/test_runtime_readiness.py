@@ -18,15 +18,39 @@ def connection(cursor=RealDictCursor):
 
 
 def test_three_concurrent_upgrade_commands_are_idempotent(ledger):
+    conn,_=ledger
+    with conn.cursor() as c:
+        c.execute('DELETE FROM app_schema_migrations WHERE version=%s',(M.VERSION,))
     def run():
         c = connection()
         try:
             return M.upgrade(c)
         finally:
             c.close()
-    with ThreadPoolExecutor(max_workers=3) as pool:
-        assert list(pool.map(lambda _:run(),range(3))) == [False]*3
+    try:
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            results=list(pool.map(lambda _:run(),range(3)))
+        assert sorted(results)==[False,False,True]
+    finally:
+        M.upgrade(conn)
     assert scalar(ledger[0], 'SELECT COUNT(*) FROM app_schema_migrations WHERE version=%s',(M.VERSION,))==1
+
+
+def test_real_app_entrypoint_never_invokes_migrations(ledger,monkeypatch):
+    from streamlit.testing.v1 import AppTest
+    import auth
+    conn,_=ledger
+    def forbidden(*args,**kwargs):
+        raise AssertionError('A user page attempted a schema migration')
+    monkeypatch.setattr(db,'get_connection',lambda:conn)
+    monkeypatch.setattr(db,'init_db',forbidden)
+    monkeypatch.setattr(db,'_apply_schema',forbidden)
+    monkeypatch.setattr(auth,'check_authentication',lambda:True)
+    app=AppTest.from_file('app.py')
+    app.session_state['auth_user']='readiness AppTest'
+    app.run(timeout=30)
+    assert not app.exception
+    assert any('ملخص الروضة' in item.value for item in app.markdown)
 
 
 def test_pages_only_check_schema_and_fail_closed_when_not_ready(ledger):

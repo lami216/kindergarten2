@@ -30,9 +30,9 @@ async def nav(page,key):
 async def calendar(page,width):
     await nav(page,'students')
     await expect(page.get_by_role('tab',name='➕ إضافة طالب جديد')).to_be_visible(timeout=30000)
-    await page.get_by_role('tab',name='➕ إضافة طالب جديد').click()
     collapse=page.locator('[data-testid="stSidebarCollapseButton"] button').first
     if await collapse.is_visible(): await collapse.click()
+    await page.get_by_role('tab',name='➕ إضافة طالب جديد').click()
     draft=page.get_by_role('textbox',name='اسم الطفل *',exact=True)
     await expect(draft).to_be_visible()
     await draft.fill('مسودة اختبار التقويم'); await draft.press('Tab')
@@ -43,6 +43,10 @@ async def calendar(page,width):
     await expect(draft).to_have_value('مسودة اختبار التقويم')
     field=page.get_by_label('تاريخ الميلاد *',exact=True)
     if not await field.count(): field=page.locator('[data-testid="stDateInput"] input').first
+    # Current month includes selected, ordinary and future/disabled days.
+    await field.fill(F.today().strftime('%Y/%m/%d'))
+    await field.press('Enter')
+    await expect(field).to_have_value(F.today().strftime('%Y/%m/%d'))
     samples=[]
     for attempt in range(2):
         await field.click()
@@ -63,16 +67,18 @@ async def calendar(page,width):
           })};
         }''')
         (OUT/f'calendar-probe-{width}-{attempt}.json').write_text(json.dumps(probe,indent=2))
+        await page.screenshot(path=str(OUT/f'calendar-night-{width}-{attempt}.png'),full_page=True)
         assert probe['root']=='rgb(32, 34, 35)',probe
         assert len(probe['cells'])>=28,probe
         assert all(c['contrast']>=4.5 for c in probe['cells']),probe
         samples.append(probe)
-        await page.screenshot(path=str(OUT/f'calendar-night-{width}-{attempt}.png'),full_page=True)
         await page.keyboard.press('Escape')
         await expect(popup).to_be_hidden()
     # Actual selection works, then daylight remains readable and draft survives.
     await field.click()
-    cell=page.locator('[data-baseweb="calendar"] [role="gridcell"][aria-label]').filter(has_text='15').first
+    cell=page.locator('[data-baseweb="calendar"] [role="gridcell"][aria-label^="Choose"]').first
+    if not await cell.count():
+        cell=page.locator('[data-baseweb="calendar"] [role="gridcell"][aria-label^="Selected"]').first
     await cell.click()
     await expect(page.locator('[data-baseweb="calendar"]')).to_be_hidden()
     await page.locator('.st-key-night_mode').click()
@@ -117,12 +123,20 @@ async def run():
                 receipts=json.loads(z.read('data/monthly_receipts.json'))
                 assert any(r['receipt_id']==receipt and r['amount']==12000 for r in receipts)
                 assert 'data/record_changes.json' in z.namelist()
+            print(json.dumps({'concurrent_sessions':3,'distinct_connections':len(set(pids)),
+                'real_zip_download_bytes':target.stat().st_size,'verified_tables':len(manifest['tables']),
+                'receipt_12000_verified':True}))
             for context in contexts: await context.close()
             calendars=[]
             for width in (390,1280):
                 context=await browser.new_context(viewport={'width':width,'height':900})
                 page=await context.new_page();await page.goto(BASE,wait_until='domcontentloaded')
-                calendars.append(await calendar(page,width))
+                try:
+                    calendars.append(await calendar(page,width))
+                except Exception:
+                    await page.screenshot(path=str(OUT/f'failure-{width}.png'),full_page=True)
+                    (OUT/f'failure-{width}.html').write_text(await page.content(),encoding='utf8')
+                    raise
                 await context.close()
             await browser.close()
         report={'concurrent_sessions':3,'distinct_connections':len(set(pids)),
