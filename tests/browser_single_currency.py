@@ -187,7 +187,7 @@ async def run():
                 await capture(page,page.get_by_text("أول شهر غير مكتمل أو موعد الدفعة القادمة",exact=False),
                               f"finance_account_partial_{suffix}",manifest)
                 await select_account(page,exempt_name)
-                await capture(page,page.get_by_text("الإعفاء يشمل الرسوم الثلاث",exact=False),
+                await capture(page,page.get_by_text("الإعفاء يمنع رسومًا جديدة، ولا يلغي دينًا سابقًا",exact=False),
                               f"finance_exempt_saved_{suffix}",manifest)
                 await select_account(page,unfunded_name,has_account=False)
                 await capture(page,page.get_by_role("button",name="تأكيد تهيئة حساب الطفل"),
