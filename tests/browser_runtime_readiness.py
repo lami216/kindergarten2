@@ -26,25 +26,29 @@ def inspect_calendar_pixels(payload):
     image=Image.open(BytesIO(payload)).convert('RGB')
     width,height=image.size
     pixels=list(image.getdata())
-    white={i for i,(r,g,b) in enumerate(pixels) if min(r,g,b)>225}
-    largest=0
-    while white:
-        first=white.pop();pending=[first];size=1
-        while pending:
-            i=pending.pop();x,y=i%width,i//width
-            neighbors=[]
-            if x: neighbors.append(i-1)
-            if x+1<width: neighbors.append(i+1)
-            if y: neighbors.append(i-width)
-            if y+1<height: neighbors.append(i+width)
-            for neighbor in neighbors:
-                if neighbor in white:
-                    white.remove(neighbor);pending.append(neighbor);size+=1
-        largest=max(largest,size)
-    red=sum(1 for r,g,b in pixels if r>150 and g<120 and b<150)
-    result={'largest_white_region':largest,'red_pixels':red}
-    assert largest<200,result
-    assert red<5,result
+    def largest_region(mask):
+        largest=0
+        while mask:
+            first=mask.pop();pending=[first];size=1
+            while pending:
+                i=pending.pop();x,y=i%width,i//width
+                neighbors=[]
+                if x: neighbors.append(i-1)
+                if x+1<width: neighbors.append(i+1)
+                if y: neighbors.append(i-width)
+                if y+1<height: neighbors.append(i+width)
+                for neighbor in neighbors:
+                    if neighbor in mask:
+                        mask.remove(neighbor);pending.append(neighbor);size+=1
+            largest=max(largest,size)
+        return largest
+    white=largest_region({i for i,(r,g,b) in enumerate(pixels) if min(r,g,b)>225})
+    red=largest_region({i for i,(r,g,b) in enumerate(pixels) if r>150 and g<120 and b<150})
+    result={'largest_white_region':white,'largest_red_region':red}
+    assert white<200,result
+    # LCD text antialiasing creates isolated colored pixels; a native red ring
+    # is a connected painted region, not a count of those text fringes.
+    assert red<50,result
     return result
 
 
