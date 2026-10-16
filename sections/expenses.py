@@ -132,6 +132,9 @@ def render(conn):
         # --------------------------------------------------------------
         with sub_tab2:
             df_exp_manage = ui.df(conn, "SELECT * FROM expenses WHERE cancelled_at IS NULL ORDER BY expense_date DESC")
+            # Optional SQL NULL text can become pandas NaN. Keep widgets blank
+            # instead of saving the rendered word "nan" during a correction.
+            df_exp_manage=df_exp_manage.fillna({'payee':'','notes':'','category':''})
             if df_exp_manage.empty:
                 ui.empty_state("لا توجد مصروفات للتعديل أو الحذف.")
             else:

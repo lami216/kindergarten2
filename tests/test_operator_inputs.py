@@ -125,6 +125,8 @@ def test_expense_lower_total_preserves_paid_and_recovers_in_same_form(ledger):
     conn,marker=ledger;ident=expense(conn,marker);before=row(conn,'expenses',ident)
     app=app_for('expenses')
     widget(app,'selectbox','اختر المصروف لتعديله، تسديد الدين، أو الحذف:').set_value(ident).run(timeout=30)
+    assert widget(app,'text_input','المورد').value==''
+    assert widget(app,'text_area','ملاحظات').value==''
     counts=[scalar(conn,f'SELECT COUNT(*) FROM {table} WHERE expense_id=%s',(ident,))
             for table in ('expense_audit','expense_cash_events','expense_cash_amendments','expense_request_log')]
     widget(app,'number_input','إجمالي الفاتورة').set_value(800)
@@ -142,6 +144,7 @@ def test_expense_lower_total_preserves_paid_and_recovers_in_same_form(ledger):
     assert not app.exception
     saved=row(conn,'expenses',ident)
     assert (saved['amount'],saved['amount_paid'])==(1400,1000)
+    assert saved['payee'] in (None,'') and saved['notes'] in (None,'')
     assert scalar(conn,'SELECT SUM(amount) FROM expense_cash_events WHERE expense_id=%s',(ident,))==1000
     assert scalar(conn,'SELECT COUNT(*) FROM expense_audit WHERE expense_id=%s',(ident,))==1
 

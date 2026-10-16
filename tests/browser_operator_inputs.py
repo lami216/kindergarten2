@@ -71,6 +71,8 @@ async def run():
                 form=page.locator('[data-testid="stForm"]').filter(has=page.get_by_role('button',name='حفظ تصحيح القيد',exact=True))
                 total_input=form.get_by_role('spinbutton',name='إجمالي الفاتورة',exact=True)
                 paid_input=form.get_by_role('spinbutton',name='المبلغ المدفوع فعلياً',exact=True)
+                await expect(form.get_by_role('textbox',name='المورد',exact=True)).to_have_value('')
+                await expect(form.get_by_role('textbox',name='ملاحظات',exact=True)).to_have_value('')
                 await expect(total_input).to_have_value('1200.00',timeout=20000)
                 await total_input.fill('800')
                 await form.get_by_role('textbox',name='سبب تصحيح القيد *',exact=True).fill('تصحيح الفاتورة')
