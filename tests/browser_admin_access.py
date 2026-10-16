@@ -38,9 +38,16 @@ async def grant(page,resource,action):
     picker=page.locator(f'.st-key-admin_new_grants_{resource} input')
     await picker.click()
     await picker.fill(action)
-    await page.get_by_role('option',name=action,exact=True).click()
+    await expect(page.get_by_role('option',name=action,exact=True)).to_be_visible()
+    await picker.press('ArrowDown')
+    await picker.press('Enter')
+    try:
+        await expect(page.locator(f'.st-key-admin_new_grants_{resource}').get_by_role('button',name='Remove '+action,exact=True)).to_be_visible()
+    except Exception:
+        await page.screenshot(path=str(OUT/'permission-picker-failure.png'),full_page=True)
+        print('Permission picker state:',await page.locator('[class*="st-key-admin_new_grants_"]').all_text_contents())
+        raise
     await picker.press('Escape')
-    await expect(page.locator(f'.st-key-admin_new_grants_{resource}')).to_contain_text(action)
 
 
 async def nav(page,key,staff=False):
