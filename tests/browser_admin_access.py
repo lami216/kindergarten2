@@ -82,8 +82,9 @@ async def run():
             await expect(owner.get_by_text('تم إنشاء الحساب.',exact=False)).to_be_visible(timeout=30000)
             with connection() as c:
                 with c.cursor() as cursor:
-                    cursor.execute('SELECT permissions FROM app_users WHERE username=%s',(name,))
-                    assert set(cursor.fetchone()['permissions'])=={'students.create','expenses.create','expenses.view','expenses.edit','expenses.delete'}
+                    cursor.execute('SELECT user_id,permissions FROM app_users WHERE username=%s',(name,))
+                    account=cursor.fetchone();uid=account['user_id']
+                    assert set(account['permissions'])=={'students.create','expenses.create','expenses.view','expenses.edit','expenses.delete'}
             staff=await browser.new_context(viewport={'width':width,'height':950})
             employee=await staff.new_page();await login(employee,name)
             await expect(employee.locator('.st-key-staff_nav_students button')).to_be_attached(timeout=30000)
@@ -109,10 +110,12 @@ async def run():
             await expect(employee.get_by_text('حُفظ المصروف باسم حسابك.',exact=True)).to_be_visible(timeout=30000)
             await owner.get_by_role('tab',name='📊 نشاط العاملين',exact=True).click()
             await select(owner,'admin_activity_user',name)
-            metric=owner.get_by_test_id('stMetric').filter(has=owner.get_by_text('طلاب سجلهم العامل',exact=True))
-            await expect(metric.get_by_test_id('stMetricValue')).to_have_text('1')
-            cash=owner.get_by_test_id('stMetric').filter(has=owner.get_by_text('صافي تلك المصروفات حاليًا',exact=True))
-            await expect(cash.get_by_test_id('stMetricValue')).to_contain_text('900.00')
+            usage=owner.locator('.st-key-admin_usage_'+str(uid))
+            await expect(usage).to_be_visible(timeout=30000)
+            metric=usage.get_by_test_id('stMetric').filter(has=owner.get_by_text('طلاب سجلهم العامل',exact=True)).last
+            await expect(metric.get_by_test_id('stMetricValue')).to_have_text('1',timeout=30000)
+            cash=usage.get_by_test_id('stMetric').filter(has=owner.get_by_text('صافي تلك المصروفات حاليًا',exact=True)).last
+            await expect(cash.get_by_test_id('stMetricValue')).to_contain_text('900.00',timeout=30000)
             await owner.screenshot(path=str(OUT/f'activity-{width}.png'),full_page=True)
             await owner.get_by_role('tab',name='👥 الحسابات والصلاحيات',exact=True).click()
             await select(owner,'admin_selected_user',name)

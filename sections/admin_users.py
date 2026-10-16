@@ -87,22 +87,24 @@ def render(conn):
         user=next(u for u in users if str(u['user_id'])==who)
         st.write('**الصلاحيات الحالية:** '+('مدير — جميع الصلاحيات' if user['is_admin'] else
             '، '.join(A.RESOURCES[p.split('.')[0]][0]+': '+A.ACTIONS[p.split('.')[1]] for p in user['permissions']) or 'لم تُمنح صلاحيات'))
-        metrics=A.employee_metrics(conn,who)
-        a,b,c=st.columns(3)
-        a.metric('طلاب سجلهم العامل',metrics['students'])
-        b.metric('مصروفات تشغيلية سجلها',metrics['expenses']['count'])
-        c.metric('وصولات قبض أصلية سجلها',metrics['payments']['count'])
-        a,b=st.columns(2)
-        a.metric('مصروف مسجل أصلاً',f"{metrics['expenses']['original_cash']:,.2f} أوقية")
-        b.metric('صافي تلك المصروفات حاليًا',f"{metrics['expenses']['current_cash']:,.2f} أوقية")
-        a,b=st.columns(2)
-        a.metric('قبض مسجل أصلاً',f"{metrics['payments']['original_cash']:,.0f} أوقية")
-        b.metric('صافي تلك الوصولات حاليًا',f"{metrics['payments']['current_cash']:,.0f} أوقية")
-        st.caption('النشاط منذ تفعيل الحسابات، لجميع التواريخ. الصافي يتبع السجل الأصلي بعد تصحيحه أو إلغائه، حتى لو صححه عامل آخر. التصحيح ليس قبضًا جديدًا، والرواتب ليست مصروفات تشغيلية ثانية. لا يُقاس الإذن بنسبة استهلاك.')
-        if metrics['activity']:
-            ui.dataframe([{'المجال':R.LABELS.get(r['table_name'],r['table_name']),
-                'العملية':{'created':'إضافة','updated':'تعديل','cancelled':'إلغاء','deleted':'حذف'}.get(r['action'],r['action']),
-                'العمليات المحفوظة':r['events'],'السجلات المختلفة':r['records']} for r in metrics['activity']],hide_index=True,use_container_width=True)
+        with st.container(key='admin_usage_'+str(who)):
+            st.caption('نشاط حساب: '+user['employee_name']+' · '+user['username'])
+            metrics=A.employee_metrics(conn,who)
+            a,b,c=st.columns(3)
+            a.metric('طلاب سجلهم العامل',metrics['students'])
+            b.metric('مصروفات تشغيلية سجلها',metrics['expenses']['count'])
+            c.metric('وصولات قبض أصلية سجلها',metrics['payments']['count'])
+            a,b=st.columns(2)
+            a.metric('مصروف مسجل أصلاً',f"{metrics['expenses']['original_cash']:,.2f} أوقية")
+            b.metric('صافي تلك المصروفات حاليًا',f"{metrics['expenses']['current_cash']:,.2f} أوقية")
+            a,b=st.columns(2)
+            a.metric('قبض مسجل أصلاً',f"{metrics['payments']['original_cash']:,.0f} أوقية")
+            b.metric('صافي تلك الوصولات حاليًا',f"{metrics['payments']['current_cash']:,.0f} أوقية")
+            st.caption('النشاط منذ تفعيل الحسابات، لجميع التواريخ. الصافي يتبع السجل الأصلي بعد تصحيحه أو إلغائه، حتى لو صححه عامل آخر. التصحيح ليس قبضًا جديدًا، والرواتب ليست مصروفات تشغيلية ثانية. لا يُقاس الإذن بنسبة استهلاك.')
+            if metrics['activity']:
+                ui.dataframe([{'المجال':R.LABELS.get(r['table_name'],r['table_name']),
+                    'العملية':{'created':'إضافة','updated':'تعديل','cancelled':'إلغاء','deleted':'حذف'}.get(r['action'],r['action']),
+                    'العمليات المحفوظة':r['events'],'السجلات المختلفة':r['records']} for r in metrics['activity']],hide_index=True,use_container_width=True)
     with audit:
         for event in A.access_history(conn):
             title={'account_created':'إنشاء حساب','account_updated':'تحديث حساب وصلاحيات','owner_bootstrap':'تهيئة المدير الأول'}.get(event['action'],event['action'])
