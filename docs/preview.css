@@ -55,6 +55,11 @@ aside{position:fixed;inset:0 0 0 auto;width:250px;background:#073f31;color:#f0f7
 .table-wrap table:has(thead tr th:nth-child(2):last-child) th:first-child { width:70%; }
 .table-wrap table:has(thead tr th:nth-child(2):last-child) td { overflow-wrap:anywhere; }
 .record-actions { display:flex; gap:6px; flex-wrap:wrap; }
+.receipt-search { border-inline-start:4px solid var(--green); }
+#receipt-rows .receipt-row { gap:14px; flex-wrap:wrap; }
+#receipt-rows .receipt-row > div:first-child { flex:1; min-width:145px; }
+#receipt-rows .receipt-row .status { display:block; width:fit-content; margin-top:8px; }
+#receipt-content .record-actions { margin-bottom:16px; }
 .small { padding:6px 9px; font-size:12px; }
 .managed-row { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:16px 0; border-bottom:1px solid var(--border); }
 .managed-row>div:first-child { min-width:0; overflow-wrap:anywhere; }

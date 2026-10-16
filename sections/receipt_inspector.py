@@ -51,14 +51,25 @@ def _feedback(scope,message):
     st.session_state[f"{scope}_receipt_feedback"]=message
 
 
-def render_receipt_list(conn,receipts,*,scope,student_id=None,limit=30):
+def render_receipt_list(conn,receipts,*,scope,student_id=None,limit=30,paginate=False):
     """Open the exact cash document from a compact actual-receipt row."""
     _authorized()
     selected=st.session_state.get(f"{scope}_receipt_open")
-    for row in receipts[:limit]:
+    start=0
+    if paginate and len(receipts)>limit:
+        pages=list(range((len(receipts)+limit-1)//limit))
+        if st.session_state.get(scope+"_page",0) not in pages:
+            st.session_state[scope+"_page"]=0
+        start=limit*st.selectbox("صفحة الوصولات",pages,
+            format_func=lambda n:f"{n+1} / {len(pages)}",key=scope+"_page")
+    for row in receipts[start:start+limit]:
         ident=int(row["receipt_id"])
         cols=st.columns([1.0,1.2,1.1,1.1])
         cols[0].write(f"**#{ident}**")
+        if row.get("full_name"):
+            cols[0].write(row["full_name"])
+            phones=" / ".join(str(row[k]) for k in ("father_mobile","mother_mobile") if row.get(k))
+            if phones: cols[0].caption(phones)
         cols[1].caption(str(row["received_on"]))
         cols[2].write(_amount(row["amount"]))
         if cols[3].button("فتح الوصل",key=f"{scope}_open_{ident}",
@@ -68,7 +79,7 @@ def render_receipt_list(conn,receipts,*,scope,student_id=None,limit=30):
             st.rerun()
         st.caption("ساري" if row["state"]=="active" else "ملغى / مصحح")
         st.divider()
-    if len(receipts)>limit:
+    if len(receipts)>limit and not paginate:
         st.caption(f"يعرض آخر {limit} من {len(receipts)} وصلاً؛ بقية الوصولات في سجل المالية.")
     if selected:
         render_inspector(conn,selected,scope=scope,student_id=student_id)

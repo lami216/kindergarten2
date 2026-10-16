@@ -199,8 +199,8 @@ async def run():
                 await capture(page,page.get_by_text("الباقي من المداخيل",exact=False).first,
                               f"finance_cash_report_{suffix}",manifest)
                 await page.get_by_role("tab",name=re.compile("الوصولات")).click()
-                await page.get_by_role("textbox",name="بحث بالطفل أو رقم الوصل").fill(str(first_receipt))
-                await page.get_by_role("textbox",name="بحث بالطفل أو رقم الوصل").press("Enter")
+                await page.get_by_role("textbox",name="بحث باسم الطفل أو هاتف الأب أو الأم أو رقم الوصل").fill(str(first_receipt))
+                await page.get_by_role("textbox",name="بحث باسم الطفل أو هاتف الأب أو الأم أو رقم الوصل").press("Enter")
                 specific=page.locator(f".st-key-finance_receipt_open_{first_receipt} button")
                 await expect(specific).to_be_visible(timeout=30000)
                 await specific.click()
@@ -267,8 +267,8 @@ async def run():
         assert [int(x["amount"]) for x in allocations]==[1500,3000],allocations
 
         await page.get_by_role("tab",name=re.compile("الوصولات")).click()
-        await page.get_by_role("textbox",name="بحث بالطفل أو رقم الوصل").fill(str(latest))
-        await page.get_by_role("textbox",name="بحث بالطفل أو رقم الوصل").press("Enter")
+        await page.get_by_role("textbox",name="بحث باسم الطفل أو هاتف الأب أو الأم أو رقم الوصل").fill(str(latest))
+        await page.get_by_role("textbox",name="بحث باسم الطفل أو هاتف الأب أو الأم أو رقم الوصل").press("Enter")
         specific=page.locator(f".st-key-finance_receipt_open_{latest} button")
         await expect(specific).to_be_visible(timeout=30000)
         await specific.click()

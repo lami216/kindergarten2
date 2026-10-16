@@ -41,14 +41,15 @@ def seed():
     token=uuid.uuid4().hex[:19]
     sid,pid="S"+token,"P"+token
     name="طفل وصل "+token[:6]
-    query("INSERT INTO parents(father_id,mother_name,mother_mobile) "
-          "VALUES(%s,'أم وصولات','0599666777')",(pid,))
+    phone=str(20000000+int(token,16)%70000000)
+    query("INSERT INTO parents(father_id,mother_name,mother_mobile,father_mobile) "
+          "VALUES(%s,'أم وصولات',%s,%s)",(pid,phone,'1'+phone))
     query("INSERT INTO students(student_id,full_name,father_id) VALUES(%s,%s,%s)",
           (sid,name,pid))
     query("INSERT INTO monthly_accounts(student_id,status,start_date,created_by) "
           "VALUES(%s,'regular',%s,'Chromium QA')",
           (sid,F.today()-timedelta(days=12)))
-    return sid,name
+    return sid,name,phone
 
 
 async def goto_students(page):
@@ -116,7 +117,7 @@ async def photo(page,slug,focus=None):
 
 
 async def run_variant(browser,width,dark):
-    sid,name=seed()
+    sid,name,phone=seed()
     ctx=await browser.new_context(viewport={"width":width,"height":850},accept_downloads=True)
     page=await ctx.new_page()
     await open_child(page,name)
@@ -139,7 +140,17 @@ async def run_variant(browser,width,dark):
     # Saving a payment does not open its document. Open it deliberately.
     await expect(page.get_by_text(f"وصل قبض #{original}")).not_to_be_visible()
     await page.get_by_role("tab",name="🧾 الوصولات",exact=True).click()
-    search=page.get_by_role("textbox",name="بحث بالطفل أو رقم الوصل")
+    search=page.get_by_role("textbox",name="بحث باسم الطفل أو هاتف الأب أو الأم أو رقم الوصل")
+    for term in (name,phone,'1'+phone,phone.translate(str.maketrans('0123456789','٠١٢٣٤٥٦٧٨٩'))):
+        await search.fill(term)
+        await search.press("Enter")
+        await expect(page.locator(f".st-key-finance_receipt_open_{original} button")).to_be_visible()
+    await search.fill("[not a match")
+    await search.press("Enter")
+    await expect(page.get_by_text("لا توجد وصولات تطابق هذا البحث.",exact=True)).to_be_visible()
+    await search.fill("")
+    await search.press("Enter")
+    await expect(page.get_by_text("لا توجد وصولات تطابق هذا البحث.",exact=True)).not_to_be_visible()
     await search.fill(str(original))
     await search.press("Enter")
     await page.locator(f".st-key-finance_receipt_open_{original} button").click()

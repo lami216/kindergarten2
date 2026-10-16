@@ -309,29 +309,46 @@ def render_settings(conn):
 
 
 def render_receipts(conn):
-    st.caption("الوصولات الأصلية والمصححة والملغاة محفوظة. افتح الوثيقة الفعلية لإجراءاتها.")
+    from student_search import filter_children, normalized
     child=st.session_state.get("payments_receipt_child")
+    with st.container(border=True):
+        term=st.text_input("بحث باسم الطفل أو هاتف الأب أو الأم أو رقم الوصل",
+            key="monthly_receipt_search",placeholder="اكتب اسم الطفل أو رقم الهاتف...")
+        st.caption("افتح الوصل لعرضه أو تعديله أو إلغائه من المكان نفسه.")
+    context=(child,normalized(term))
+    if st.session_state.get("finance_receipt_context")!=context:
+        # A new search must never leave an unrelated document/editor open.
+        for key in list(st.session_state):
+            if key.startswith("finance_receipt_receipt_") or key=="finance_receipt_page":
+                del st.session_state[key]
+        st.session_state["finance_receipt_context"]=context
     receipts=ui.df(conn,"""SELECT r.receipt_id,r.student_id,r.amount,r.received_on,
-        r.payer,r.state,s.full_name
+        r.payer,r.state,s.full_name,p.father_name,p.mother_name,
+        p.father_mobile,p.mother_mobile
         FROM monthly_receipts r JOIN students s ON s.student_id=r.student_id
+        LEFT JOIN parents p ON p.father_id=s.father_id
         WHERE (%s::text IS NULL OR r.student_id=%s)
-        ORDER BY r.receipt_id DESC LIMIT 200""",(child,child))
+        ORDER BY r.receipt_id DESC""",(child,child))
     if child:
         st.caption("وصولات الطالب المحدد")
-        if st.button("عرض وصولات جميع الطلاب", key="receipts_clear_child"):
+        def clear_child():
             st.session_state.pop("payments_receipt_child", None)
             st.session_state["monthly_receipt_search"]=""
+        if st.button("عرض وصولات جميع الطلاب", key="receipts_clear_child",on_click=clear_child):
             st.rerun()
     if receipts.empty:
         ui.empty_state("لا توجد وصولات شهرية.")
         return
-    term=st.text_input("بحث بالطفل أو رقم الوصل",key="monthly_receipt_search").strip()
-    if term:
-        receipts=receipts[receipts["full_name"].str.contains(term,case=False,
-              regex=False,na=False)|receipts["receipt_id"].astype(str).str.contains(
-              term,regex=False)]
+    if normalized(term):
+        matched=filter_children(receipts,term).index
+        by_number=receipts["receipt_id"].astype(str).str.contains(normalized(term),regex=False)
+        receipts=receipts[receipts.index.isin(matched)|by_number]
+    if receipts.empty:
+        ui.empty_state("لا توجد وصولات تطابق هذا البحث.")
+        return
+    st.caption(f"عدد الوصولات: {len(receipts)} · تشمل الوصولات السارية والملغاة والمصححة.")
     RI.render_receipt_list(conn,receipts.to_dict("records"),scope="finance_receipt",
-                           limit=40)
+                           student_id=child,limit=40,paginate=True)
 
 
 def render_history(conn):
