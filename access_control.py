@@ -35,6 +35,12 @@ TABLE_RESOURCE={'students':'students','parents':'parents','school_departments':'
     'academic_years':'years','registrations':'accounts','monthly_accounts':'accounts',
     'monthly_waivers':'accounts','monthly_tariffs':'fees'}
 ADMIN_LOCK=82416111
+PRIVATE_TABLES=set(TABLE_RESOURCE)|{
+    'app_users','app_sessions','app_login_attempts','app_access_audit','app_expense_requests',
+    'app_schema_migrations','record_changes','department_migrations','finance_schema_versions',
+    'monthly_fees','monthly_periods','monthly_allocations','monthly_audit','historical_payment_audit',
+    'expense_cash_events','payroll_audit','monthly_waiver_batches','expense_cash_amendments',
+    'expense_audit','expense_request_log','monthly_receipt_operations','monthly_allocation_snapshots'}
 
 
 class AccessDenied(ValueError):
@@ -119,6 +125,19 @@ def migrate(conn):
             c.execute(sql.SQL('DROP TRIGGER IF EXISTS business_access_guard ON {}').format(sql.Identifier(table)))
             c.execute(sql.SQL('CREATE TRIGGER business_access_guard BEFORE INSERT OR UPDATE OR DELETE ON {} '
                 'FOR EACH ROW EXECUTE FUNCTION app_business_access_guard({})').format(sql.Identifier(table),sql.Literal(resource)))
+        # Streamlit talks to PostgreSQL through a private, table-owning server
+        # connection. Neither Supabase client role is an application worker.
+        # RLS without public policies denies non-owner rows even if a default
+        # grant is accidentally restored later. Unknown/shared tables are untouched.
+        c.execute("SELECT rolname FROM pg_roles WHERE rolname IN ('anon','authenticated')")
+        client_roles=[r['rolname'] for r in c.fetchall()]
+        for table in sorted(PRIVATE_TABLES):
+            c.execute('SELECT to_regclass(%s) AS relation',(table,))
+            if not c.fetchone()['relation']: continue
+            c.execute(sql.SQL('ALTER TABLE {} ENABLE ROW LEVEL SECURITY').format(sql.Identifier(table)))
+            c.execute(sql.SQL('REVOKE ALL ON TABLE {} FROM PUBLIC').format(sql.Identifier(table)))
+            for role in client_roles:
+                c.execute(sql.SQL('REVOKE ALL ON TABLE {} FROM {}').format(sql.Identifier(table),sql.Identifier(role)))
 
 
 def username(value):

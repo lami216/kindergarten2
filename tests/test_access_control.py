@@ -259,3 +259,29 @@ finally: conn.close()
         user=c.fetchone()
     assert user and not user['is_admin']
     assert set(user['permissions'])=={'students.create','expenses.view','expenses.create','expenses.edit','expenses.delete'}
+
+
+def test_public_database_role_cannot_read_or_create_users_or_business_data(access):
+    conn,_,owner,_=access
+    sid,_=child()
+    role='guest_'+uuid.uuid4().hex
+    with conn.cursor() as c:
+        c.execute('SELECT current_schema() AS schema');schema=c.fetchone()['schema']
+        c.execute(sql.SQL('CREATE ROLE {} NOLOGIN NOSUPERUSER NOBYPASSRLS').format(sql.Identifier(role)))
+        try:
+            c.execute(sql.SQL('GRANT USAGE ON SCHEMA {} TO {}').format(sql.Identifier(schema),sql.Identifier(role)))
+            # Simulate a later mistaken SELECT/INSERT grant: RLS still denies rows.
+            for table in ('app_users','app_sessions','students','monthly_receipts'):
+                c.execute(sql.SQL('GRANT SELECT,INSERT ON {} TO {}').format(sql.Identifier(table),sql.Identifier(role)))
+            c.execute(sql.SQL('SET ROLE {}').format(sql.Identifier(role)))
+            for table in ('app_users','app_sessions','students','monthly_receipts'):
+                c.execute(sql.SQL('SELECT COUNT(*) AS n FROM {}').format(sql.Identifier(table)))
+                assert c.fetchone()['n']==0
+            with pytest.raises(psycopg2.errors.InsufficientPrivilege):
+                c.execute("INSERT INTO app_users(user_id,employee_name,username,password_hash,is_admin) VALUES(%s,'ممنوع','public-owner','not-a-hash',true)",(str(uuid.uuid4()),))
+        finally:
+            c.execute('RESET ROLE')
+            c.execute(sql.SQL('DROP OWNED BY {}').format(sql.Identifier(role)))
+            c.execute(sql.SQL('DROP ROLE {}').format(sql.Identifier(role)))
+        c.execute('SELECT COUNT(*) AS n FROM app_users WHERE user_id=%s',(owner,))
+        assert c.fetchone()['n']==1
