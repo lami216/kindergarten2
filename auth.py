@@ -5,15 +5,13 @@ import ui
 import access_control as A
 
 
-def _get_credentials():
-    try:
-        return st.secrets["auth"]["username"], st.secrets["auth"]["password"]
-    except (KeyError, FileNotFoundError):
-        return None, None
-
-
 def logout():
-    A.revoke_current()
+    import psycopg2
+    try:
+        A.revoke_current()
+    except psycopg2.Error:
+        # The local identity/drafts are erased even during a DB outage.
+        pass
     st.rerun()
 
 

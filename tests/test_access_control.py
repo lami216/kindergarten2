@@ -222,3 +222,13 @@ def test_revocation_serializes_with_inflight_write_and_preserves_actor(access):
         c.execute("SELECT actor,actor_user_id FROM record_changes WHERE table_name='expenses'")
         rows=c.fetchall()
     assert len(rows)==1 and rows[0]['actor']=='worker' and str(rows[0]['actor_user_id'])==uid
+
+
+def test_logout_clears_identity_and_private_drafts_even_if_database_unavailable(access,monkeypatch):
+    st.session_state['private_draft']='secret'
+    st.session_state['verified_export']=b'private'
+    def disconnected(): raise psycopg2.OperationalError('simulated unavailable database')
+    monkeypatch.setattr(db,'new_transaction_connection',disconnected)
+    with pytest.raises(psycopg2.OperationalError): A.revoke_current()
+    assert 'auth_session' not in st.session_state
+    assert 'private_draft' not in st.session_state and 'verified_export' not in st.session_state

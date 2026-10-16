@@ -273,14 +273,16 @@ def clear_state(*,keep_token=False):
 
 def revoke_current():
     token=st.session_state.get('auth_session')
-    if token:
-        conn=db.new_transaction_connection()
-        try:
-            with conn.cursor() as c:
-                c.execute('DELETE FROM app_sessions WHERE token_hash=%s',(hashlib.sha256(token.encode()).hexdigest(),))
-            conn.commit()
-        finally: conn.close()
-    clear_state()
+    try:
+        if token:
+            conn=db.new_transaction_connection()
+            try:
+                with conn.cursor() as c:
+                    c.execute('DELETE FROM app_sessions WHERE token_hash=%s',(hashlib.sha256(token.encode()).hexdigest(),))
+                conn.commit()
+            finally: conn.close()
+    finally:
+        clear_state()
 
 
 def _audit(c,actor,target,action,before,after):
@@ -382,8 +384,15 @@ def employee_metrics(conn,user_id):
             WHERE rc.actor_user_id=%s AND rc.table_name='monthly_receipts' AND rc.action='created'
               AND r.corrects_id IS NULL''',(str(user_id),))
         payments=dict(c.fetchone())
-    return {'activity':activity,'expenses':expenses,'payments':payments,
-        'students':sum(int(r['records']) for r in activity if r['table_name']=='students' and r['action']=='created')}
+    students=sum(int(r['records']) for r in activity if r['table_name']=='students' and r['action']=='created')
+    if not profile['is_admin']:
+        def visible(resource):
+            return allowed(profile,resource+'.view') or allowed(profile,resource+'.create')
+        if not visible('expenses'): expenses=dict(count=0,original_cash=0,current_cash=0)
+        if not visible('payments'): payments=dict(count=0,original_cash=0,current_cash=0)
+        if not visible('students'): students=0
+        activity=[r for r in activity if visible(TABLE_RESOURCE.get(r['table_name'],''))]
+    return {'activity':activity,'expenses':expenses,'payments':payments,'students':students}
 
 
 def access_history(conn):

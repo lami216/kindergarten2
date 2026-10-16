@@ -41,7 +41,7 @@ const demoBaseRender=render;
 render=()=>{
  if(!demoActor)return;
  if(!demoMayPage(page))page='dashboard';
- document.querySelectorAll('nav [data-page]').forEach(b=>b.hidden=!demoMayPage(b.dataset.page));
+ document.querySelectorAll('nav [data-page]').forEach(b=>{b.hidden=!demoMayPage(b.dataset.page);b.classList.toggle('active',b.dataset.page===page);b.setAttribute('aria-current',b.dataset.page===page?'page':'false');});
  if(page==='admin'){$('#crumb').textContent='لوحة المدير';$('#content').innerHTML=demoAdmin();demoBindAdmin();return;}
  if(page==='dashboard'&&!demoActor.admin&&!demoCan('dashboard')){const m=demoMetrics(demoActor);$('#crumb').textContent='الرئيسية';$('#content').innerHTML=heading('أهلًا '+demoActor.name,'اختر العمل المطلوب من القائمة')+`<div class="panel"><p>العمليات المسجلة باسمك</p><div class="stats">${demoCan('students','create')?stat('🎒','طلاب سجلتهم',m.students):''}${demoCan('expenses','create')?stat('📦','مصروفات سجلتها',m.expenses):''}</div></div>`;return;}
  if(page==='students'&&!demoCan('students')&&demoCan('students','create')){profileId=null;studentMode='add';}
@@ -50,6 +50,7 @@ render=()=>{
  if(demoActor.admin)return;
  if(!demoCan('students','create'))$('#add-student')?.remove();
  if(page==='students'){
+  if(!demoCan('students'))$('#back-students')?.remove();
   if(!demoCan('students','edit'))$('#edit-child')?.closest('details')?.remove();
   if(!demoCan('receipts')){document.querySelectorAll('#content .stats').forEach(e=>e.remove());$('#profile-pay')?.remove();$('#profile-receipts')?.remove();}
   if(!demoCan('receipts','create'))$('#profile-pay')?.remove();
