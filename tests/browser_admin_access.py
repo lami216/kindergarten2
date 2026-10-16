@@ -39,7 +39,8 @@ async def grant(page,resource,action):
     group=page.locator(f'.st-key-admin_new_grants_{resource}_group')
     checkbox=page.locator(f'.st-key-admin_new_grants_{resource}_{key}').get_by_role('checkbox')
     if not await checkbox.is_visible(): await group.locator('summary').click()
-    await checkbox.check()
+    # React Aria's styled label is the actual pointer target, covering its input.
+    await page.locator(f'.st-key-admin_new_grants_{resource}_{key} label').last.click()
     await expect(checkbox).to_be_checked()
 
 
