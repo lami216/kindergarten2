@@ -63,7 +63,7 @@ async def run():
             admin=await browser.new_context(viewport={'width':width,'height':950})
             owner=await admin.new_page();await login(owner,'qa-owner')
             await nav(owner,'admin')
-            await expect(owner.get_by_role('heading',name='لوحة المدير',exact=True)).to_be_visible(timeout=30000)
+            await expect(owner.locator('.section-title').filter(has_text='لوحة المدير')).to_be_visible(timeout=30000)
             expand=owner.get_by_text('➕ إنشاء حساب عامل',exact=True)
             if not await owner.locator('.st-key-admin_new_name input').is_visible(): await expand.click()
             await owner.locator('.st-key-admin_new_name input').fill('عامل '+marker)
