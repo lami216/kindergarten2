@@ -63,11 +63,13 @@ def render(conn):
             else:
                 st.info('اختر المعلمة لعرض صافي الراتب قبل الصرف.')
 
+            # Persist the displayed quote before the new save button reaches
+            # the browser, including during Streamlit's streaming reruns.
+            st.session_state[quote_key]=quote
             pay_submitted = st.button("🧾 تسجيل الصرف وطباعة قسيمة الراتب",
                 key=f'salary_save_v{salary_version}',type="primary",use_container_width=True,
                 disabled=quote is None)
 
-        st.session_state[quote_key]=quote
         if pay_submitted:
             try:
                 if not t_id:

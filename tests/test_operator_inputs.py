@@ -63,6 +63,11 @@ def test_live_salary_2000_500_100_shows_and_saves_2400(ledger):
     assert (saved['base_salary'],saved['bonus'],saved['deductions'],saved['cash_amount'])==(2000,500,100,2400)
     assert saved['notes']=='ملاحظة قبل الحفظ مباشرة'
     assert scalar(conn,'SELECT COUNT(*) FROM payroll_audit WHERE payment_id=%s',(ident,))==1
+    # A separate intentional payment remains possible after the form reset.
+    app.button(key='salary_save_v1').click().run(timeout=30)
+    assert not app.exception
+    assert scalar(conn,'SELECT COUNT(*) FROM teacher_payments WHERE national_id=%s',(tid,))==2
+    assert scalar(conn,'SELECT SUM(cash_amount) FROM teacher_payments WHERE national_id=%s',(tid,))==4400
 
 
 def test_salary_submit_with_unrendered_values_requires_review_before_cash(ledger):
