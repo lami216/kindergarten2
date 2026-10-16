@@ -232,3 +232,30 @@ def test_logout_clears_identity_and_private_drafts_even_if_database_unavailable(
     with pytest.raises(psycopg2.OperationalError): A.revoke_current()
     assert 'auth_session' not in st.session_state
     assert 'private_draft' not in st.session_state and 'verified_export' not in st.session_state
+
+
+def test_manager_form_persists_multiple_grants_without_overgrant(access):
+    conn,_,_,token=access
+    app=AppTest.from_string('''import db,access_control as A
+from sections import admin_users
+conn=db.new_transaction_connection();conn.autocommit=True
+try:
+ A.refresh(conn)
+ admin_users.render(conn)
+finally: conn.close()
+''')
+    app.session_state['auth_session']=token
+    app.run(timeout=30)
+    assert not app.exception
+    app.text_input(key='admin_new_name').set_value('عامل النموذج')
+    app.text_input(key='admin_new_username').set_value('form-worker')
+    app.text_input(key='admin_new_password').set_value(PASSWORD)
+    for key in ('students_create','expenses_create','expenses_edit','expenses_delete'):
+        app.checkbox(key='admin_new_grants_'+key).check()
+    next(b for b in app.button if b.label=='إنشاء الحساب').click().run(timeout=30)
+    assert not app.exception
+    with conn.cursor() as c:
+        c.execute("SELECT permissions,is_admin FROM app_users WHERE username='form-worker'")
+        user=c.fetchone()
+    assert user and not user['is_admin']
+    assert set(user['permissions'])=={'students.create','expenses.view','expenses.create','expenses.edit','expenses.delete'}

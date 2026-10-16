@@ -35,19 +35,12 @@ async def select(page,key,text):
 
 
 async def grant(page,resource,action):
-    picker=page.locator(f'.st-key-admin_new_grants_{resource} input')
-    await picker.click()
-    await picker.fill(action)
-    await expect(page.get_by_role('option',name=action,exact=True)).to_be_visible()
-    await picker.press('ArrowDown')
-    await picker.press('Enter')
-    try:
-        await expect(page.locator(f'.st-key-admin_new_grants_{resource}').get_by_role('button',name='Remove '+action,exact=True)).to_be_visible()
-    except Exception:
-        await page.screenshot(path=str(OUT/'permission-picker-failure.png'),full_page=True)
-        print('Permission picker state:',await page.locator('[class*="st-key-admin_new_grants_"]').all_text_contents())
-        raise
-    await picker.press('Escape')
+    key=next(key for key,label in A.ACTIONS.items() if label==action)
+    group=page.locator(f'.st-key-admin_new_grants_{resource}_group')
+    checkbox=page.locator(f'.st-key-admin_new_grants_{resource}_{key}').get_by_role('checkbox')
+    if not await checkbox.is_visible(): await group.locator('summary').click()
+    await checkbox.check()
+    await expect(checkbox).to_be_checked()
 
 
 async def nav(page,key,staff=False):
@@ -86,6 +79,10 @@ async def run():
             await grant(owner,'expenses','إلغاء / حذف')
             await owner.get_by_role('button',name='إنشاء الحساب',exact=True).click()
             await expect(owner.get_by_text('تم إنشاء الحساب.',exact=False)).to_be_visible(timeout=30000)
+            with connection() as c:
+                with c.cursor() as cursor:
+                    cursor.execute('SELECT permissions FROM app_users WHERE username=%s',(name,))
+                    assert set(cursor.fetchone()['permissions'])=={'students.create','expenses.create','expenses.view','expenses.edit','expenses.delete'}
             staff=await browser.new_context(viewport={'width':width,'height':950})
             employee=await staff.new_page();await login(employee,name)
             await expect(employee.locator('.st-key-staff_nav_students button')).to_be_attached(timeout=30000)

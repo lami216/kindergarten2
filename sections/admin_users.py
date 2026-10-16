@@ -9,9 +9,14 @@ import ui
 def permission_fields(prefix,selected=()):
     values=[]
     for resource,(label,actions) in A.RESOURCES.items():
-        picked=st.multiselect(label,actions,default=[a for a in actions if resource+'.'+a in selected],
-            format_func=A.ACTIONS.get,key=f'{prefix}_{resource}')
-        values.extend(resource+'.'+a for a in picked)
+        with st.container(key=f'{prefix}_{resource}_group'):
+            with st.expander(label,expanded=any(resource+'.'+a in selected for a in actions)):
+                columns=st.columns(2)
+                for index,action in enumerate(actions):
+                    with columns[index%2]:
+                        if st.checkbox(A.ACTIONS[action],value=resource+'.'+action in selected,
+                            key=f'{prefix}_{resource}_{action}'):
+                            values.append(resource+'.'+action)
     st.caption('التعديل والإلغاء يضيفان حق العرض تلقائيًا. تسجيل الدفعات أو الرواتب يتطلب عرض حساباتها. التقارير إذن مستقل يكشف المجاميع المالية.')
     return values
 
