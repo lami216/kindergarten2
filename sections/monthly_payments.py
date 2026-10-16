@@ -316,12 +316,12 @@ def render_receipts(conn):
             key="monthly_receipt_search",placeholder="اكتب اسم الطفل أو رقم الهاتف...")
         st.caption("افتح الوصل لعرضه أو تعديله أو إلغائه من المكان نفسه.")
     context=(child,normalized(term))
-    if st.session_state.get("finance_receipt_context")!=context:
+    if st.session_state.get("finance_receipt_context",context)!=context:
         # A new search must never leave an unrelated document/editor open.
         for key in list(st.session_state):
             if key.startswith("finance_receipt_receipt_") or key=="finance_receipt_page":
                 del st.session_state[key]
-        st.session_state["finance_receipt_context"]=context
+    st.session_state["finance_receipt_context"]=context
     receipts=ui.df(conn,"""SELECT r.receipt_id,r.student_id,r.amount,r.received_on,
         r.payer,r.state,s.full_name,p.father_name,p.mother_name,
         p.father_mobile,p.mother_mobile
