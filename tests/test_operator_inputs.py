@@ -54,11 +54,14 @@ def test_live_salary_2000_500_100_shows_and_saves_2400(ledger):
     app.number_input(key='salary_deductions_v0').set_value(100).run(timeout=30)
     has_net(app,2400)
     assert scalar(conn,'SELECT COUNT(*) FROM teacher_payments WHERE national_id=%s',(tid,))==0
+    # Notes do not change the amount approved in the preview.
+    app.text_input(key='salary_notes_v0').set_value('ملاحظة قبل الحفظ مباشرة')
     app.button(key='salary_save_v0').click().run(timeout=30)
     assert not app.exception
     ident=scalar(conn,'SELECT payment_id FROM teacher_payments WHERE national_id=%s',(tid,))
     saved=row(conn,'teacher_payments',ident)
     assert (saved['base_salary'],saved['bonus'],saved['deductions'],saved['cash_amount'])==(2000,500,100,2400)
+    assert saved['notes']=='ملاحظة قبل الحفظ مباشرة'
     assert scalar(conn,'SELECT COUNT(*) FROM payroll_audit WHERE payment_id=%s',(ident,))==1
 
 

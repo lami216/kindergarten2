@@ -56,7 +56,7 @@ def render(conn):
             if t_id:
                 try:
                     preview=P.salary_preview(base_salary,bonus,deductions)
-                    quote={'teacher':t_id,'month':salary_month,'notes':notes,**preview}
+                    quote={'teacher':t_id,'month':salary_month,**preview}
                     st.info(f"💵 **صافي الراتب المستحق للصرف:** {H.format_money(preview['net'])} أوقية قديمة")
                 except ValueError as error:
                     st.error(str(error))

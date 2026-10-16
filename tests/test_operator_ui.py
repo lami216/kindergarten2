@@ -91,10 +91,11 @@ def test_partial_expense_reacts_and_saves_actual_cash_then_resets():
     app.selectbox(key="expense_add_status_0").set_value("مدفوع جزئياً").run(timeout=25)
     assert not app.exception
     app.number_input(key="expense_add_paid_0").set_value(2000).run(timeout=25)
-    # Reducing total preserves a valid partial amount rather than crashing.
+    # Reducing total preserves the cash the operator typed; it must not clamp
+    # financial input silently. The caller can then correct the total or paid.
     app.number_input(key="expense_add_amount_0").set_value(1000).run(timeout=25)
     assert not app.exception
-    assert app.number_input(key="expense_add_paid_0").value == 1000
+    assert app.number_input(key="expense_add_paid_0").value == 2000
     app.number_input(key="expense_add_amount_0").set_value(5000).run(timeout=25)
     app.number_input(key="expense_add_paid_0").set_value(2000)
     payee="مورد واجهة "+uuid.uuid4().hex
