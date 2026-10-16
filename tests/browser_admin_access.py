@@ -35,8 +35,12 @@ async def select(page,key,text):
 
 
 async def grant(page,resource,action):
-    await page.locator(f'.st-key-admin_new_grants_{resource} input').click()
+    picker=page.locator(f'.st-key-admin_new_grants_{resource} input')
+    await picker.click()
+    await picker.fill(action)
     await page.get_by_role('option',name=action,exact=True).click()
+    await picker.press('Escape')
+    await expect(page.locator(f'.st-key-admin_new_grants_{resource}')).to_contain_text(action)
 
 
 async def nav(page,key,staff=False):
