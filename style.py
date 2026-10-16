@@ -625,6 +625,10 @@ div[data-testid="stForm"] div[data-baseweb="input"]:focus-within,
     opacity:1 !important;
 }
 [data-baseweb="calendar"] svg { fill:currentColor !important; }
+/* Native light-theme pseudo-elements also paint empty cells and selection.
+   Use the actual cell surface; otherwise white bars/red rings survive. */
+[data-baseweb="calendar"] [role="gridcell"]::before,
+[data-baseweb="calendar"] [role="gridcell"]::after { content:none !important; }
 [data-baseweb="calendar"] [aria-disabled="true"],
 [data-baseweb="calendar"] [aria-disabled="true"] *,
 [data-baseweb="calendar"] [aria-label^="Not available"],
@@ -640,6 +644,7 @@ div[data-testid="stForm"] div[data-baseweb="input"]:focus-within,
 [data-baseweb="calendar"] [aria-label^="Selected"],
 [data-baseweb="calendar"] [aria-label^="Selected"] * {
     background-color:#006348 !important; color:#fff !important;
+    border-radius:50% !important;
 }
 [data-baseweb="calendar"] :focus-visible {
     outline:2px solid #8dd9bc !important; outline-offset:-2px;
