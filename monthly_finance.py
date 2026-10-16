@@ -411,6 +411,8 @@ def update_tariffs(registration, gilet, tuition, actor, *, reason='', expected=N
     conn = db.new_transaction_connection()
     try:
         with conn.cursor() as c:
+            import access_control as A
+            actor=A.actor(c,'fees.edit',actor)
             import record_history
             record_history.context(c,actor,reason)
             c.execute("SELECT pg_advisory_xact_lock(82416079)")
@@ -707,6 +709,8 @@ def take_payment(student, cash, *, payer="", token=None, actor="مديرة ال�
     connection=db.new_transaction_connection()
     try:
         with connection.cursor() as c:
+            import access_control as A
+            actor=A.actor(c,'payments.create',actor)
             # Lock account for all receipts/corrections and schedule generation.
             account=_lock(c,student)
             _assert_receipt_revision(c,student,expected_revision)
@@ -781,6 +785,8 @@ def cancel_receipt(receipt_id, reason, *, actor="مديرة الروضة",
     connection = db.new_transaction_connection()
     try:
         with connection.cursor() as c:
+            import access_control as A
+            actor=A.actor(c,'payments.delete',actor)
             c.execute("SELECT student_id FROM monthly_receipts WHERE receipt_id=%s",
                       (receipt_id,))
             row = c.fetchone()
@@ -823,6 +829,8 @@ def correct_receipt(receipt_id, new_amount, reason, *, actor="مديرة الر�
     connection = db.new_transaction_connection()
     try:
         with connection.cursor() as c:
+            import access_control as A
+            actor=A.actor(c,'payments.edit',actor)
             c.execute("SELECT * FROM monthly_receipts WHERE receipt_id=%s",(receipt_id,))
             old = c.fetchone()
             if not old:
@@ -1007,6 +1015,8 @@ def initialize_existing_account(student, start_date, mode, confirmed, *, actor="
     connection=db.new_transaction_connection()
     try:
         with connection.cursor() as c:
+            import access_control as A
+            actor=A.actor(c,'accounts.edit',actor)
             # Serialize competing attempts per child and guard historical funds.
             c.execute("SELECT student_id FROM students WHERE student_id=%s FOR UPDATE",(student,))
             if not c.fetchone():

@@ -73,6 +73,8 @@ def waive_debt(student, reason, confirmed, *, actor, token=None, effective_on=No
     conn=db.new_transaction_connection()
     try:
         with conn.cursor() as c:
+            import access_control as A
+            actor=A.actor(c,'accounts.delete',actor)
             account=F._lock(c,student,for_payment=False)
             c.execute("SELECT gross_waived,request_hash FROM monthly_waiver_batches WHERE request_token=%s",
                       (token,))
@@ -129,6 +131,8 @@ def pay_unpaid_fee(student, kind, *, actor, token=None):
     conn=db.new_transaction_connection()
     try:
         with conn.cursor() as c:
+            import access_control as A
+            actor=A.actor(c,'payments.create',actor)
             account=F._lock(c,student)
             row=F._fee(c,student,kind)
             if not row:
@@ -165,6 +169,8 @@ def archive_student(student, *, actor):
     conn=db.new_transaction_connection()
     try:
         with conn.cursor() as c:
+            import access_control as A
+            actor=A.actor(c,'students.delete',actor)
             c.execute("SELECT student_id,archived_at FROM students WHERE student_id=%s FOR UPDATE",(student,))
             child=c.fetchone()
             if not child: raise ValueError("الطالب غير موجود.")
@@ -197,6 +203,8 @@ def remove_guardian_if_unlinked(guardian_id):
     conn=db.new_transaction_connection()
     try:
         with conn.cursor() as c:
+            import access_control as A
+            A.require(c,'parents.delete')
             c.execute("SELECT father_id FROM parents WHERE father_id=%s FOR UPDATE",(guardian_id,))
             if not c.fetchone():
                 raise ValueError("ولي الأمر غير موجود.")

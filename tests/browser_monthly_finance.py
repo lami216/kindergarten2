@@ -164,5 +164,9 @@ async def run():
     print("Chromium monthly intake cash split, exempt, reset, readback and 10 screenshots passed")
 
 
+if __name__=='__main__':
+    from tests.qa_auth import install
+    install()
+
 if __name__=="__main__":
     asyncio.run(run())

@@ -12,6 +12,8 @@ def change_account(student, *, actor, reason, start_date=None, status=None, canc
     conn=db.new_transaction_connection()
     try:
         with conn.cursor() as c:
+            import access_control as A
+            actor=A.actor(c,'accounts.delete' if cancel else 'accounts.edit',actor)
             H.context(c,actor,reason)
             old=R._lock(c,'monthly_accounts',student,expected)
             if old['archived_at']: raise ValueError('الحساب ملغى بالفعل.')
@@ -58,6 +60,8 @@ def change_waiver(ident, *, actor, reason, new_amount=None, on_date=None, cancel
     conn=db.new_transaction_connection()
     try:
         with conn.cursor() as c:
+            import access_control as A
+            actor=A.actor(c,'accounts.delete' if cancel else 'accounts.edit',actor)
             H.context(c,actor,reason)
             c.execute('SELECT student_id FROM monthly_waivers WHERE waiver_id=%s',(ident,))
             found=c.fetchone()

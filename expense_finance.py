@@ -12,6 +12,46 @@ import db
 from monthly_finance import today as business_today
 
 
+def create(*,category,amount_total,amount_paid,expense_date,payee='',notes='',payment_method='كاش',token=None):
+    """Idempotent operational expense intake for scoped worker accounts."""
+    import access_control as A
+    import record_history
+    from monthly_finance import today
+    total=cash(amount_total); paid=cash(amount_paid,zero=True)
+    category=category.strip(); payee=payee.strip(); notes=notes.strip()
+    if not category or len(category)>100 or len(payee)>150 or len(notes)>10000:
+        raise ValueError('راجع اسم المصروف والمستلم وطول الملاحظات.')
+    if paid>total: raise ValueError('المدفوع أكبر من إجمالي المصروف؛ صحح أحد المبلغين.')
+    if expense_date>today(): raise ValueError('تاريخ المصروف لا يكون مستقبليًا.')
+    if payment_method not in ('كاش','تحويل بنكي','شيك'): raise ValueError('طريقة دفع غير معروفة.')
+    request=str(uuid.UUID(str(token or uuid.uuid4())))
+    payload=dict(category=category,total=str(total),paid=str(paid),day=str(expense_date),payee=payee,notes=notes,method=payment_method)
+    fingerprint=hashlib.sha256(json.dumps(payload,sort_keys=True,ensure_ascii=False).encode()).hexdigest()
+    conn=db.new_transaction_connection()
+    try:
+        with conn.cursor() as c:
+            profile=A.require(c,'expenses.create')
+            record_history.context(c,profile['username'],'إضافة مصروف تشغيلي')
+            c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))',(request,))
+            c.execute('SELECT * FROM app_expense_requests WHERE request_token=%s',(request,))
+            existing=c.fetchone()
+            if existing:
+                if existing['request_hash']!=fingerprint or str(existing['user_id'])!=str(profile['user_id']):
+                    raise ValueError('تعارض طلب الحفظ؛ ابدأ مصروفًا جديدًا.')
+                conn.commit(); return existing['expense_id'],False
+            status='مدفوع بالكامل' if paid==total else 'آجل / دين (غير مدفوع)' if not paid else 'مدفوع جزئياً'
+            c.execute('''INSERT INTO expenses(expense_date,category,amount,amount_paid,payment_status,payment_method,payee,notes)
+                VALUES(%s,%s,%s,%s,%s,%s,%s,%s) RETURNING expense_id''',
+                (expense_date,category,total,paid,status,payment_method,payee,notes))
+            ident=c.fetchone()['expense_id']
+            c.execute('INSERT INTO app_expense_requests(request_token,expense_id,request_hash,user_id) VALUES(%s,%s,%s,%s)',
+                (request,ident,fingerprint,profile['user_id']))
+        conn.commit(); return ident,True
+    except Exception:
+        conn.rollback(); raise
+    finally: conn.close()
+
+
 def cash(value, zero=False):
     try:
         total=Decimal(str(value))
@@ -54,6 +94,8 @@ def _run(expense_id, action, payload, actor, reason, token, handler, expected=No
     conn=db.new_transaction_connection()
     try:
         with conn.cursor() as c:
+            import access_control as A
+            actor=A.actor(c,'expenses.delete' if action=='cancel' else 'expenses.edit',actor)
             c.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s,0))",(token,))
             c.execute("SELECT request_hash FROM expense_request_log WHERE request_token=%s",
                       (token,))

@@ -14,6 +14,14 @@ TABLES = {
 
 
 def context(cursor, actor, reason='', *, local=True):
+    # An authenticated operation owns its identity; legacy actor arguments
+    # cannot relabel a worker's transaction as the manager.
+    cursor.execute("SELECT NULLIF(current_setting('app.audit_user_id',true),'') AS uid")
+    uid=cursor.fetchone()['uid']
+    if uid:
+        cursor.execute('SELECT username FROM app_users WHERE user_id=%s',(uid,))
+        user=cursor.fetchone()
+        if user: actor=user['username']
     cursor.execute("SELECT set_config('app.audit_actor',%s,%s),set_config('app.audit_reason',%s,%s)",
                    (str(actor or 'النظام')[:100], local, str(reason or ''), local))
 
@@ -30,6 +38,8 @@ def migrate(conn):
             );
             CREATE INDEX IF NOT EXISTS record_changes_lookup
                 ON record_changes(table_name,record_key,change_id DESC);
+            ALTER TABLE record_changes ADD COLUMN IF NOT EXISTS actor_user_id UUID;
+            CREATE INDEX IF NOT EXISTS record_changes_user ON record_changes(actor_user_id,change_id);
             CREATE OR REPLACE FUNCTION record_change_capture() RETURNS trigger AS $$
             DECLARE previous JSONB; following JSONB; verb TEXT; who TEXT; why TEXT;
             BEGIN
@@ -56,9 +66,10 @@ def migrate(conn):
                     IF previous IS NOT NULL THEN previous=previous||jsonb_build_object('display_year_id',COALESCE(previous->>'display_year_id',previous->>'year_id')); END IF;
                     IF following IS NOT NULL THEN following=following||jsonb_build_object('display_year_id',COALESCE(following->>'display_year_id',following->>'year_id')); END IF;
                 END IF;
-                INSERT INTO record_changes(table_name,record_key,old_key,action,actor,reason,before_state,after_state)
+                INSERT INTO record_changes(table_name,record_key,old_key,action,actor,reason,before_state,after_state,actor_user_id)
                 VALUES(TG_TABLE_NAME,COALESCE(following->>TG_ARGV[0],previous->>TG_ARGV[0]),
-                    previous->>TG_ARGV[0],verb,who,why,previous,following);
+                    previous->>TG_ARGV[0],verb,who,why,previous,following,
+                    NULLIF(current_setting('app.audit_user_id',true),'')::uuid);
                 IF TG_OP='DELETE' THEN RETURN OLD; ELSE RETURN NEW; END IF;
             END; $$ LANGUAGE plpgsql;
             CREATE OR REPLACE FUNCTION record_history_immutable() RETURNS trigger AS $$

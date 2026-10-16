@@ -66,8 +66,9 @@ jobs:
           cp tests/qa_browser_app.py /tmp/pr1-baseline/tests/qa_browser_app.py
           cp .streamlit/secrets.toml /tmp/pr1-baseline/.streamlit/secrets.toml
           (PYTHONPATH="$GITHUB_WORKSPACE" python -m streamlit run tests/qa_browser_app.py --server.headless true --server.port 8501 --server.address 127.0.0.1 --browser.gatherUsageStats false > /tmp/qa-after.log 2>&1) &
+          (PYTHONPATH="$GITHUB_WORKSPACE" python -m streamlit run app.py --server.headless true --server.port 8503 --server.address 127.0.0.1 --browser.gatherUsageStats false > /tmp/qa-access.log 2>&1) &
           (cd /tmp/pr1-baseline && PYTHONPATH=/tmp/pr1-baseline python -m streamlit run tests/qa_browser_app.py --server.headless true --server.port 8502 --server.address 127.0.0.1 --browser.gatherUsageStats false > /tmp/qa-before.log 2>&1) &
-          for port in 8501 8502; do
+          for port in 8501 8502 8503; do
             ready=0
             for n in $(seq 1 80); do
               if curl -fsS "http://127.0.0.1:$port/_stcore/health" >/dev/null; then ready=1; break; fi
@@ -75,6 +76,8 @@ jobs:
             done
             if [ "$ready" != 1 ]; then cat /tmp/qa-after.log /tmp/qa-before.log; exit 1; fi
           done
+      - name: Real login, manager accounts, scoped worker activity and revocation
+        run: PYTHONPATH=. python tests/browser_admin_access.py
       # Historical receipt code/audit is retained and tested by pytest, but the
       # old annual-payment operator tab is intentionally no longer reachable.
       - name: Three real sessions, actual ZIP download and dark calendar contrast
@@ -110,3 +113,4 @@ jobs:
         run: |
           tail -100 /tmp/qa-after.log || true
           tail -100 /tmp/qa-before.log || true
+          tail -100 /tmp/qa-access.log || true

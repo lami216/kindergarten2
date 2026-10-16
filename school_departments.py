@@ -64,6 +64,8 @@ def create(name):
     conn=db.new_transaction_connection()
     try:
         with conn.cursor() as c:
+            import access_control as A
+            A.require(c,'departments.create')
             c.execute("SELECT pg_advisory_xact_lock(hashtextextended('department_mutation',0))")
             c.execute('INSERT INTO school_departments(name) VALUES(%s) RETURNING department_id',(name,))
             result=c.fetchone()['department_id']
@@ -89,6 +91,8 @@ def transfer(student_ids,department_id,*,actor):
     conn=db.new_transaction_connection()
     try:
         with conn.cursor() as c:
+            import access_control as A
+            actor=A.actor(c,'departments.edit',actor)
             c.execute("SELECT pg_advisory_xact_lock(hashtextextended('department_mutation',0))")
             import record_history
             record_history.context(c,actor,'نقل الأطفال بين الأقسام')

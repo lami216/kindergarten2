@@ -124,6 +124,8 @@ def edit(table, ident, updates, *, actor, reason, expected=None, clear_legacy_me
     conn=db.new_transaction_connection()
     try:
         with conn.cursor() as c:
+            import access_control as A
+            actor=A.actor(c,A.table_permission(table,'edit'),actor)
             H.context(c,actor,reason)
             if table in ('school_departments','student_departments'):
                 c.execute("SELECT pg_advisory_xact_lock(hashtextextended('department_mutation',0))")
@@ -161,6 +163,9 @@ def cancel(table, ident, *, actor, reason, expected=None, destination=None, waiv
     conn=db.new_transaction_connection()
     try:
         with conn.cursor() as c:
+            import access_control as A
+            actor=A.actor(c,A.table_permission(table,'delete'),actor)
+            if waive_student_debt: A.require(c,'accounts.delete')
             H.context(c,actor,reason)
             # Serializes department edits/deletes/transfers in a consistent order.
             if table in ('school_departments','student_departments'): c.execute("SELECT pg_advisory_xact_lock(hashtextextended('department_mutation',0))")

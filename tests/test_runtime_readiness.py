@@ -46,7 +46,11 @@ def test_real_app_entrypoint_never_invokes_migrations(ledger,monkeypatch):
     monkeypatch.setattr(db,'get_connection',lambda:conn)
     monkeypatch.setattr(db,'init_db',forbidden)
     monkeypatch.setattr(db,'_apply_schema',forbidden)
-    monkeypatch.setattr(auth,'check_authentication',lambda:True)
+    def authenticated(connection):
+        import streamlit as st
+        st.session_state['_access_profile']={'is_admin':True,'active':True}
+        return True
+    monkeypatch.setattr(auth,'check_authentication',authenticated)
     app=AppTest.from_file(Path(__file__).resolve().parents[1]/'app.py')
     app.session_state['auth_user']='readiness AppTest'
     app.run(timeout=30)

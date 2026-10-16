@@ -49,6 +49,8 @@ def build_export():
         manifest = {'format': 1, 'created_at': datetime.now(timezone.utc).isoformat(),
                     'purpose': 'Complete table data export; not a database restore image', 'tables': []}
         with connection.cursor() as cursor:
+            import access_control as A
+            A.require(cursor,'admin.export')
             cursor.execute("SELECT table_name FROM information_schema.tables WHERE table_schema=current_schema() AND table_type='BASE TABLE' ORDER BY table_name")
             tables = [r['table_name'] for r in cursor.fetchall()]
             if not tables:

@@ -6,6 +6,7 @@ from datetime import timedelta
 import streamlit as st
 import monthly_finance as F
 import receipt_history as H
+import access_control as A
 
 
 def _authorized():
@@ -137,11 +138,11 @@ def render_inspector(conn,receipt_id,*,scope,student_id=None):
         st.error("تعذّر تجهيز PDF العربي؛ لم تتغير بيانات الوصل.")
     buttons=st.columns(4)
     if r["state"]=="active":
-        if buttons[0].button("تعديل الوصل",key=key+"edit_"+str(receipt_id)):
+        if A.can('payments.edit') and buttons[0].button("تعديل الوصل",key=key+"edit_"+str(receipt_id)):
             st.session_state[key+"mode"]="edit"
             st.session_state.pop(key+"preview",None)
             st.rerun()
-        if buttons[1].button("إلغاء الوصل",key=key+"cancel_"+str(receipt_id)):
+        if A.can('payments.delete') and buttons[1].button("إلغاء الوصل",key=key+"cancel_"+str(receipt_id)):
             st.session_state[key+"mode"]="cancel"
             st.session_state[key+"cancel_revision"]=F.receipt_revision(conn,r["student_id"])
             st.rerun()
@@ -155,7 +156,7 @@ def render_inspector(conn,receipt_id,*,scope,student_id=None):
         st.session_state[key+"mode"]="history"
         st.rerun()
     mode=st.session_state.get(key+"mode")
-    if mode=="edit" and r["state"]=="active":
+    if mode=="edit" and r["state"]=="active" and A.can('payments.edit'):
         st.markdown("###### تصحيح الوصل — لا يمحو الأصل")
         amount=st.number_input("المبلغ المصحح",min_value=1,max_value=F.MAX_AMOUNT,
                   value=int(r["amount"]),step=1,key=key+str(receipt_id)+"_amount")
@@ -221,7 +222,7 @@ def render_inspector(conn,receipt_id,*,scope,student_id=None):
             st.session_state.pop(key+"mode",None)
             st.session_state.pop(key+"preview",None)
             st.rerun()
-    elif mode=="cancel" and r["state"]=="active":
+    elif mode=="cancel" and r["state"]=="active" and A.can('payments.delete'):
         st.warning("الإلغاء يستبعد قبض هذا الوصل من جميع التقارير المصححة، "
                    "ويعيد المتبقي دون تسجيل مصروف أو استرداد وهمي.")
         with st.form(key+"cancel_form_"+str(receipt_id)):

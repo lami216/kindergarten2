@@ -58,6 +58,8 @@ def change_receipt(receipt_number, *, actor, reason, cancel=False,
     conn = db.new_transaction_connection()
     try:
         with conn.cursor() as c:
+            import access_control as A
+            actor=A.actor(c,'payments.delete' if cancel else 'payments.edit',actor)
             import record_history
             record_history.context(c,actor,reason)
             c.execute("SELECT * FROM payments WHERE receipt_number=%s FOR UPDATE",

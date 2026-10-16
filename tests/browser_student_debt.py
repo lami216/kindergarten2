@@ -206,5 +206,9 @@ async def run():
           "waiver reason, confirmation, archived history and zero-cash passed")
 
 
+if __name__=='__main__':
+    from tests.qa_auth import install
+    install()
+
 if __name__=="__main__":
     asyncio.run(run())

@@ -106,4 +106,7 @@ async def run():
     print(json.dumps(results))
 
 
-if __name__=='__main__': asyncio.run(run())
+if __name__=='__main__':
+    from tests.qa_auth import install
+    install()
+    asyncio.run(run())

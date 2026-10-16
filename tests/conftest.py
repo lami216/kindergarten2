@@ -5,7 +5,13 @@ import pytest
 
 
 @pytest.fixture(scope="session", autouse=True)
-def isolated_monthly_prices():
+def legacy_authorized_harness():
+    from tests.qa_auth import trusted
+    with trusted(): yield
+
+
+@pytest.fixture(scope="session", autouse=True)
+def isolated_monthly_prices(legacy_authorized_harness):
     dsn = os.getenv("TEST_POSTGRES_DSN")
     if not dsn:
         yield

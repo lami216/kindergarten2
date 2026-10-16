@@ -61,6 +61,8 @@ def _insert(table, national_id, args, *, token=None, actor):
     conn = db.new_transaction_connection()
     try:
         with conn.cursor() as c:
+            import access_control as A
+            who=A.actor(c,'salaries.create',who)
             # Transactional advisory lock serializes retries with identical IDs.
             c.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s,0))", (token,))
             c.execute(f"SELECT * FROM {table} WHERE request_token=%s", (token,))
@@ -145,6 +147,8 @@ def amend(table, ident, *, actor, reason, cancel=False, month=None, notes=None, 
     connection=db.new_transaction_connection()
     try:
         with connection.cursor() as c:
+            import access_control as A
+            actor=A.actor(c,'salaries.delete' if cancel else 'salaries.edit',actor)
             import record_history
             record_history.context(c,actor,reason)
             c.execute(f"SELECT * FROM {table} WHERE {column}=%s FOR UPDATE",(ident,))
@@ -178,6 +182,8 @@ def archive_teacher(national_id, *, actor):
     connection=db.new_transaction_connection()
     try:
         with connection.cursor() as c:
+            import access_control as A
+            actor=A.actor(c,'teachers.delete',actor)
             c.execute("""UPDATE teachers SET archived_at=now(),archived_by=%s
                       WHERE national_id=%s AND archived_at IS NULL RETURNING national_id""",
                       (actor,national_id))
@@ -210,6 +216,8 @@ def correct_cash_entry(table, ident, *, actor, reason, expected=None, cancel=Fal
     column='payment_id' if table=='teacher_payments' else 'advance_id'
     try:
         with conn.cursor() as c:
+            import access_control as A
+            actor=A.actor(c,'salaries.delete' if cancel else 'salaries.edit',actor)
             import record_history as H
             import records as R
             H.context(c,actor,reason)

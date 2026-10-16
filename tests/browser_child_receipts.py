@@ -241,5 +241,9 @@ async def run():
           "computed day/night CSS passed at 390 and 1280px")
 
 
+if __name__=='__main__':
+    from tests.qa_auth import install
+    install()
+
 if __name__=="__main__":
     asyncio.run(run())

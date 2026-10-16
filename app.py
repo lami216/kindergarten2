@@ -29,9 +29,6 @@ LOGO_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "
 st.set_page_config(page_title="روضة أطفال فودي حبيب ساكرا", page_icon="🌱", layout="wide")
 apply_style()
 
-if not auth.check_authentication():
-    st.stop()
-
 try:
     conn = get_connection()
     assert_schema_ready(conn)
@@ -41,6 +38,18 @@ except SchemaNotReady:
 except psycopg2.Error:
     st.error('تعذّر الاتصال بقاعدة البيانات. يرجى المحاولة مجددًا بعد قليل.')
     if st.button('إعادة المحاولة'):
+        st.rerun()
+    st.stop()
+if not auth.check_authentication(conn):
+    st.stop()
+import access_control as A
+profile=st.session_state['_access_profile']
+if not profile['is_admin']:
+    from sections import staff_workspace
+    try:
+        staff_workspace.render(conn)
+    except A.AccessDenied:
+        A.clear_state()
         st.rerun()
     st.stop()
 import record_history
@@ -65,10 +74,12 @@ ROUTES = {
     "records": record_manager.render,
     "history": change_history.render,
 }
+from sections import admin_users
+ROUTES['admin']=admin_users.render
 
 current_page = sidebar.render(conn)
 ROUTES[current_page](conn)
-if current_page not in ('records','history','dashboard','reports'):
+if current_page not in ('records','history','dashboard','reports','admin'):
     targets={'students':'students','parents':'parents','teachers':'teachers','classes':'classes',
              'years':'academic_years','registration':'school_departments','expenses':'expenses',
              'salaries':'teacher_payments','payments':'monthly_receipts'}

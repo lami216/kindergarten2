@@ -146,6 +146,12 @@ def save_child_with_family(child, family, existing_parent_id, request_token,
     connection = new_transaction_connection()
     try:
         with connection.cursor() as cur:
+            import access_control as A
+            actor=A.actor(cur,'students.create',actor)
+            if existing_parent_id: A.require(cur,'students.view')
+            if finance and finance.get('mode')=='exempt': A.require(cur,'accounts.edit')
+            if finance and finance.get('cash'): A.require(cur,'payments.create')
+            cur.execute("SELECT set_config('app.write_permission','students.create',true)")
             import record_history
             record_history.context(cur, actor, 'إضافة طالب وبيانات الأهل')
             # Serialize retries under the same token before checking the payload.
@@ -429,3 +435,5 @@ def _apply_schema(conn):
     school_departments.migrate(conn)
     import records
     records.migrate(conn)
+    import access_control
+    access_control.migrate(conn)

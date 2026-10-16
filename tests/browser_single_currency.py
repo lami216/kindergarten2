@@ -316,5 +316,9 @@ async def run():
           "PostgreSQL readback and UI saves verified")
 
 
+if __name__=='__main__':
+    from tests.qa_auth import install
+    install()
+
 if __name__=="__main__":
     asyncio.run(run())

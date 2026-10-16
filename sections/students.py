@@ -145,6 +145,158 @@ def _medical_flag(old_details, old_flag, new_details, clear_legacy=False):
     return int(bool(old_flag) and not clear_legacy)
 
 
+def render_intake(conn,parents=None,family_choices=None):
+    import access_control as A
+    _reset_after_success()
+    st.session_state.setdefault('kid_form_version',0)
+    st.session_state.setdefault('kid_request_token',str(uuid.uuid4()))
+    if parents is None:
+        parents=ui.df(conn,"SELECT father_id,father_name,mother_name,father_mobile,mother_mobile FROM parents WHERE archived_at IS NULL ORDER BY father_id") if A.can('students.view') else pd.DataFrame()
+    if family_choices is None:
+        family_choices=[]
+        for _,row in parents.iterrows():
+            names=' / '.join(filter(None,(_text(row['father_name']),_text(row['mother_name']))))
+            phones=' / '.join(filter(None,(_text(row['father_mobile']),_text(row['mother_mobile']))))
+            family_choices.append((row['father_id'],names+' — '+phones))
+    if st.session_state.get("kid_last_saved"):
+        st.success(st.session_state["kid_last_saved"])
+    existing = False
+    if family_choices:
+        existing = st.checkbox("اختيار ولي أمر موجود", key=_form_key("kid_use_existing"))
+    version = st.session_state["kid_form_version"]
+    with st.container(border=True):
+        ui.form_section_title("١ · بيانات الطفل")
+        a, b = st.columns(2)
+        name = a.text_input("اسم الطفل *", key=_form_key("kid_name")).strip()
+        birth = b.date_input("تاريخ الميلاد *", value=date(2022, 1, 1),
+                   min_value=date(1990, 1, 1), max_value=F.today(),
+                   key=_form_key("kid_birth"))
+        a, b = st.columns(2)
+        gender = a.selectbox("الجنس *", H.GENDERS, key=_form_key("kid_gender"))
+        place = b.text_input("مكان الميلاد (اختياري)", key=_form_key("kid_place"))
+        address = st.text_input("العنوان (اختياري)", key=_form_key("kid_address"))
+        family = dict(father_name="", father_mobile="", mother_name="",
+                      mother_mobile="", contact_email="")
+        parent_id = None
+        ui.form_section_title("٢ · بيانات الأهل")
+        if existing:
+            selected = st.selectbox("ولي الأمر الموجود", family_choices,
+                format_func=lambda option: option[1],
+                key=_form_key("kid_existing_family"))
+            parent_id = selected[0]
+            st.caption("بيانات الأهل المشتركة تُعدّل من صفحة أولياء الأمور.")
+            # Streamlit destroys an unrendered widget's state on rerun.
+            # Keep fields mounted in a closed expander when switching modes.
+            with st.expander("بيانات أهل جديدة محفوظة (اختياري)"):
+                _parent_fields(family)
+        else:
+            _parent_fields(family)
+
+        with st.expander("تفاصيل اختيارية"):
+            medical = st.text_area("ملاحظات صحية", key=_form_key("kid_health"))
+            allergy = st.text_area("الحساسية", key=_form_key("kid_allergy"))
+            notes = st.text_area("ملاحظات عامة", key=_form_key("kid_notes"))
+
+        pickups = _pickup_editor(f"kid_add_{version}", in_form=False)
+
+        ui.form_section_title("٣ · الرسوم والدفع")
+        # Unlike fields inside st.form, native segmented and amount controls
+        # trigger immediate reruns and therefore a live receipt breakdown.
+        modes=['بلا دفعة']+(['دفع'] if A.can('payments.create') else [])+(['معفي'] if A.can('accounts.edit') else [])
+        mode = st.segmented_control("طريقة الرسوم", modes,
+            selection_mode="single", default="بلا دفعة", key=_form_key("kid_finance_mode"),
+            help="يمكن تسجيل الدفعة لاحقًا من صفحة الدفعات.")
+        tariff = F.prices(conn)
+        start_date = F.today()
+        with st.expander("تاريخ بدء التسجيل"):
+            start_date = st.date_input("تاريخ بدء الاشتراك", value=F.today(),
+                key=_form_key("kid_finance_start"))
+        reg_chosen = garment_chosen = False
+        initial_amount = 0
+        if mode == "معفي":
+            st.caption("يشمل الإعفاء التسجيل والجيليه والشهرية، دون قبض أي مبلغ.")
+        elif mode == "دفع":
+            if tariff:
+                reg_price, garment_price = int(tariff["registration"]), int(tariff["gilet"])
+                reg_chosen = st.checkbox(f"رسوم التسجيل — {reg_price:,} أوقية قديمة",
+                    key=_form_key("kid_initial_registration"))
+                garment_chosen = st.checkbox(f"الجيليه — {garment_price:,} أوقية قديمة",
+                    key=_form_key("kid_initial_gilet"))
+            else:
+                st.warning("لم تُضبط الأسعار بعد. افتح إعدادات الرسوم في صفحة الدفعات.")
+            initial_amount = st.number_input("المبلغ المدفوع", min_value=0,
+                max_value=F.MAX_AMOUNT, step=1, value=0,
+                key=_form_key("kid_initial_amount"))
+            if tariff:
+                try:
+                    F.preview(int(initial_amount),reg_chosen,garment_chosen,tariff)
+                except ValueError as exc:
+                    st.warning(str(exc))
+        else:
+            st.caption("يمكنك تسجيل الدفعة لاحقًا. رسوم التسجيل تبقى مستحقة.")
+
+        submitted = st.button("💾 حفظ بيانات الطفل والأهل",
+                              type="primary", use_container_width=True,
+                              key=f"kid_save_final_{version}")
+        if submitted:
+            # Remove the preceding success notice only for a new valid attempt.
+            try:
+                if not name:
+                    raise ValueError("يرجى كتابة اسم الطفل.")
+                # Child validation applies in either family-selection mode.
+                if len(name) > 100 or len(place.strip()) > 100:
+                    raise ValueError("اسم الطفل أو مكان الميلاد طويل جداً.")
+                # Draft details of a *new* family are preserved when switching
+                # to an existing guardian, but must not block that child save.
+                if parent_id is None:
+                    if any(len(v) > 100 for v in (
+                            family["father_name"], family["mother_name"])):
+                        raise ValueError("أحد أسماء الأهل أطول من المسموح.")
+                    if any(len(v) > 20 for v in (
+                            family["father_mobile"], family["mother_mobile"])):
+                        raise ValueError("رقم الهاتف أطول من المسموح.")
+                    if len(family["contact_email"]) > 254 or (
+                        family["contact_email"] and ("@" not in family["contact_email"]
+                                                     or " " in family["contact_email"])):
+                        raise ValueError("يرجى كتابة بريد تواصل صحيح.")
+                child = dict(full_name=name, birth_date=birth, gender=gender,
+                    birth_place=place, address=address, medical_details=medical,
+                    allergies=allergy, general_notes=notes,
+                    authorized_pickups=_validate_pickups(pickups))
+                if mode == "دفع" and not initial_amount:
+                    raise ValueError("أدخل المبلغ المدفوع أو اترك الخيار بلا دفع.")
+                # This preview does not authorize the charge; PostgreSQL
+                # re-reads current tariffs and allocates in the transaction.
+                if mode == "دفع" and tariff:
+                    F.preview(int(initial_amount),reg_chosen,garment_chosen,tariff)
+                if parent_id:
+                    stored_parent = parents.loc[parents["father_id"] == parent_id].iloc[0]
+                    payer = (_text(stored_parent["father_name"]).strip() or
+                             _text(stored_parent["mother_name"]).strip() or "ولي الأمر")
+                else:
+                    payer = family["father_name"] or family["mother_name"]
+                finance = {"mode": "exempt" if mode=="معفي" else "regular",
+                           "start_date": str(start_date),
+                           "registration": bool(reg_chosen) if mode=="دفع" else False,
+                           "gilet": bool(garment_chosen) if mode=="دفع" else False,
+                           "cash": int(initial_amount) if mode=="دفع" else 0,
+                           "payer": payer}
+                _, created = db.save_child_with_family(
+                    child, family, parent_id, st.session_state["kid_request_token"],
+                    finance=finance, actor=actor())
+                st.session_state["kid_last_saved"] = (
+                    "✅ تم حفظ الطفل والأهل بنجاح. النموذج فارغ لإدخال طفل آخر."
+                    if created else
+                    "✅ تم حفظ هذا الطلب سابقاً دون إنشاء طفل أو أسرة مكررين.")
+                st.session_state["kid_saved_reset"] = True
+                st.rerun()
+            except ValueError as exc:
+                st.error(str(exc))
+            except Exception:
+                st.error("تعذّر حفظ البيانات. لم تُحفظ الأسرة جزئياً؛ راجع البيانات وحاول مجدداً.")
+
+
+
 def render(conn):
     _reset_after_success()
     if "kid_form_version" not in st.session_state:
@@ -165,141 +317,7 @@ def render(conn):
         family_choices.append((row["father_id"], f"{names} — {phones}"))
 
     with tab_add:
-        if st.session_state.get("kid_last_saved"):
-            st.success(st.session_state["kid_last_saved"])
-        existing = False
-        if family_choices:
-            existing = st.checkbox("اختيار ولي أمر موجود", key=_form_key("kid_use_existing"))
-        version = st.session_state["kid_form_version"]
-        with st.container(border=True):
-            ui.form_section_title("١ · بيانات الطفل")
-            a, b = st.columns(2)
-            name = a.text_input("اسم الطفل *", key=_form_key("kid_name")).strip()
-            birth = b.date_input("تاريخ الميلاد *", value=date(2022, 1, 1),
-                       min_value=date(1990, 1, 1), max_value=F.today(),
-                       key=_form_key("kid_birth"))
-            a, b = st.columns(2)
-            gender = a.selectbox("الجنس *", H.GENDERS, key=_form_key("kid_gender"))
-            place = b.text_input("مكان الميلاد (اختياري)", key=_form_key("kid_place"))
-            address = st.text_input("العنوان (اختياري)", key=_form_key("kid_address"))
-            family = dict(father_name="", father_mobile="", mother_name="",
-                          mother_mobile="", contact_email="")
-            parent_id = None
-            ui.form_section_title("٢ · بيانات الأهل")
-            if existing:
-                selected = st.selectbox("ولي الأمر الموجود", family_choices,
-                    format_func=lambda option: option[1],
-                    key=_form_key("kid_existing_family"))
-                parent_id = selected[0]
-                st.caption("بيانات الأهل المشتركة تُعدّل من صفحة أولياء الأمور.")
-                # Streamlit destroys an unrendered widget's state on rerun.
-                # Keep fields mounted in a closed expander when switching modes.
-                with st.expander("بيانات أهل جديدة محفوظة (اختياري)"):
-                    _parent_fields(family)
-            else:
-                _parent_fields(family)
-
-            with st.expander("تفاصيل اختيارية"):
-                medical = st.text_area("ملاحظات صحية", key=_form_key("kid_health"))
-                allergy = st.text_area("الحساسية", key=_form_key("kid_allergy"))
-                notes = st.text_area("ملاحظات عامة", key=_form_key("kid_notes"))
-
-            pickups = _pickup_editor(f"kid_add_{version}", in_form=False)
-
-            ui.form_section_title("٣ · الرسوم والدفع")
-            # Unlike fields inside st.form, native segmented and amount controls
-            # trigger immediate reruns and therefore a live receipt breakdown.
-            mode = st.segmented_control("طريقة الرسوم", ["بلا دفعة", "دفع", "معفي"],
-                selection_mode="single", default="بلا دفعة", key=_form_key("kid_finance_mode"),
-                help="يمكن تسجيل الدفعة لاحقًا من صفحة الدفعات.")
-            tariff = F.prices(conn)
-            start_date = F.today()
-            with st.expander("تاريخ بدء التسجيل"):
-                start_date = st.date_input("تاريخ بدء الاشتراك", value=F.today(),
-                    key=_form_key("kid_finance_start"))
-            reg_chosen = garment_chosen = False
-            initial_amount = 0
-            if mode == "معفي":
-                st.caption("يشمل الإعفاء التسجيل والجيليه والشهرية، دون قبض أي مبلغ.")
-            elif mode == "دفع":
-                if tariff:
-                    reg_price, garment_price = int(tariff["registration"]), int(tariff["gilet"])
-                    reg_chosen = st.checkbox(f"رسوم التسجيل — {reg_price:,} أوقية قديمة",
-                        key=_form_key("kid_initial_registration"))
-                    garment_chosen = st.checkbox(f"الجيليه — {garment_price:,} أوقية قديمة",
-                        key=_form_key("kid_initial_gilet"))
-                else:
-                    st.warning("لم تُضبط الأسعار بعد. افتح إعدادات الرسوم في صفحة الدفعات.")
-                initial_amount = st.number_input("المبلغ المدفوع", min_value=0,
-                    max_value=F.MAX_AMOUNT, step=1, value=0,
-                    key=_form_key("kid_initial_amount"))
-                if tariff:
-                    try:
-                        F.preview(int(initial_amount),reg_chosen,garment_chosen,tariff)
-                    except ValueError as exc:
-                        st.warning(str(exc))
-            else:
-                st.caption("يمكنك تسجيل الدفعة لاحقًا. رسوم التسجيل تبقى مستحقة.")
-
-            submitted = st.button("💾 حفظ بيانات الطفل والأهل",
-                                  type="primary", use_container_width=True,
-                                  key=f"kid_save_final_{version}")
-            if submitted:
-                # Remove the preceding success notice only for a new valid attempt.
-                try:
-                    if not name:
-                        raise ValueError("يرجى كتابة اسم الطفل.")
-                    # Child validation applies in either family-selection mode.
-                    if len(name) > 100 or len(place.strip()) > 100:
-                        raise ValueError("اسم الطفل أو مكان الميلاد طويل جداً.")
-                    # Draft details of a *new* family are preserved when switching
-                    # to an existing guardian, but must not block that child save.
-                    if parent_id is None:
-                        if any(len(v) > 100 for v in (
-                                family["father_name"], family["mother_name"])):
-                            raise ValueError("أحد أسماء الأهل أطول من المسموح.")
-                        if any(len(v) > 20 for v in (
-                                family["father_mobile"], family["mother_mobile"])):
-                            raise ValueError("رقم الهاتف أطول من المسموح.")
-                        if len(family["contact_email"]) > 254 or (
-                            family["contact_email"] and ("@" not in family["contact_email"]
-                                                         or " " in family["contact_email"])):
-                            raise ValueError("يرجى كتابة بريد تواصل صحيح.")
-                    child = dict(full_name=name, birth_date=birth, gender=gender,
-                        birth_place=place, address=address, medical_details=medical,
-                        allergies=allergy, general_notes=notes,
-                        authorized_pickups=_validate_pickups(pickups))
-                    if mode == "دفع" and not initial_amount:
-                        raise ValueError("أدخل المبلغ المدفوع أو اترك الخيار بلا دفع.")
-                    # This preview does not authorize the charge; PostgreSQL
-                    # re-reads current tariffs and allocates in the transaction.
-                    if mode == "دفع" and tariff:
-                        F.preview(int(initial_amount),reg_chosen,garment_chosen,tariff)
-                    if parent_id:
-                        stored_parent = parents.loc[parents["father_id"] == parent_id].iloc[0]
-                        payer = (_text(stored_parent["father_name"]).strip() or
-                                 _text(stored_parent["mother_name"]).strip() or "ولي الأمر")
-                    else:
-                        payer = family["father_name"] or family["mother_name"]
-                    finance = {"mode": "exempt" if mode=="معفي" else "regular",
-                               "start_date": str(start_date),
-                               "registration": bool(reg_chosen) if mode=="دفع" else False,
-                               "gilet": bool(garment_chosen) if mode=="دفع" else False,
-                               "cash": int(initial_amount) if mode=="دفع" else 0,
-                               "payer": payer}
-                    _, created = db.save_child_with_family(
-                        child, family, parent_id, st.session_state["kid_request_token"],
-                        finance=finance, actor=actor())
-                    st.session_state["kid_last_saved"] = (
-                        "✅ تم حفظ الطفل والأهل بنجاح. النموذج فارغ لإدخال طفل آخر."
-                        if created else
-                        "✅ تم حفظ هذا الطلب سابقاً دون إنشاء طفل أو أسرة مكررين.")
-                    st.session_state["kid_saved_reset"] = True
-                    st.rerun()
-                except ValueError as exc:
-                    st.error(str(exc))
-                except Exception:
-                    st.error("تعذّر حفظ البيانات. لم تُحفظ الأسرة جزئياً؛ راجع البيانات وحاول مجدداً.")
+        render_intake(conn,parents,family_choices)
 
     with tab_view:
         students = ui.df(conn, """

@@ -6,6 +6,7 @@ from decimal import Decimal
 import streamlit as st
 import ui
 import monthly_finance as F
+import access_control as A
 from sections import receipt_inspector as RI
 
 
@@ -50,6 +51,9 @@ def financial_panel(conn, student, *, payment=True, scope=None, profile=False, s
                         finance_receipt_receipt_open=None, finance_receipt_receipt_mode=None)
         return
     if not result:
+        if not A.can('accounts.edit'):
+            st.info('الحساب المالي يحتاج تهيئة من المسؤول.')
+            return
         info=F.account_setup_suggestion(conn,student)
         with st.expander("تهيئة الحساب الشهري لهذا الطفل",expanded=True):
             st.caption("هذه تهيئة لحساب طفل موجود دون وصل نقدي أو دين سنوي جديد. "
@@ -258,7 +262,7 @@ def financial_panel(conn, student, *, payment=True, scope=None, profile=False, s
                               student_id=student)
 
 
-def render_accounts(conn):
+def render_accounts(conn,*,allow_payment=True):
     from student_search import filter_children
     st.caption("الدفعات والأرصدة بالأوقية القديمة، ويمكن تهيئة الحساب للأطفال الموجودين.")
     children=ui.df(conn,"""SELECT s.student_id,s.full_name,a.status,
@@ -282,7 +286,7 @@ def render_accounts(conn):
     chosen=st.selectbox("اختر الطفل",choices,format_func=lambda x:f'{x[1]} · {x[0]}' if x[1] in duplicate_names else x[1],
                        index=None,placeholder="اختر طفلاً...",key="monthly_finance_child")
     if chosen:
-        financial_panel(conn,chosen[0])
+        financial_panel(conn,chosen[0],payment=allow_payment)
 
 
 def render_settings(conn):
