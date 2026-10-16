@@ -193,8 +193,8 @@ def can(permission):
     return allowed(st.session_state.get('_access_profile'),permission)
 
 
-def require(cursor,permission):
-    profile=current(cursor,lock=True)
+def require(cursor,permission,*,lock=True):
+    profile=current(cursor,lock=lock)
     if not allowed(profile,permission): raise AccessDenied('ليس لديك صلاحية لتنفيذ هذا الإجراء.')
     cursor.execute("SELECT set_config('app.audit_user_id',%s,true),set_config('app.audit_actor',%s,true),set_config('app.write_permission',%s,true),set_config('app.session_hash',%s,true)",
                    (str(profile['user_id']),profile['username'],permission,
@@ -264,7 +264,9 @@ def refresh(conn):
 
 
 def clear_state(*,keep_token=False):
-    keep={k:st.session_state[k] for k in ('night_mode','auth_session') if k in st.session_state and (k!='auth_session' or keep_token)}
+    # Reuse this tab's connection slot. Its revoked session hash stays fail-
+    # closed until the next successful refresh binds the new identity.
+    keep={k:st.session_state[k] for k in ('night_mode','_db_session_key','auth_session') if k in st.session_state and (k!='auth_session' or keep_token)}
     st.session_state.clear()
     st.session_state.update(keep)
 
@@ -327,6 +329,9 @@ def save_user(*,employee_name,name=None,password=None,is_admin=False,permissions
                     password_hash=COALESCE(%s,password_hash),auth_version=auth_version+1 WHERE user_id=%s''',
                     (employee_name,is_admin,json.dumps(perms),active,hashed,uid))
                 c.execute('DELETE FROM app_sessions WHERE user_id=%s',(uid,))
+                if hashed or (active and not old['active']):
+                    c.execute('DELETE FROM app_login_attempts WHERE name_hash=%s',
+                        (hashlib.sha256(old['username'].encode()).hexdigest(),))
             else:
                 if not hashed: raise ValueError('أدخل كلمة مرور للحساب الجديد.')
                 uid=str(uuid.uuid4()); old=None

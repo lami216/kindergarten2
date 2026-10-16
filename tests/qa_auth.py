@@ -16,8 +16,8 @@ def trusted():
     from contextlib import ExitStack
     stack=ExitStack()
     stack.enter_context(patch.object(A,'can',lambda permission:True))
-    stack.enter_context(patch.object(A,'require',lambda cursor,permission:dict(PROFILE)))
-    stack.enter_context(patch.object(A,'actor',lambda cursor,permission,legacy_actor=None:legacy_actor or 'qa'))
+    stack.enter_context(patch.object(A,'require',lambda cursor,permission,**kwargs:dict(PROFILE)))
+    stack.enter_context(patch.object(A,'actor',lambda cursor,permission,legacy_actor=None:legacy_actor))
     stack.enter_context(patch.object(A,'current',lambda cursor=None,lock=False:dict(PROFILE)))
     return stack
 

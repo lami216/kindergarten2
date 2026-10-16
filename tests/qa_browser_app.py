@@ -27,8 +27,8 @@ if hasattr(db, 'assert_schema_ready'):
     db.assert_schema_ready(conn)
     import access_control as A
     A.can=lambda permission:True
-    A.require=lambda cursor,permission: {'is_admin':True,'username':'Chromium QA'}
-    A.actor=lambda cursor,permission,legacy_actor=None:legacy_actor or 'Chromium QA'
+    A.require=lambda cursor,permission,**kwargs: {'is_admin':True,'username':'Chromium QA'}
+    A.actor=lambda cursor,permission,legacy_actor=None:legacy_actor
     import record_history
     with conn.cursor() as cursor:
         record_history.context(cursor, st.session_state['auth_user'], local=False)

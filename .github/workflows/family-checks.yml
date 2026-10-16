@@ -56,6 +56,8 @@ jobs:
         run: python tests/browser_record_preview.py
       - name: Unified receipt list, family search and in-document actions
         run: python tests/browser_receipt_search_preview.py
+      - name: Synthetic manager and worker accounts preview
+        run: python tests/browser_admin_preview.py
       - name: Start isolated QA previews
         shell: bash
         run: |

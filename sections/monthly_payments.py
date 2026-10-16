@@ -286,7 +286,8 @@ def render_accounts(conn,*,allow_payment=True):
     chosen=st.selectbox("اختر الطفل",choices,format_func=lambda x:f'{x[1]} · {x[0]}' if x[1] in duplicate_names else x[1],
                        index=None,placeholder="اختر طفلاً...",key="monthly_finance_child")
     if chosen:
-        financial_panel(conn,chosen[0],payment=allow_payment)
+        if allow_payment: financial_panel(conn,chosen[0])
+        else: financial_panel(conn,chosen[0],payment=False)
 
 
 def render_settings(conn):

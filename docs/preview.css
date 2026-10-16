@@ -55,6 +55,12 @@ aside{position:fixed;inset:0 0 0 auto;width:250px;background:#073f31;color:#f0f7
 .table-wrap table:has(thead tr th:nth-child(2):last-child) th:first-child { width:70%; }
 .table-wrap table:has(thead tr th:nth-child(2):last-child) td { overflow-wrap:anywhere; }
 .record-actions { display:flex; gap:6px; flex-wrap:wrap; }
+.grant-row { border:1px solid var(--border); border-radius:9px; margin-top:14px; padding:10px 14px; display:flex; gap:6px 18px; flex-wrap:wrap; }
+.grant-row legend { padding:0 6px; font-size:12px; color:var(--text); }
+.grant-row .check-row { margin:4px 0; }
+.demo-scope-note { font-size:11px; line-height:1.8; color:var(--muted); }
+.demo-worker-login { text-align:right; }
+nav button[hidden] { display:none; }
 .receipt-search { border-inline-start:4px solid var(--green); }
 #receipt-rows .receipt-row { gap:14px; flex-wrap:wrap; }
 #receipt-rows .receipt-row > div:first-child { flex:1; min-width:145px; }

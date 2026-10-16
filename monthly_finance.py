@@ -703,6 +703,7 @@ def payment_preview(conn, student, cash):
 
 
 def take_payment(student, cash, *, payer="", token=None, actor="مديرة الروضة", as_of=None, expected_revision=None, expected_tariff=None):
+    actor=_actor(actor)
     cash=amount(cash)
     token=str(token or uuid.uuid4())
     fp=_hash({"student":student,"amount":cash,"payer":payer.strip(),"kind":"monthly"})

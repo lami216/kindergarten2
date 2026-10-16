@@ -41,6 +41,7 @@ async def grant(page,resource,action):
 
 async def nav(page,key,staff=False):
     button=page.locator(f'.st-key-{"staff_nav_" if staff else "nav_"}{key} button')
+    await button.wait_for(state='attached',timeout=30000)
     if not await button.is_visible():
         await page.locator('[data-testid="stExpandSidebarButton"]').first.click()
     await button.click()
