@@ -285,3 +285,34 @@ def test_public_database_role_cannot_read_or_create_users_or_business_data(acces
             c.execute(sql.SQL('DROP ROLE {}').format(sql.Identifier(role)))
         c.execute('SELECT COUNT(*) AS n FROM app_users WHERE user_id=%s',(owner,))
         assert c.fetchone()['n']==1
+
+
+def test_scoped_worker_salary_preview_matches_saved_cash_and_retains_confirmation(access):
+    conn,_,_,_=access
+    with conn.cursor() as c:
+        c.execute("INSERT INTO teachers(national_id,full_name,salary) VALUES('T-access','معلمة صلاحيات',2000)")
+    uid,token=worker(['salaries.create'])
+    app=AppTest.from_string('''import db,access_control as A
+from sections import staff_workspace
+conn=db.new_transaction_connection();conn.autocommit=True
+try:
+ A.refresh(conn)
+ staff_workspace.render(conn)
+finally: conn.close()
+''')
+    app.session_state['auth_session']=token
+    app.session_state['current_page']='salaries'
+    app.run(timeout=30)
+    app.selectbox(key='staff_payroll_0_teacher').set_value('T-access').run(timeout=30)
+    app.number_input(key='staff_payroll_0_bonus').set_value(500).run(timeout=30)
+    app.number_input(key='staff_payroll_0_deduction').set_value(100).run(timeout=30)
+    assert any('2,400.00' in i.value for i in app.info)
+    app.button(key='staff_payroll_0_save').click().run(timeout=30)
+    assert not app.exception
+    assert any('سُجل الصرف باسم حسابك.' in i.value for i in app.success)
+    with conn.cursor() as c:
+        c.execute("SELECT cash_amount FROM teacher_payments WHERE national_id='T-access'")
+        assert [r['cash_amount'] for r in c.fetchall()]==[2400]
+        c.execute("SELECT actor,actor_user_id FROM record_changes WHERE table_name='teacher_payments' AND action='created'")
+        rows=c.fetchall()
+    assert len(rows)==1 and rows[0]['actor']=='worker' and str(rows[0]['actor_user_id'])==uid

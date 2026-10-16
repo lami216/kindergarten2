@@ -108,4 +108,17 @@ def render(conn):
             title={'account_created':'إنشاء حساب','account_updated':'تحديث حساب وصلاحيات','owner_bootstrap':'تهيئة المدير الأول'}.get(event['action'],event['action'])
             with st.expander(f"{title} · {event['target_name']} · {event['happened_at']}"):
                 st.caption('المسؤول: '+str(event['responsible'] or 'مسؤول التشغيل'))
-                st.json({'قبل':event['before_state'],'بعد':event['after_state']},expanded=False)
+                before=event['before_state'] or {}; after=event['after_state'] or {}
+                def display(state,key):
+                    if key not in state: return '—'
+                    if key=='active': return 'مفعل' if state[key] else 'معطل'
+                    if key=='is_admin': return 'مدير' if state[key] else 'عامل'
+                    if key=='permissions':
+                        if state.get('is_admin'): return 'جميع الصلاحيات'
+                        return '، '.join(A.RESOURCES[p.split('.')[0]][0]+': '+A.ACTIONS[p.split('.')[1]]
+                            for p in state[key]) or 'بلا صلاحيات'
+                    return state[key]
+                fields={'employee_name':'اسم العامل','username':'اسم المستخدم','active':'الحالة','is_admin':'الدور','permissions':'الصلاحيات'}
+                ui.dataframe([{'البيان':label,'قبل':display(before,key),'بعد':display(after,key)}
+                    for key,label in fields.items() if before.get(key)!=after.get(key)],hide_index=True,use_container_width=True)
+                if after.get('password_changed'): st.caption('تم تحديد كلمة مرور جديدة؛ لا تُعرض كلمة المرور في السجل.')

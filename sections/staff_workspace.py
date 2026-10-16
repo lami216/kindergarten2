@@ -127,6 +127,7 @@ def _transfer(conn):
 
 
 def _payroll_intake(conn):
+    if notice:=st.session_state.pop('staff_payroll_notice',None): st.success(notice)
     teachers=ui.df(conn,'SELECT national_id,full_name,salary FROM teachers WHERE archived_at IS NULL ORDER BY full_name,national_id')
     mapping={r['national_id']:r for r in teachers.to_dict('records')}
     version=st.session_state.get('staff_payroll_version',0); prefix=f'staff_payroll_{version}'
@@ -156,6 +157,6 @@ def _payroll_intake(conn):
             if kind=='راتب': P.save_salary(tid,month,base,bonus,deduction,**args)
             else: P.save_advance(tid,month,base,**args)
             st.session_state['staff_payroll_version']=version+1
-            st.success('سُجل الصرف باسم حسابك.')
+            st.session_state['staff_payroll_notice']='سُجل الصرف باسم حسابك.'
             st.rerun()
         except ValueError as error: st.error(str(error))
