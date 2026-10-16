@@ -39,7 +39,11 @@ def render(conn):
         success = st.session_state.pop("salary_saved_notice", None)
         if success:
             st.success(success)
-        with st.form(f"disburse_salary_form_v{salary_version}"):
+        quote_key=f'salary_displayed_quote_v{salary_version}'
+        previous_quote=st.session_state.get(quote_key)
+        quote=None
+        # Live widgets rerun when amounts change; st.form batches them until save.
+        with st.container(border=True,key=f"disburse_salary_form_v{salary_version}"):
             col1, col2, col3 = st.columns(3)
             salary_month = col1.text_input("عن شهر (YYYY-MM) *", value=current_month, key=f"salary_month_v{salary_version}")
             base_salary = col2.number_input("الراتب الأساسي (أوقية قديمة)", min_value=0.0, value=default_salary, step=50.0, key=f"salary_base_v{salary_version}_{t_id or 'none'}")
@@ -49,15 +53,27 @@ def render(conn):
             deductions = col4.number_input("خصومات (أوقية قديمة)", min_value=0.0, value=0.0, step=50.0, key=f"salary_deductions_v{salary_version}")
             notes = col5.text_input("ملاحظات إضافية (اختياري)", key=f"salary_notes_v{salary_version}")
 
-            net_salary = max(0.0, base_salary + bonus - deductions)
-            st.info(f"💵 **صافي الراتب المستحق للصرف:** {H.format_money(net_salary)} أوقية قديمة")
+            if t_id:
+                try:
+                    preview=P.salary_preview(base_salary,bonus,deductions)
+                    quote={'teacher':t_id,'month':salary_month,'notes':notes,**preview}
+                    st.info(f"💵 **صافي الراتب المستحق للصرف:** {H.format_money(preview['net'])} أوقية قديمة")
+                except ValueError as error:
+                    st.error(str(error))
+            else:
+                st.info('اختر المعلمة لعرض صافي الراتب قبل الصرف.')
 
-            pay_submitted = st.form_submit_button("🧾 تسجيل الصرف وطباعة قسيمة الراتب", type="primary", use_container_width=True)
+            pay_submitted = st.button("🧾 تسجيل الصرف وطباعة قسيمة الراتب",
+                key=f'salary_save_v{salary_version}',type="primary",use_container_width=True,
+                disabled=quote is None)
 
+        st.session_state[quote_key]=quote
         if pay_submitted:
             try:
                 if not t_id:
                     raise ValueError("اختر المعلمة أولاً.")
+                if quote is None or previous_quote!=quote:
+                    raise ValueError('تغيّرت البيانات؛ راجع صافي الراتب المحدّث ثم اضغط تسجيل الصرف مرة أخرى.')
                 payment_id, created = P.save_salary(t_id, salary_month, base_salary,
                     bonus, deductions, notes, actor=st.session_state.get("auth_user", "مديرة الروضة"),
                     token=st.session_state["salary_request_token"])
@@ -90,11 +106,11 @@ def render(conn):
         if salary_logs.empty:
             ui.empty_state("لا توجد رواتب مدفوعة مسجلة بعد.")
         else:
-            search = st.text_input("🔍 ابحث باسم المعلمة أو الشهر")
+            search = st.text_input("🔍 ابحث باسم المعلمة أو الشهر",key='salary_log_search')
             shown = salary_logs.copy()
             if search:
-                shown = shown[shown["المعلمة"].str.contains(search, na=False) |
-                              shown["عن شهر"].str.contains(search, na=False)]
+                shown = shown[shown["المعلمة"].str.contains(search, na=False, regex=False) |
+                              shown["عن شهر"].str.contains(search, na=False, regex=False)]
 
             display_df = shown.drop(columns=['payment_id', 'national_id','display_national_id'])
             ui.dataframe(display_df, use_container_width=True, hide_index=True)

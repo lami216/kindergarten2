@@ -77,6 +77,8 @@ jobs:
       # old annual-payment operator tab is intentionally no longer reachable.
       - name: Three real sessions, actual ZIP download and dark calendar contrast
         run: PYTHONPATH=. python tests/browser_runtime_readiness.py
+      - name: Live salary preview, literal search and recoverable expense correction
+        run: PYTHONPATH=. python tests/browser_operator_inputs.py
       - name: Chromium stale payment window after archive
         run: PYTHONPATH=. python tests/browser_archive_receipt.py
       - name: Chromium salary and advance double-submission

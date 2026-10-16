@@ -72,14 +72,11 @@ def render(conn):
                         amount_paid = 0.0
                     else:  # مدفوع جزئياً
                         paid_key=f"expense_add_paid_{version}"
-                        if paid_key in st.session_state:
-                            st.session_state[paid_key]=min(float(st.session_state[paid_key]),float(amount))
                         amount_paid = st.number_input(
                             "المبلغ المدفوع فعلياً (أوقية قديمة)",
                             key=f"expense_add_paid_{version}",
                             min_value=0.0,
-                            max_value=float(amount) if amount > 0 else 0.0,
-                            value=float(amount)/2 if amount > 0 else 0.0,
+                            value=0.0,
                             step=10.0,
                             format="%.2f"
                         )
@@ -94,6 +91,8 @@ def render(conn):
                             st.error("أدخل اسم المصروف.")
                         elif amount <= 0:
                             st.error("⚠️ يرجى إدخال مبلغ أكبر من صفر.")
+                        elif pay_status == 'مدفوع جزئياً' and amount_paid>amount:
+                            st.error('المدفوع أكبر من قيمة الفاتورة؛ صحّح الإجمالي أو المدفوع.')
                         else:
                             # ضمان حتمي لتطابق القيمة قبل الحفظ في قاعدة البيانات
                             final_paid = amount if pay_status == "مدفوع بالكامل" else (0.0 if pay_status == "آجل / دين (غير مدفوع)" else amount_paid)
@@ -140,7 +139,7 @@ def render(conn):
                     row["expense_id"]: f"#{row['expense_id']} - {row['category']} (المتبقي: {float(row['amount']) - float(row['amount_paid'])} أوقية قديمة) - {row['payment_status']}"
                     for _, row in df_exp_manage.iterrows()
                 }
-                selected_id = st.selectbox("اختر المصروف لتعديله، تسديد الدين، أو الحذف:", options=list(exp_options.keys()), format_func=lambda x: exp_options[x])
+                selected_id = st.selectbox("اختر المصروف لتعديله، تسديد الدين، أو الحذف:", options=list(exp_options.keys()), format_func=lambda x: exp_options[x],key='expense_manage_select')
 
                 exp_data = df_exp_manage[df_exp_manage["expense_id"] == selected_id].iloc[0]
                 ui.open_record_editor('expenses',int(selected_id),'تعديل كامل للمصروف وتسوياته')
@@ -162,7 +161,9 @@ def render(conn):
                         curr_status_idx = PAYMENT_STATUSES.index(exp_data["payment_status"]) if exp_data["payment_status"] in PAYMENT_STATUSES else 0
                         e_status = st.selectbox("حالة الدفع", PAYMENT_STATUSES, index=curr_status_idx)
 
-                        e_paid = st.number_input("المبلغ المدفوع فعلياً", value=float(exp_data["amount_paid"]), min_value=0.0, max_value=float(e_amt), step=10.0, format="%.2f")
+                        # Keep recorded cash editable even when the total is
+                        # temporarily lower; validate the relation on submission.
+                        e_paid = st.number_input("المبلغ المدفوع فعلياً", value=float(exp_data["amount_paid"]), min_value=0.0, step=10.0, format="%.2f")
 
                         e_payee = st.text_input("المورد", value=exp_data["payee"] or "")
                         e_notes = st.text_area("ملاحظات", value=exp_data["notes"] or "", height=70)

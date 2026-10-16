@@ -102,12 +102,25 @@ def _insert(table, national_id, args, *, token=None, actor):
         conn.close()
 
 
+def salary_preview(base, bonus=0, deductions=0):
+    """One exact calculation for the visible preview and the persisted cash."""
+    try:
+        base,bonus,deductions=(Decimal(str(v)) for v in (base,bonus,deductions))
+    except (InvalidOperation,ValueError,TypeError):
+        raise ValueError('أدخل مبالغ صحيحة للراتب والمكافأة والخصومات.') from None
+    if any(not v.is_finite() or v<0 or v.as_tuple().exponent < -2 for v in (base,bonus,deductions)):
+        raise ValueError("قيمة الراتب أو الخصم غير صحيحة.")
+    if deductions>base+bonus:
+        raise ValueError('الخصومات أكبر من الراتب والمكافأة؛ راجع المبالغ.')
+    if base+bonus==deductions:
+        raise ValueError('صافي الراتب يجب أن يكون أكبر من صفر لتسجيل صرف.')
+    return {'base':base,'bonus':bonus,'deductions':deductions,'net':_cash(base+bonus-deductions)}
+
+
 def save_salary(national_id, month, base, bonus=0, deductions=0,
                 notes="", *, actor, token=None, on_date=None):
-    base,bonus,deductions=(Decimal(str(v)) for v in (base,bonus,deductions))
-    if any(v<0 or not v.is_finite() or v.as_tuple().exponent < -2 for v in (base,bonus,deductions)):
-        raise ValueError("قيمة الراتب أو الخصم غير صحيحة.")
-    total=_cash(base+bonus-deductions)
+    preview=salary_preview(base,bonus,deductions)
+    base,bonus,deductions,total=(preview[k] for k in ('base','bonus','deductions','net'))
     return _insert("teacher_payments",str(national_id),
         {"amount":total,"date":str(on_date or business_today()),"month":_month(month),
          "base":base,"bonus":bonus,"deductions":deductions,"notes":str(notes or "")},
