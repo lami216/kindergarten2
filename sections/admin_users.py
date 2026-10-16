@@ -26,7 +26,8 @@ def render(conn):
     ui.section_header('🔐','لوحة المدير','الحسابات والصلاحيات ونشاط العاملين')
     if notice:=st.session_state.pop('admin_notice',None): st.success(notice)
     users=A.list_users(conn)
-    accounts,usage,audit=st.tabs(['👥 الحسابات والصلاحيات','📊 نشاط العاملين','🕘 سجل إدارة الحسابات'])
+    accounts,usage,audit=st.tabs(['👥 الحسابات والصلاحيات','📊 نشاط العاملين','🕘 سجل إدارة الحسابات'],
+        key='admin_tabs',on_change='rerun')
     labels={str(u['user_id']):f"{u['employee_name']} · {u['username']}" for u in users}
     with accounts:
         with st.expander('➕ إنشاء حساب عامل',expanded=not any(not u['is_admin'] for u in users)):

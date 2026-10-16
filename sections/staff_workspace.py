@@ -54,7 +54,7 @@ def render(conn):
         change_history.render(conn); return
     if page=='payments':
         from sections import monthly_payments as M
-        accounts,receipts=st.tabs(['حساب الطفل','الوصولات'])
+        accounts,receipts=st.tabs(['حساب الطفل','الوصولات'],key='staff_payment_tabs',on_change='rerun')
         with accounts: M.render_accounts(conn,allow_payment=A.can('payments.create'))
         with receipts: M.render_receipts(conn)
         return
