@@ -30,7 +30,7 @@ async def run():
                 await expect(page.locator('#receipt-rows .receipt-row')).to_have_count(5)
                 await expect(page.locator('#content [data-record-type="receipts"]')).to_have_count(0)
                 search=page.locator('#receipt-search')
-                for term in ('مريم','٠٠٠٠٠٠٠١','0000 1001','١٠١'):
+                for term in ('مريم أحمد','٠٠٠٠٠٠٠١','0000 1001','١٠١'):
                     await search.fill(term)
                     await expect(page.locator('#receipt-rows .receipt-row')).to_have_count(1)
                     await expect(page.locator('[data-receipt="101"]')).to_be_visible()
@@ -43,7 +43,7 @@ async def run():
                 assert await page.evaluate('changes.length')==0
                 # Names can coincide and siblings can share a parent's phone.
                 await page.evaluate("students[1].name=students[0].name;students[1].fatherPhone=students[0].fatherPhone")
-                await search.fill('مريم')
+                await search.fill('مريم أحمد')
                 await expect(page.locator('#receipt-rows .receipt-row')).to_have_count(2)
                 await search.fill('00000001')
                 await expect(page.locator('#receipt-rows .receipt-row')).to_have_count(2)
@@ -68,7 +68,7 @@ async def run():
                 assert await page.evaluate('changes.length')==2
                 assert await page.evaluate("account(students[0]).paid")==0
                 await page.locator('#receipt-close').click()
-                await search.fill('مريم')
+                await search.fill('مريم أحمد')
                 await expect(page.locator('#receipt-rows .receipt-row')).to_have_count(3)
                 # Both original and corrected cancelled documents remain findable.
                 await page.locator('[data-receipt="101"]').click()
