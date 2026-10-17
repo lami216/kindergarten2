@@ -84,9 +84,10 @@ def test_insufficient_positive_cash_remains_atomic(intake):
         c.execute('SELECT COUNT(*) AS n FROM students');assert c.fetchone()['n']==before
 
 
-def test_zero_intake_freezes_first_month_before_any_file_view(intake):
+@pytest.mark.parametrize("cash",[0,3000])
+def test_intake_freezes_first_month_before_any_file_view(intake,cash):
     conn,create=intake
-    sid=create(registration=False,gilet=False)
+    sid=create(registration=bool(cash),gilet=bool(cash),cash=cash)
     with patch.object(F,'today',return_value=date(2026,2,10)):
         F.update_tariffs(1000,2000,5000,'test')
     with patch.object(F,'today',return_value=date(2026,2,28)):

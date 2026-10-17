@@ -148,6 +148,10 @@ def test_expense_lower_total_preserves_paid_and_recovers_in_same_form(ledger):
     assert saved['payee'] in (None,'') and saved['notes'] in (None,'')
     assert scalar(conn,'SELECT SUM(amount) FROM expense_cash_events WHERE expense_id=%s',(ident,))==1000
     assert scalar(conn,'SELECT COUNT(*) FROM expense_audit WHERE expense_id=%s',(ident,))==1
+    assert widget(app,'selectbox','اختر المصروف لتعديله، تسديد الدين، أو الحذف:').value==ident
+    widget(app,'button','تصحيح المصروف').click().run(timeout=30)
+    assert widget(app,'number_input','إجمالي الفاتورة').value==1400
+    assert widget(app,'number_input','المبلغ المدفوع فعلياً').value==1000
 
 
 def test_new_partial_expense_does_not_silently_lower_entered_paid_cash(ledger):

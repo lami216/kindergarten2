@@ -142,7 +142,13 @@ def render(conn):
                     row["expense_id"]: f"#{row['expense_id']} - {row['category']} (المتبقي: {float(row['amount']) - float(row['amount_paid'])} أوقية قديمة) - {row['payment_status']}"
                     for _, row in df_exp_manage.iterrows()
                 }
-                selected_id = st.selectbox("اختر المصروف لتعديله، تسديد الدين، أو الحذف:", options=list(exp_options.keys()), format_func=lambda x: exp_options[x],key='expense_manage_select')
+                identifiers=list(exp_options)
+                focused=st.session_state.get('expense_manage_focus')
+                selected_id = st.selectbox("اختر المصروف لتعديله، تسديد الدين، أو الحذف:", options=identifiers,
+                    index=identifiers.index(focused) if focused in identifiers else 0,
+                    format_func=lambda x: exp_options[x],key='expense_manage_select')
+                # Labels contain editable amounts/names; retain identity when they change.
+                st.session_state['expense_manage_focus']=int(selected_id)
 
                 exp_data = df_exp_manage[df_exp_manage["expense_id"] == selected_id].iloc[0]
                 ui.open_record_editor('expenses',int(selected_id),'تعديل كامل للمصروف وتسوياته')
