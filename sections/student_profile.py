@@ -103,13 +103,13 @@ def photo_editor(conn, row, fresh):
             try: st.image(P.normalize(upload.getvalue())['image_data'],width=140,caption='الصورة الجديدة قبل الحفظ')
             except ValueError as error: st.error(str(error))
         with st.form(base+'_form_'+str(expected)):
-            reason=st.text_input('سبب تغيير الصورة *',max_chars=2000)
+            reason=st.text_input('سبب تغيير الصورة *',max_chars=2000,key=base+'_reason_'+str(expected))
             a,b=st.columns(2)
-            save=a.form_submit_button('حفظ الصورة',type='primary',disabled=bool(text(row.get('archived_at'))))
+            save=a.form_submit_button('حفظ الصورة',type='primary',disabled=bool(text(row.get('archived_at'))),key=base+'_save_'+str(expected))
             confirmed=False; remove=False
             if fresh['image_data'] is not None:
-                confirmed=st.checkbox('أؤكد حذف صورة الطالب فقط، مع بقاء ملفه')
-                remove=b.form_submit_button('حذف الصورة')
+                confirmed=st.checkbox('أؤكد حذف صورة الطالب فقط، مع بقاء ملفه',key=base+'_confirm_'+str(expected))
+                remove=b.form_submit_button('حذف الصورة',key=base+'_remove_'+str(expected))
         if save or remove:
             try:
                 if remove and not confirmed: raise ValueError('أكد حذف الصورة أولًا.')

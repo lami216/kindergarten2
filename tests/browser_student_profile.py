@@ -78,29 +78,31 @@ async def run():
                 await uploader.set_input_files(second)
                 await expect(page.get_by_text('الصورة الجديدة قبل الحفظ',exact=True)).to_be_visible(timeout=30000)
                 await expect(page.locator('[data-stale="true"]')).to_have_count(0,timeout=30000)
-                await page.get_by_role('textbox',name='سبب تغيير الصورة *',exact=True).fill('تحديث صورة الطفل')
-                await page.get_by_role('button',name='حفظ الصورة',exact=True).click()
+                await page.locator(f'.st-key-student_photo_{sid}_reason_1 input').fill('تحديث صورة الطفل')
+                await page.locator(f'.st-key-student_photo_{sid}_save_1 button').click()
                 await expect(page.get_by_text('حُفظت صورة الطالب.',exact=True)).to_be_visible(timeout=30000)
                 await expect(page.locator('[data-stale="true"]')).to_have_count(0,timeout=30000)
                 assert query('SELECT revision FROM student_photos WHERE student_id=%s',(sid,))[0]['revision']==2
-                reason=page.get_by_role('textbox',name='سبب تغيير الصورة *',exact=True)
+                await expect(page.locator(f'.st-key-student_photo_{sid}_reason_1 input')).to_have_count(0,timeout=30000)
+                reason=page.locator(f'.st-key-student_photo_{sid}_reason_2 input')
                 if not await reason.is_visible(): await page.get_by_text('📷 صورة الطالب',exact=True).click()
                 await reason.fill('طلب الأسرة إزالة الصورة')
                 await page.get_by_text('أؤكد حذف صورة الطالب فقط، مع بقاء ملفه',exact=True).click()
-                await page.get_by_role('button',name='حذف الصورة',exact=True).click()
+                await page.locator(f'.st-key-student_photo_{sid}_remove_2 button').click()
                 await expect(page.get_by_text('حُذفت الصورة؛ بقي ملف الطالب محفوظًا.',exact=True)).to_be_visible(timeout=30000)
                 await expect(page.locator('[data-stale="true"]')).to_have_count(0,timeout=30000)
                 assert query('SELECT image_data FROM student_photos WHERE student_id=%s',(sid,))[0]['image_data'] is None
                 assert query('SELECT archived_at FROM students WHERE student_id=%s',(sid,))[0]['archived_at'] is None
                 await expect(page.get_by_role('img',name='لم تضف صورة للطالب',exact=True)).to_be_visible()
                 # A new upload after deletion receives a new version; no stale reuse.
-                if not await page.get_by_role('textbox',name='سبب تغيير الصورة *',exact=True).is_visible():
+                await expect(page.locator(f'.st-key-student_photo_{sid}_reason_2 input')).to_have_count(0,timeout=30000)
+                if not await page.locator(f'.st-key-student_photo_{sid}_reason_3 input').is_visible():
                     await page.get_by_text('📷 صورة الطالب',exact=True).click()
                 await page.locator(f'.st-key-student_photo_{sid}_upload_3 input[type="file"]').set_input_files(second)
                 await expect(page.get_by_text('الصورة الجديدة قبل الحفظ',exact=True)).to_be_visible(timeout=30000)
                 await expect(page.locator('[data-stale="true"]')).to_have_count(0,timeout=30000)
-                await page.get_by_role('textbox',name='سبب تغيير الصورة *',exact=True).fill('الصورة المختارة الجديدة')
-                await page.get_by_role('button',name='حفظ الصورة',exact=True).click()
+                await page.locator(f'.st-key-student_photo_{sid}_reason_3 input').fill('الصورة المختارة الجديدة')
+                await page.locator(f'.st-key-student_photo_{sid}_save_3 button').click()
                 await expect(page.get_by_text('حُفظت صورة الطالب.',exact=True)).to_be_visible(timeout=30000)
                 await expect(page.locator('[data-stale="true"]')).to_have_count(0,timeout=30000)
                 await page.locator('.st-key-night_mode label').last.click()
