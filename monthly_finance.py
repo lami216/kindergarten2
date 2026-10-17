@@ -645,6 +645,9 @@ def initialize_in_transaction(c, student, options, actor, token):
     amount(cash,zero=True)
     if not cash:
         # Selected fees remain obligations. Zero cash never creates a receipt.
+        # Freeze the current month price even if nobody opens the new file yet.
+        if options.get("due_at_period_end"):
+            _due_started(c,student,{"student_id":student,"start_date":anchor,"status":"regular"})
         return None
     account={"student_id":student,"start_date":anchor,"status":"regular"}
     receipt,_=_issue(c,account,cash,options.get("payer","ولي الأمر"),actor,

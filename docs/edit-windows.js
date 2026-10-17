@@ -65,7 +65,7 @@ const windowStudentBind=bindStudentForm;
 bindStudentForm=function(){
  windowStudentBind();const mode=$('#fee-mode');
  const sync=()=>{document.querySelectorAll('[data-fee-mode]').forEach(b=>b.className=b.dataset.feeMode===mode.value?'primary':'secondary');if(mode.value==='pay')$('#fee-note').textContent='يمكن حفظ صفر؛ الرسوم المحددة تبقى دينًا، وتستحق الشهرية عند اكتمال كل شهر من تاريخ بدء الاشتراك.';};
- document.querySelectorAll('[data-fee-mode]').forEach(b=>b.onclick=()=>{mode.value=b.dataset.feeMode;mode.dispatchEvent(new Event('change',{bubbles:true}));sync();});mode.addEventListener('change',sync);sync();
+ document.querySelectorAll('[data-fee-mode]').forEach(b=>b.onclick=()=>{mode.value=b.dataset.feeMode;mode.dispatchEvent(new Event('change',{bubbles:true}));sync();});mode.addEventListener('change',sync);$('#student-form').addEventListener('input',sync);$('#student-form').addEventListener('change',sync);sync();
 };
 const windowRender=render;
 render=function(){windowRender();const mode=$('#fee-mode');if(mode){document.querySelectorAll('[data-fee-mode]').forEach(b=>{if(![...mode.options].some(o=>o.value===b.dataset.feeMode))b.remove();});mode.dispatchEvent(new Event('change',{bubbles:true}));}};

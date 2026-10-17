@@ -36,7 +36,7 @@ def intake():
 @pytest.mark.parametrize('registration,gilet,fees',[(True,True,3000),(False,True,2000),(True,False,1000),(False,False,0)])
 def test_zero_cash_selected_fees_and_completed_months(intake,registration,gilet,fees):
     conn,create=intake
-    with patch.object(F,'today',return_value=date(2026,1,31)):
+    with patch.object(F,'today',return_value=date(2026,1,31)), patch.object(H,'today',return_value=date(2026,1,31)):
         before=F._total_due(conn,date(2026,1,31))
     sid=create(registration=registration,gilet=gilet)
     for day,monthly in [(date(2026,1,31),0),(date(2026,2,27),0),(date(2026,2,28),3000),(date(2026,3,30),3000),(date(2026,3,31),6000)]:
@@ -55,7 +55,7 @@ def test_zero_cash_selected_fees_and_completed_months(intake,registration,gilet,
 def test_paid_allocation_correction_preview_and_exemption(intake):
     conn,create=intake
     sid=create(cash=9000)
-    with patch.object(F,'today',return_value=date(2026,1,31)):
+    with patch.object(F,'today',return_value=date(2026,1,31)), patch.object(H,'today',return_value=date(2026,1,31)):
         p=F.projection(conn,sid)
         assert p['cash_paid']==9000 and p['due_now']==0
         assert p['fees']['registration']['paid']==1000 and p['fees']['gilet']['paid']==2000
@@ -82,3 +82,16 @@ def test_insufficient_positive_cash_remains_atomic(intake):
         create(cash=1)
     with conn.cursor() as c:
         c.execute('SELECT COUNT(*) AS n FROM students');assert c.fetchone()['n']==before
+
+
+def test_zero_intake_freezes_first_month_before_any_file_view(intake):
+    conn,create=intake
+    sid=create(registration=False,gilet=False)
+    with patch.object(F,'today',return_value=date(2026,2,10)):
+        F.update_tariffs(1000,2000,5000,'test')
+    with patch.object(F,'today',return_value=date(2026,2,28)):
+        p=F.projection(conn,sid)
+        assert p['periods'][0]['price']==3000 and p['due_now']==3000
+        assert p['periods'][1]['price']==5000
+    with patch.object(F,'today',return_value=date(2026,3,31)):
+        assert F.projection(conn,sid)['due_now']==8000
