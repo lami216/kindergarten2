@@ -543,7 +543,7 @@ def render_file(conn, sid):
                         fee_map={kind:("رسوم التسجيل" if kind=="registration" else "الجيليه")
                             +f" — {info['price']-info['paid']-info.get('waived',0):,} أوقية قديمة"
                             for kind,info in unsettled}
-                        with st.form(f"student_item_collect_{sid}"):
+                        with st.container(border=True,key=f"student_debt_decision_{sid}"):
                             kind=form.selectbox("رسم مستحق للتحصيل النقدي",list(fee_map),
                                 format_func=lambda k:fee_map[k])
                             paid=form.form_submit_button("تحصيل المبلغ المحدد وإصدار وصل")
@@ -562,7 +562,7 @@ def render_file(conn, sid):
                             except Exception:
                                 st.error("تعذّر تسجيل القبض؛ لم يصدر وصل.")
                 elif mode=="waive" and A.can('accounts.delete'):
-                    with st.form(f"student_waive_{sid}"):
+                    with st.container(border=True,key=f"student_debt_decision_{sid}"):
                         st.write(f"مجموع الدين الذي سيُلغى دون قبض: **{due:,} أوقية قديمة**")
                         reason=form.text_area("سبب إلغاء الدين *")
                         confirm=form.checkbox("أؤكد إلغاء الدين دون قبض أي مبلغ")

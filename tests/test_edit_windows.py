@@ -30,6 +30,9 @@ def test_live_modal_discard_keep_save_and_recoverable_error():
     assert not app.exception
     app.text_input(key='draft_name').set_value('مسودة غير محفوظة').run()
     app.number_input(key='draft_amount').set_value(800).run()
+    app.toggle(key='dialog_theme').set_value(True).run()
+    assert app.session_state['night_mode'] is True
+    assert app.text_input(key='draft_name').value=='مسودة غير محفوظة'
     button(app,'حفظ').click().run()
     assert not app.exception and app.error
     assert app.session_state['saved']['name']=='الاسم الأصلي'

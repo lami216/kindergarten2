@@ -124,19 +124,24 @@ def _department_intake():
 def _transfer(conn):
     from student_search import filter_children,child_labels
     from school_departments import transfer
-    with st.expander('نقل الأطفال بين الأقسام'):
+    if notice:=st.session_state.pop('staff_transfer_notice',None): st.success(notice)
+    def move_children(form):
         children=ui.df(conn,'''SELECT s.student_id,s.full_name,p.father_name,p.mother_name,p.father_mobile,p.mother_mobile
             FROM students s LEFT JOIN parents p ON p.father_id=s.father_id WHERE s.archived_at IS NULL ORDER BY s.full_name''')
-        term=st.text_input('بحث باسم الطفل أو هاتف أحد والديه',key='staff_transfer_search')
+        term=form.text_input('بحث باسم الطفل أو هاتف أحد والديه',key='staff_transfer_search')
         children=filter_children(children,term); labels=child_labels(children)
-        ids=st.multiselect('الأطفال المطلوب نقلهم',list(labels),format_func=labels.get,key='staff_transfer_children')
+        ids=form.multiselect('الأطفال المطلوب نقلهم',list(labels),format_func=labels.get,key='staff_transfer_children')
         departments=ui.df(conn,'SELECT department_id,name FROM school_departments WHERE archived_at IS NULL ORDER BY name')
         mapping=dict(zip(departments['department_id'],departments['name'])) if not departments.empty else {}
-        dest=st.selectbox('القسم الجديد',list(mapping),index=None,format_func=mapping.get,key='staff_transfer_destination')
+        dest=form.selectbox('القسم الجديد',list(mapping),index=None,format_func=mapping.get,key='staff_transfer_destination')
         if st.button('تأكيد النقل',disabled=not ids or dest is None):
             try:
-                transfer(ids,dest,actor=st.session_state['auth_user']); st.success('حُفظ النقل.')
+                transfer(ids,dest,actor=st.session_state['auth_user'])
+                st.session_state['staff_transfer_notice']='حُفظ النقل.'
+                ui.finish_edit(); st.rerun()
             except ValueError as error: st.error(str(error))
+
+    ui.edit_window("نقل الأطفال بين الأقسام","staff_transfer",move_children,conn=conn)
 
 
 def _payroll_intake(conn):

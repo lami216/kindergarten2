@@ -168,3 +168,19 @@ def test_new_partial_expense_does_not_silently_lower_entered_paid_cash(ledger):
     ident=scalar(conn,'SELECT expense_id FROM expenses WHERE category=%s',(marker,))
     saved=row(conn,'expenses',ident)
     assert (saved['amount'],saved['amount_paid'])==(800,700)
+
+
+def test_expense_modal_rejects_stale_correction_without_erasing_new_notes(ledger):
+    conn,marker=ledger;ident=expense(conn,marker)
+    app=app_for('expenses')
+    widget(app,'selectbox','اختر المصروف لتعديله، تسديد الدين، أو الحذف:').set_value(ident).run(timeout=30)
+    widget(app,'button','تصحيح المصروف').click().run(timeout=30)
+    import expense_finance as E
+    E.correct(ident,amount_total=1400,amount_paid=1000,category=marker,expense_date=row(conn,'expenses',ident)['expense_date'],
+        notes='معلومة أحدث',reason='تعديل من جلسة أخرى',actor='other operator')
+    widget(app,'number_input','إجمالي الفاتورة').set_value(1500)
+    widget(app,'text_input','سبب تصحيح القيد *').set_value('مسودة قديمة')
+    widget(app,'button','حفظ تصحيح القيد').click().run(timeout=30)
+    assert not app.exception and any('تغيّر' in e.value for e in app.error)
+    saved=row(conn,'expenses',ident)
+    assert saved['amount']==1400 and saved['notes']=='معلومة أحدث'

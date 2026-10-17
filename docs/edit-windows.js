@@ -6,7 +6,7 @@ function formSignature(dialog){
 }
 function protectEditWindow(dialog,closeIds=[]){
  const initial=formSignature(dialog);
- const close=()=>{dialog.close();if(dialog.id.startsWith('profile-'))render();};
+ const close=()=>{dialog.close();if(dialog.id.startsWith('profile-')||dialog.id==='transfer-dialog')render();};
  const requestClose=()=>{
   if(formSignature(dialog)===initial){close();return;}
   if(dialog.querySelector('.discard-box'))return;
@@ -71,3 +71,8 @@ const windowRender=render;
 render=function(){windowRender();const mode=$('#fee-mode');if(mode){document.querySelectorAll('[data-fee-mode]').forEach(b=>{if(![...mode.options].some(o=>o.value===b.dataset.feeMode))b.remove();});mode.dispatchEvent(new Event('change',{bubbles:true}));}};
 const windowAccountProjection=account;
 account=function(s){const a=windowAccountProjection(s);if(s.dueAtEnd&&!s.exempt&&!s.cancelled){const start=new Date(s.start+'T00:00:00'),now=new Date(today+'T00:00:00');let months=(now.getFullYear()-start.getFullYear())*12+now.getMonth()-start.getMonth();const boundary=new Date(start);boundary.setMonth(start.getMonth()+months,1);boundary.setDate(Math.min(start.getDate(),new Date(boundary.getFullYear(),boundary.getMonth()+1,0).getDate()));if(now<boundary)months--;const fees=Math.max(0,s.registration-total(a.rs,'registration'))+Math.max(0,s.gilet-total(a.rs,'gilet'));a.due=fees+Math.max(0,Math.max(0,months)*3000-a.monthPaid);}return a;};
+
+const windowRegistration=registrationPage;
+registrationPage=function(){const t=document.createElement('template');t.innerHTML=windowRegistration();const f=t.content.querySelector('#transfer-form');if(f){const d=document.createElement('dialog');d.id='transfer-dialog';d.innerHTML='<div class="dialog-head"><h2>نقل الأطفال بين الأقسام</h2><button class="quiet" type="button" id="transfer-close" aria-label="إغلاق">✕</button></div>'+f.outerHTML;f.replaceWith(d);d.insertAdjacentHTML('beforebegin','<button type="button" class="secondary profile-official-edit" id="open-transfer">نقل الأطفال بين الأقسام</button>');}return t.innerHTML;};
+const transferWindowBind=bind;
+bind=function(){transferWindowBind();const b=$('#open-transfer');if(b)b.onclick=()=>{const d=$('#transfer-dialog');d.showModal();protectEditWindow(d,['transfer-close']);};};

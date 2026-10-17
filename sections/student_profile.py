@@ -34,6 +34,7 @@ def styles():
     [class*="st-key-student_hero_"] .student-file-hero{border:0;margin:0;padding:12px 4px 38px}
     [class*="st-key-student_hero_"] [data-testid="stButton"]{display:flex;justify-content:flex-end;margin-top:-42px;position:relative}
     [class*="st-key-student_hero_"] [data-testid="stButton"] button{min-height:34px;padding:4px 10px;font-size:13px}
+    [class*="st-key-student_debt_decision_"]{background:var(--card-bg);border-radius:16px}
     .student-file-details{display:grid;grid-template-columns:1fr 1fr;gap:18px;padding:4px 0}
     .student-file-details small{display:block;color:var(--text-muted);margin-bottom:4px}
     .student-file-details p{margin:0;color:var(--text-main);white-space:pre-wrap;overflow-wrap:anywhere}

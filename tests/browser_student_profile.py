@@ -13,7 +13,7 @@ from playwright.async_api import async_playwright,expect
 import access_control as A
 import db
 import student_photos as P
-from tests.browser_admin_access import connection,login,nav,PASSWORD
+from tests.browser_admin_access import connection,login,nav,select,PASSWORD
 from tests.browser_child_receipts import toggle_theme
 
 BASE='http://127.0.0.1:8503'
@@ -49,6 +49,7 @@ async def run():
                 await login(page,'qa-owner');await nav(page,'students')
                 await page.get_by_role('tab',name='➕ إضافة طالب جديد',exact=True).click()
                 await page.locator('.st-key-kid_name input').fill(name)
+                await select(page,'kid_gender','ذكر' if width==1280 else 'أنثى')
                 await page.locator('.st-key-kid_mother_name input').fill('أم الملف')
                 await page.locator('.st-key-kid_mother_phone input').fill('22334455')
                 await page.locator('.st-key-kid_mother_phone input').press('Tab')
@@ -72,7 +73,7 @@ async def run():
                 await expect(page.get_by_role('img',name='صورة '+name,exact=True)).to_have_attribute('src',re.compile(r'^data:image/jpeg;base64,'))
                 await expect(page.locator('.student-file-details').get_by_text('تحتاج مراجعة الأسرة قبل تقديم الحليب <b>معلومة</b>',exact=True)).to_be_visible()
                 assert await page.locator('.student-file-details b').count()==0
-                await expect(page.locator('.student-file-badges .boy')).to_be_visible()
+                await expect(page.locator('.student-file-badges .boy' if width==1280 else '.student-file-badges .girl')).to_be_visible()
                 await page.get_by_role('button',name='تعديل بيانات الطالب',exact=True).click()
                 await expect(page.get_by_role('dialog')).to_be_visible()
                 await page.locator(f'.st-key-edit_{sid}_address input').fill('مسودة عنوان')

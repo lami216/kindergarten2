@@ -151,6 +151,10 @@ def render(conn):
                 col_edit, col_del = st.columns([2, 1])
                 with col_edit:
                     def correct_expense(form):
+                        import pandas as pd
+                        import records as R
+                        snapshot,snapshot_key=ui.edit_snapshot(conn,"expenses",int(selected_id),scope="expense_"+str(selected_id),widget_prefix="expense_meta_")
+                        exp_data=pd.Series(snapshot).fillna({"payee":"","notes":"","category":""})
                         with st.container():
                             try:
                                 curr_date = datetime.strptime(str(exp_data["expense_date"]), "%Y-%m-%d").date()
@@ -181,9 +185,10 @@ def render(conn):
                                         category=e_cat,expense_date=e_date,payee=e_payee,
                                         notes=e_notes,reason=correction_reason,
                                         actor=st.session_state.get("auth_user","مديرة الروضة"),
-                                        token=st.session_state[key])
+                                        token=st.session_state[key],expected=R.revision(snapshot))
                                     st.session_state[key]=str(uuid.uuid4())
                                     st.success("حُفظ التصحيح وسجل التدقيق دون اختلاق حركة نقدية اليوم.")
+                                    st.session_state.pop(snapshot_key,None)
                                     ui.finish_edit()
                                     st.rerun()
                                 except ValueError as error:

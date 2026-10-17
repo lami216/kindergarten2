@@ -85,10 +85,11 @@ async def open_child(page,name):
 
 
 async def toggle_theme(page,dark):
-    switch=page.locator(".st-key-night_mode [role='switch']").first
+    key="dialog_theme" if await page.locator(".st-key-dialog_theme").is_visible() else "night_mode"
+    switch=page.locator(f".st-key-{key} [role='switch']").first
     await expect(switch).to_be_visible()
     if await switch.is_checked()!=dark:
-        await page.locator(".st-key-night_mode label").last.click()
+        await page.locator(f".st-key-{key} label").last.click()
     if dark: await expect(switch).to_be_checked()
     else: await expect(switch).not_to_be_checked()
     expected="rgb(16, 21, 25)" if dark else "rgb(250, 250, 249)"

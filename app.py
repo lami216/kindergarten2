@@ -79,7 +79,7 @@ ROUTES['admin']=admin_users.render
 
 current_page = sidebar.render(conn)
 ROUTES[current_page](conn)
-if current_page not in ('records','history','dashboard','reports','admin'):
+if current_page not in ('records','history','dashboard','reports','admin') and not (current_page=='students' and st.session_state.get('student_file_id')):
     targets={'students':'students','parents':'parents','teachers':'teachers','classes':'classes',
              'years':'academic_years','registration':'school_departments','expenses':'expenses',
              'salaries':'teacher_payments','payments':'monthly_receipts'}

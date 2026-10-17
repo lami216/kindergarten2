@@ -9,6 +9,7 @@ import pandas as pd
 import streamlit as st
 import copy
 import hashlib
+import json
 
 
 class EditForm:
@@ -36,12 +37,17 @@ class EditForm:
             if name == 'file_uploader': value_signature = value.getvalue() if value else None
             elif hasattr(value, 'to_dict'): value_signature = value.to_dict('records')
             else: value_signature = value
-            self.root.values[key] = copy.deepcopy(value_signature)
+            self.root.values[key] = self.signature(value_signature)
             return value
         return input_
 
+    @staticmethod
+    def signature(value):
+        if isinstance(value, bytes): return hashlib.sha256(value).hexdigest()
+        return json.dumps(value,sort_keys=True,ensure_ascii=False,default=str)
+
     def track(self, name, value):
-        self.root.values[self.scope+":"+name] = copy.deepcopy(value)
+        self.root.values[self.scope+":"+name] = self.signature(value)
 
     def __enter__(self):
         self.target.__enter__(); return self
@@ -80,6 +86,12 @@ def edit_window(title, scope, body, *, label=None, opened=False, reset_keys=(), 
                 with conn.cursor() as cursor: A.current(cursor)
             except A.AccessDenied:
                 A.clear_state(); st.rerun()
+        if '_edit_window_baseline' not in st.session_state:
+            st.session_state['dialog_theme']=bool(st.session_state.get('night_mode',False))
+        def change_theme():
+            st.session_state['night_mode']=st.session_state['dialog_theme']
+            st.session_state['_dialog_theme_changed']=True
+        st.toggle('الوضع الليلي',key='dialog_theme',on_change=change_theme)
         form = EditForm(scope)
         body(form)
         initial = st.session_state.setdefault('_edit_window_baseline', copy.deepcopy(form.values))
@@ -87,6 +99,8 @@ def edit_window(title, scope, body, *, label=None, opened=False, reset_keys=(), 
         for key, value in form.values.items(): initial.setdefault(key, copy.deepcopy(value))
         dirty = any(initial.get(key) != value for key, value in form.values.items())
         st.session_state['_edit_window_fields'] = list(set(st.session_state.get('_edit_window_fields', [])) | set(form.values))
+        # Mount all draft widgets before the appearance rerun, including uploaders.
+        if st.session_state.pop('_dialog_theme_changed',False): st.rerun()
         if st.button('إغلاق دون حفظ', key='close_dialog_'+scope):
             if dirty: st.session_state['_edit_window_discard'] = True
             else: finish_edit(); st.rerun()

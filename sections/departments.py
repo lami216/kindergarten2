@@ -51,19 +51,23 @@ def render(conn):
     ui.dataframe(shown.rename(columns={'full_name':'الطفل','department_name':'القسم'})[['الطفل','القسم']],hide_index=True,use_container_width=True)
     context=child_labels(shown)
     labels={r.student_id:context[r.student_id]+f' — {r.department_name}' for r in shown.itertuples()}
-    version=st.session_state.get('department_transfer_version',0)
-    key=f'department_children_{version}'
-    if key in st.session_state:
-        st.session_state[key]=[s for s in st.session_state[key] if s in labels]
-    selected=st.multiselect('اختر الأطفال لنقلهم',list(labels),format_func=labels.get,key=key)
-    destination=st.selectbox('القسم الجديد',list(names),format_func=names.get,index=None,placeholder='اختر القسم...',key='department_destination')
-    if st.button('نقل الأطفال',type='primary',disabled=not selected or destination is None,key='department_transfer'):
-        try:
-            changed=D.transfer(selected,int(destination),actor=st.session_state.get('auth_user'))
-            st.session_state['department_notice']=f'تم نقل {changed} طفل.' if changed else 'الأطفال المحددون موجودون في هذا القسم بالفعل.'
-            st.session_state['department_transfer_version']=version+1
-            st.rerun()
-        except ValueError as error:
-            st.error(str(error))
-        except Exception:
-            st.error('تعذر حفظ النقل؛ لم تُنقل المجموعة جزئيًا.')
+    def move_children(form):
+        version=st.session_state.get('department_transfer_version',0)
+        key=f'department_children_{version}'
+        if key in st.session_state:
+            st.session_state[key]=[s for s in st.session_state[key] if s in labels]
+        selected=form.multiselect('اختر الأطفال لنقلهم',list(labels),format_func=labels.get,key=key)
+        destination=form.selectbox('القسم الجديد',list(names),format_func=names.get,index=None,placeholder='اختر القسم...',key='department_destination')
+        if st.button('نقل الأطفال',type='primary',disabled=not selected or destination is None,key='department_transfer'):
+            try:
+                changed=D.transfer(selected,int(destination),actor=st.session_state.get('auth_user'))
+                st.session_state['department_notice']=f'تم نقل {changed} طفل.' if changed else 'الأطفال المحددون موجودون في هذا القسم بالفعل.'
+                st.session_state['department_transfer_version']=version+1
+                ui.finish_edit()
+                st.rerun()
+            except ValueError as error:
+                st.error(str(error))
+            except Exception:
+                st.error('تعذر حفظ النقل؛ لم تُنقل المجموعة جزئيًا.')
+
+    ui.edit_window("نقل الأطفال بين الأقسام","department_transfer",move_children,conn=conn)
