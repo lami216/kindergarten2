@@ -52,7 +52,7 @@ async def run():
                 await page.locator('#edit-child [name="health"]').fill('<b>ملاحظة الأسرة</b>')
                 await page.locator('#edit-child button').click()
                 await expect(page.get_by_text('العنوان الجديد',exact=True)).to_be_visible()
-                await expect(page.get_by_text('<b>ملاحظة الأسرة</b>',exact=True)).to_be_visible()
+                await expect(page.locator('.file-details').get_by_text('<b>ملاحظة الأسرة</b>',exact=True)).to_be_visible()
                 assert await page.locator('.file-details b').count()==0
                 # Intake with an optional image; removal above did not remove child.
                 await page.locator('#back-students').click();await page.locator('#add-student').click()

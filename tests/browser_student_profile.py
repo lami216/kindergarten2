@@ -66,7 +66,7 @@ async def run():
             await page.get_by_role('option').filter(has_text=name).last.click()
             await expect(page.locator('.student-file-hero')).to_be_visible(timeout=30000)
             await expect(page.get_by_role('img',name='صورة '+name,exact=True)).to_be_visible()
-            await expect(page.get_by_text('تحتاج مراجعة الأسرة قبل تقديم الحليب <b>معلومة</b>',exact=True)).to_be_visible()
+            await expect(page.locator('.student-file-details').get_by_text('تحتاج مراجعة الأسرة قبل تقديم الحليب <b>معلومة</b>',exact=True)).to_be_visible()
             assert await page.locator('.student-file-details b').count()==0
             await page.screenshot(path=str(OUT/f'file-{width}-day.png'),full_page=True)
             await page.get_by_text('📷 تغيير / حذف صورة الطالب',exact=True).click()
