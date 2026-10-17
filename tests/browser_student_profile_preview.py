@@ -48,9 +48,9 @@ async def run():
                 await page.get_by_role('button',name='حذف الصورة',exact=True).click()
                 await expect(page.get_by_role('img',name='لم تضف صورة للطالب',exact=True)).to_be_visible()
                 await page.get_by_text('✏️ تعديل بيانات الطالب',exact=True).click()
-                await page.locator('#edit-child [name="address"]').fill('العنوان الجديد')
-                await page.locator('#edit-child [name="health"]').fill('<b>ملاحظة الأسرة</b>')
-                await page.locator('#edit-child button').click()
+                await page.locator('#profile-edit-child [name="address"]').fill('العنوان الجديد')
+                await page.locator('#profile-edit-child [name="health"]').fill('<b>ملاحظة الأسرة</b>')
+                await page.locator('#profile-edit-child button').click()
                 await expect(page.get_by_text('العنوان الجديد',exact=True)).to_be_visible()
                 await expect(page.locator('.file-details').get_by_text('<b>ملاحظة الأسرة</b>',exact=True)).to_be_visible()
                 assert await page.locator('.file-details b').count()==0

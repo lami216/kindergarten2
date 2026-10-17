@@ -51,7 +51,7 @@ render=()=>{
  if(!demoCan('students','create'))$('#add-student')?.remove();
  if(page==='students'){
   if(!demoCan('students'))$('#back-students')?.remove();
-  if(!demoCan('students','edit'))$('#edit-child')?.closest('details')?.remove();
+  if(!demoCan('students','edit'))$('#edit-child, #profile-edit-child')?.closest('details')?.remove();
   if(!demoCan('receipts')){document.querySelectorAll('#content .stats').forEach(e=>e.remove());$('#profile-pay')?.remove();$('#profile-receipts')?.remove();}
   if(!demoCan('receipts','create'))$('#profile-pay')?.remove();
   const mode=$('#fee-mode');if(mode){[...mode.options].filter(o=>o.value==='exempt'||(o.value==='pay'&&!demoCan('receipts','create'))).forEach(o=>o.remove());}
