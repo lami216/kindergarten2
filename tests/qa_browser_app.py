@@ -29,6 +29,8 @@ if hasattr(db, 'assert_schema_ready'):
     A.can=lambda permission:True
     A.require=lambda cursor,permission,**kwargs: {'is_admin':True,'username':'Chromium QA'}
     A.actor=lambda cursor,permission,legacy_actor=None:legacy_actor
+    # Dialog fragments revalidate the current identity as well as mutations.
+    A.current=lambda cursor=None,lock=False: {'is_admin':True,'username':'Chromium QA'}
     import record_history
     with conn.cursor() as cursor:
         record_history.context(cursor, st.session_state['auth_user'], local=False)

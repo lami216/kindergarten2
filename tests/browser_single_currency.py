@@ -211,6 +211,7 @@ async def run():
                 await page.get_by_role("button",name="تعديل الوصل").click()
                 await capture(page,page.get_by_role("button",name="معاينة أثر التصحيح"),
                               f"finance_receipt_edit_{suffix}",manifest)
+                await page.get_by_role("button",name="إغلاق دون حفظ",exact=True).click()
                 await open_section(page,"dashboard")
                 await night_theme(page,night)
                 await capture(page,page.get_by_text("الباقي من المداخيل",exact=False).first,
