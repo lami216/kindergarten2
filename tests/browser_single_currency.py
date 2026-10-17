@@ -281,7 +281,7 @@ async def run():
         reason=page.get_by_role("textbox",name=re.compile("سبب التصحيح"))
         await reason.fill("مراجعة مبلغ")
         await page.get_by_role("spinbutton",name="المبلغ المصحح").fill("3000")
-        await page.get_by_role("spinbutton",name="المبلغ المصحح").press("Tab")
+        await page.get_by_role("spinbutton",name="المبلغ المصحح").press("Enter")
         await page.get_by_role("button",name="معاينة أثر التصحيح").click()
         await expect(page.get_by_text("القبض القديم:",exact=False)).to_be_visible()
         await page.get_by_text("أؤكد أثر التصحيح وحفظ الوصل الأصلي في السجل",exact=False).click()

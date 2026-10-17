@@ -173,7 +173,7 @@ async def run_variant(browser,width,dark):
     await page.get_by_role("button",name="تعديل الوصل").click()
     await expect(page.get_by_role("spinbutton",name="المبلغ المصحح")).to_be_visible()
     await page.get_by_role("spinbutton",name="المبلغ المصحح").fill("4500")
-    await page.get_by_role("spinbutton",name="المبلغ المصحح").press("Tab")
+    await page.get_by_role("spinbutton",name="المبلغ المصحح").press("Enter")
     await page.get_by_role("textbox",name="سبب التصحيح *").fill("تصحيح موثق للمتصفح")
     await page.get_by_role("button",name="معاينة أثر التصحيح").click()
     await expect(page.get_by_text("القبض القديم:",exact=False)).to_be_visible()
