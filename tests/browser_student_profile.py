@@ -3,6 +3,7 @@ import asyncio
 import io
 import json
 import os
+import re
 from pathlib import Path
 import uuid
 from unittest.mock import patch
@@ -68,6 +69,7 @@ async def run():
                 await page.get_by_role('option').filter(has_text=name).last.click()
                 await expect(page.locator('.student-file-hero')).to_be_visible(timeout=30000)
                 await expect(page.get_by_role('img',name='صورة '+name,exact=True)).to_be_visible()
+                await expect(page.get_by_role('img',name='صورة '+name,exact=True)).to_have_attribute('src',re.compile(r'^data:image/jpeg;base64,'))
                 await expect(page.locator('.student-file-details').get_by_text('تحتاج مراجعة الأسرة قبل تقديم الحليب <b>معلومة</b>',exact=True)).to_be_visible()
                 assert await page.locator('.student-file-details b').count()==0
                 await page.screenshot(path=str(OUT/f'file-{width}-day.png'),full_page=True)
@@ -78,6 +80,7 @@ async def run():
                 assert await page.get_by_test_id('stException').count()==0
                 await uploader.set_input_files(second)
                 await expect(page.get_by_text('الصورة الجديدة قبل الحفظ',exact=True)).to_be_visible(timeout=30000)
+                await expect(page.get_by_role('img',name='معاينة الصورة الجديدة',exact=True)).to_have_attribute('src',re.compile(r'^data:image/jpeg;base64,'))
                 await expect(page.locator('[data-stale="true"]')).to_have_count(0,timeout=30000)
                 await page.locator(f'.st-key-student_photo_{sid}_reason_1 input').fill('تحديث صورة الطفل')
                 await page.locator(f'.st-key-student_photo_{sid}_save_1 button').click()

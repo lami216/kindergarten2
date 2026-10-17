@@ -105,7 +105,13 @@ def photo_editor(conn, row, fresh):
         preview=st.empty()
         problem=st.empty()
         if upload:
-            try: preview.image(P.normalize(upload.getvalue())['image_data'],width=140,caption='الصورة الجديدة قبل الحفظ')
+            try:
+                data=P.normalize(upload.getvalue())['image_data']
+                src=base64.b64encode(data).decode('ascii')
+                # Keep portraits out of Streamlit's separately served media URLs.
+                preview.markdown(f'<div><img src="data:image/jpeg;base64,{src}" width="140" '
+                    'style="border-radius:16px" alt="معاينة الصورة الجديدة">'
+                    '<p>الصورة الجديدة قبل الحفظ</p></div>',unsafe_allow_html=True)
             except ValueError as error: problem.error(str(error))
         with st.form(base+'_form_'+str(expected)):
             reason=st.text_input('سبب تغيير الصورة *',max_chars=2000,key=base+'_reason_'+str(expected))
