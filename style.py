@@ -483,6 +483,12 @@ SHELL_CSS = """
 [class*="st-key-kid_finance_mode"] :is(button[aria-pressed="true"],button[aria-checked="true"]) :is(p,span,svg) {
     color:#ffffff !important;
 }
+/* Fee mode now uses two ordinary buttons. Retain selected contrast and size. */
+[class*="st-key-kid_finance_mode"] button { min-height:54px; }
+[class*="st-key-kid_finance_mode"] button[kind="primary"] {
+    background:#006348 !important; color:#fff !important; border-color:#006348 !important;
+}
+[class*="st-key-kid_finance_mode"] button[kind="primary"] :is(p,span,svg) { color:#fff !important; }
 /* Native controls remain visible and use the existing palette. */
 .st-key-appearance_control {
     position:fixed; top:8px; left:12px; width:150px !important;

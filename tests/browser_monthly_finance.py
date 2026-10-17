@@ -76,8 +76,8 @@ async def run():
         await fill_family(page,name)
         await page.get_by_text("دفع",exact=True).first.click()
         await expect(page.locator(".st-key-kid_initial_registration")).to_be_visible()
-        await page.locator(".st-key-kid_initial_registration label").first.click()
-        await page.locator(".st-key-kid_initial_gilet label").first.click()
+        await expect(page.locator(".st-key-kid_initial_registration").get_by_role("checkbox")).to_be_checked()
+        await expect(page.locator(".st-key-kid_initial_gilet").get_by_role("checkbox")).to_be_checked()
         await page.locator(".st-key-kid_initial_amount input").fill("12000")
         await page.locator(".st-key-kid_initial_amount input").press("Tab")
         await expect(page.locator(".st-key-kid_initial_amount input")).to_have_value("12000",timeout=20000)
@@ -130,6 +130,7 @@ async def run():
                 # not the color of a wrapper with an overridden child style.
                 for choice in ("دفع","معفي"):
                     await view.get_by_text(choice,exact=True).first.click()
+                    await expect(view.get_by_role("button",name=choice,exact=True)).to_have_attribute("kind","primary",timeout=20000)
                     for label in ("دفع","معفي"):
                         visible=view.get_by_text(label,exact=True).first
                         details=await visible.evaluate("""el => {
@@ -139,11 +140,12 @@ async def run():
                             return {
                                 text:getComputedStyle(child).color,
                                 background:getComputedStyle(b).backgroundColor,
-                                selected:b.getAttribute('aria-pressed'),
+                                selected:b.getAttribute('kind')==='primary',
                                 disabled:b.disabled
                             };
                         }""")
                         assert details and not details["disabled"],(width,night,choice,label,details)
+                        assert details["selected"]==(choice==label),(width,night,choice,label,details)
                         def lum(css):
                             channels=[int(float(v)) for v in re.findall(r"[0-9.]+",css)[:3]]
                             assert len(channels)==3,(width,night,css)
