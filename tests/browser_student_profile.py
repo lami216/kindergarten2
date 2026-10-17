@@ -13,6 +13,7 @@ import access_control as A
 import db
 import student_photos as P
 from tests.browser_admin_access import connection,login,nav,PASSWORD
+from tests.browser_child_receipts import toggle_theme
 
 BASE='http://127.0.0.1:8503'
 OUT=Path('visual-evidence/student-profile')
@@ -105,7 +106,12 @@ async def run():
                 await page.locator(f'.st-key-student_photo_{sid}_save_3 button').click()
                 await expect(page.get_by_text('حُفظت صورة الطالب.',exact=True)).to_be_visible(timeout=30000)
                 await expect(page.locator('[data-stale="true"]')).to_have_count(0,timeout=30000)
-                await page.locator('.st-key-night_mode label').last.click()
+                await toggle_theme(page,True)
+                await expect(page.locator('.student-file-hero')).to_have_css('background-color','rgb(32, 34, 35)')
+                await page.locator(f'.st-key-student_photo_{sid}_editor summary').click()
+                await expect(page.locator('[data-stale="true"]')).to_have_count(0,timeout=30000)
+                await page.get_by_role('button',name='العودة للطلاب',exact=True).scroll_into_view_if_needed()
+                await expect(page.locator('.stApp')).to_have_css('background-color','rgb(16, 21, 25)')
                 await page.screenshot(path=str(OUT/f'file-{width}-night.png'),full_page=True)
                 events=query("SELECT action,before_state,after_state FROM record_changes WHERE table_name='student_photos' AND record_key=%s ORDER BY change_id",(sid,))
                 assert [e['action'] for e in events]==['created','updated','deleted','created']
