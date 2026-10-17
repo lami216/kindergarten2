@@ -51,7 +51,10 @@ def header(conn, row):
     st.markdown(f'''<div class="student-file-hero">{portrait}<div><p>ملف الطالب</p>
         <h2>{escape(name)}</h2><p>{escape(text(row.get('gender')) or 'الجنس غير مسجل')} · العمر: {escape(str(age))}</p>
         <div class="student-file-badges">{''.join('<span>'+escape(b)+'</span>' for b in badges)}</div></div></div>''',unsafe_allow_html=True)
-    if notice := st.session_state.pop('student_photo_notice_'+row['student_id'], None): st.success(notice)
+    # Keep the keyed editor at one delta path when feedback appears/disappears.
+    # Moving it between slots can leave an old tracked expander in the browser.
+    with st.container(key='student_file_feedback_'+row['student_id']):
+        if notice := st.session_state.pop('student_photo_notice_'+row['student_id'], None): st.success(notice)
     return photo
 
 
@@ -99,9 +102,11 @@ def photo_editor(conn, row, fresh):
             st.session_state.pop(base+'_snapshot',None); st.rerun()
         upload = st.file_uploader('اختر صورة الطالب',type=['jpg','jpeg','png','webp'],
             max_upload_size=5,key=base+'_upload_'+str(expected))
+        preview=st.empty()
+        problem=st.empty()
         if upload:
-            try: st.image(P.normalize(upload.getvalue())['image_data'],width=140,caption='الصورة الجديدة قبل الحفظ')
-            except ValueError as error: st.error(str(error))
+            try: preview.image(P.normalize(upload.getvalue())['image_data'],width=140,caption='الصورة الجديدة قبل الحفظ')
+            except ValueError as error: problem.error(str(error))
         with st.form(base+'_form_'+str(expected)):
             reason=st.text_input('سبب تغيير الصورة *',max_chars=2000,key=base+'_reason_'+str(expected))
             a,b=st.columns(2)
