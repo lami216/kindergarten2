@@ -42,77 +42,86 @@ async def run():
         browser=await pw.chromium.launch(headless=True)
         for width in (390,1280):
             page=await browser.new_page(viewport={'width':width,'height':1000})
-            name='طفل ملف '+uuid.uuid4().hex[:8]
-            await login(page,'qa-owner');await nav(page,'students')
-            await page.get_by_role('tab',name='➕ إضافة طالب جديد',exact=True).click()
-            await page.locator('.st-key-kid_name input').fill(name)
-            await page.locator('.st-key-kid_mother_name input').fill('أم الملف')
-            await page.locator('.st-key-kid_mother_phone input').fill('22334455')
-            await page.locator('.st-key-kid_mother_phone input').press('Tab')
-            await page.get_by_text('📷 صورة الطالب (اختياري)',exact=True).click()
-            await page.locator('.st-key-kid_photo input[type="file"]').set_input_files(first)
-            await page.get_by_text('تفاصيل اختيارية',exact=True).click()
-            await page.locator('.st-key-kid_health textarea').fill('تحتاج مراجعة الأسرة قبل تقديم الحليب <b>معلومة</b>')
-            await page.get_by_role('button',name='💾 حفظ بيانات الطفل والأهل',exact=True).click()
-            await expect(page.get_by_text('تم حفظ الطفل والأهل بنجاح.',exact=False)).to_be_visible(timeout=30000)
-            sid=query('SELECT student_id FROM students WHERE full_name=%s',(name,))[0]['student_id']
-            stored=query('SELECT * FROM student_photos WHERE student_id=%s',(sid,))[0]
-            assert bytes(stored['image_data'])==P.normalize(first.read_bytes())['image_data']
-            await page.get_by_role('tab',name='📋 عرض / تعديل / حذف',exact=True).click()
-            search=page.get_by_role('textbox',name='🔍 ابحث باسم الطفل أو ولي الأمر أو رقم الهاتف',exact=True)
-            await search.fill(name);await search.press('Enter')
-            picker=page.locator('.st-key-student_select_edit input[role="combobox"]')
-            await picker.click();await picker.fill(name)
-            await page.get_by_role('option').filter(has_text=name).last.click()
-            await expect(page.locator('.student-file-hero')).to_be_visible(timeout=30000)
-            await expect(page.get_by_role('img',name='صورة '+name,exact=True)).to_be_visible()
-            await expect(page.locator('.student-file-details').get_by_text('تحتاج مراجعة الأسرة قبل تقديم الحليب <b>معلومة</b>',exact=True)).to_be_visible()
-            assert await page.locator('.student-file-details b').count()==0
-            await page.screenshot(path=str(OUT/f'file-{width}-day.png'),full_page=True)
-            await page.get_by_text('📷 تغيير / حذف صورة الطالب',exact=True).click()
-            uploader=page.locator(f'.st-key-student_photo_{sid}_upload_1 input[type="file"]')
-            await uploader.set_input_files(bad)
-            await expect(page.get_by_text('تعذّر قراءة الصورة.',exact=False)).to_be_visible(timeout=15000)
-            assert await page.get_by_test_id('stException').count()==0
-            await uploader.set_input_files(second)
-            await page.get_by_role('textbox',name='سبب تغيير الصورة *',exact=True).fill('تحديث صورة الطفل')
-            await page.get_by_role('button',name='حفظ الصورة',exact=True).click()
-            await expect(page.get_by_text('حُفظت صورة الطالب.',exact=True)).to_be_visible(timeout=30000)
-            assert query('SELECT revision FROM student_photos WHERE student_id=%s',(sid,))[0]['revision']==2
-            reason=page.get_by_role('textbox',name='سبب تغيير الصورة *',exact=True)
-            if not await reason.is_visible(): await page.get_by_text('📷 تغيير / حذف صورة الطالب',exact=True).click()
-            await reason.fill('طلب الأسرة إزالة الصورة')
-            await page.get_by_text('أؤكد حذف صورة الطالب فقط، مع بقاء ملفه',exact=True).click()
-            await page.get_by_role('button',name='حذف الصورة',exact=True).click()
-            await expect(page.get_by_text('حُذفت الصورة؛ بقي ملف الطالب محفوظًا.',exact=True)).to_be_visible(timeout=30000)
-            assert query('SELECT image_data FROM student_photos WHERE student_id=%s',(sid,))[0]['image_data'] is None
-            assert query('SELECT archived_at FROM students WHERE student_id=%s',(sid,))[0]['archived_at'] is None
-            await expect(page.get_by_role('img',name='لم تضف صورة للطالب',exact=True)).to_be_visible()
-            # A new upload after deletion receives a new version; no stale reuse.
-            await page.get_by_text('📷 إضافة / تغيير صورة الطالب',exact=True).click()
-            await page.locator(f'.st-key-student_photo_{sid}_upload_3 input[type="file"]').set_input_files(second)
-            await page.get_by_role('textbox',name='سبب تغيير الصورة *',exact=True).fill('الصورة المختارة الجديدة')
-            await page.get_by_role('button',name='حفظ الصورة',exact=True).click()
-            await expect(page.get_by_text('حُفظت صورة الطالب.',exact=True)).to_be_visible(timeout=30000)
-            await page.locator('.st-key-night_mode label').last.click()
-            await page.screenshot(path=str(OUT/f'file-{width}-night.png'),full_page=True)
-            events=query("SELECT action,before_state,after_state FROM record_changes WHERE table_name='student_photos' AND record_key=%s ORDER BY change_id",(sid,))
-            assert [e['action'] for e in events]==['created','updated','deleted','created']
-            assert all('image_data' not in (e['before_state'] or {}) and 'image_data' not in (e['after_state'] or {}) for e in events)
-            await page.close()
-            # The same file is visible without financial or mutation controls.
-            page=await browser.new_page(viewport={'width':width,'height':1000});await login(page,viewer)
-            await nav(page,'students',staff=True)
-            await search_worker(page,name)
-            await expect(page.get_by_role('img',name='صورة '+name,exact=True)).to_be_visible()
-            await expect(page.get_by_text('💵 الحساب المالي',exact=True)).to_have_count(0)
-            await expect(page.get_by_text('📷 تغيير / حذف صورة الطالب',exact=True)).to_have_count(0)
-            await expect(page.get_by_role('button',name='💾 حفظ التعديلات',exact=True)).to_have_count(0)
-            assert await page.get_by_test_id('stException').count()==0
-            await page.screenshot(path=str(OUT/f'viewer-{width}.png'),full_page=True)
-            results.append(dict(width=width,intake_with_photo=True,invalid_recoverable=True,replaced=True,
-                removed_without_archiving=True,audit_metadata_only=True,view_only_no_finance=True))
-            await page.close()
+            try:
+                name='طفل ملف '+uuid.uuid4().hex[:8]
+                await login(page,'qa-owner');await nav(page,'students')
+                await page.get_by_role('tab',name='➕ إضافة طالب جديد',exact=True).click()
+                await page.locator('.st-key-kid_name input').fill(name)
+                await page.locator('.st-key-kid_mother_name input').fill('أم الملف')
+                await page.locator('.st-key-kid_mother_phone input').fill('22334455')
+                await page.locator('.st-key-kid_mother_phone input').press('Tab')
+                await page.get_by_text('📷 صورة الطالب (اختياري)',exact=True).click()
+                await page.locator('.st-key-kid_photo input[type="file"]').set_input_files(first)
+                await page.get_by_text('تفاصيل اختيارية',exact=True).click()
+                await page.locator('.st-key-kid_health textarea').fill('تحتاج مراجعة الأسرة قبل تقديم الحليب <b>معلومة</b>')
+                await page.get_by_role('button',name='💾 حفظ بيانات الطفل والأهل',exact=True).click()
+                await expect(page.get_by_text('تم حفظ الطفل والأهل بنجاح.',exact=False)).to_be_visible(timeout=30000)
+                sid=query('SELECT student_id FROM students WHERE full_name=%s',(name,))[0]['student_id']
+                stored=query('SELECT * FROM student_photos WHERE student_id=%s',(sid,))[0]
+                assert bytes(stored['image_data'])==P.normalize(first.read_bytes())['image_data']
+                await page.get_by_role('tab',name='📋 عرض / تعديل / حذف',exact=True).click()
+                search=page.get_by_role('textbox',name='🔍 ابحث باسم الطفل أو ولي الأمر أو رقم الهاتف',exact=True)
+                await search.fill(name);await search.press('Enter')
+                picker=page.locator('.st-key-student_select_edit input[role="combobox"]')
+                await picker.click();await picker.fill(name)
+                await page.get_by_role('option').filter(has_text=name).last.click()
+                await expect(page.locator('.student-file-hero')).to_be_visible(timeout=30000)
+                await expect(page.get_by_role('img',name='صورة '+name,exact=True)).to_be_visible()
+                await expect(page.locator('.student-file-details').get_by_text('تحتاج مراجعة الأسرة قبل تقديم الحليب <b>معلومة</b>',exact=True)).to_be_visible()
+                assert await page.locator('.student-file-details b').count()==0
+                await page.screenshot(path=str(OUT/f'file-{width}-day.png'),full_page=True)
+                await page.get_by_text('📷 تغيير / حذف صورة الطالب',exact=True).click()
+                uploader=page.locator(f'.st-key-student_photo_{sid}_upload_1 input[type="file"]')
+                await uploader.set_input_files(bad)
+                await expect(page.get_by_text('تعذّر قراءة الصورة.',exact=False)).to_be_visible(timeout=15000)
+                assert await page.get_by_test_id('stException').count()==0
+                await uploader.set_input_files(second)
+                await expect(page.get_by_text('الصورة الجديدة قبل الحفظ',exact=True)).to_be_visible(timeout=30000)
+                await expect(page.locator('[data-stale="true"]')).to_have_count(0,timeout=30000)
+                await page.get_by_role('textbox',name='سبب تغيير الصورة *',exact=True).fill('تحديث صورة الطفل')
+                await page.get_by_role('button',name='حفظ الصورة',exact=True).click()
+                await expect(page.get_by_text('حُفظت صورة الطالب.',exact=True)).to_be_visible(timeout=30000)
+                assert query('SELECT revision FROM student_photos WHERE student_id=%s',(sid,))[0]['revision']==2
+                reason=page.get_by_role('textbox',name='سبب تغيير الصورة *',exact=True)
+                if not await reason.is_visible(): await page.get_by_text('📷 تغيير / حذف صورة الطالب',exact=True).click()
+                await reason.fill('طلب الأسرة إزالة الصورة')
+                await page.get_by_text('أؤكد حذف صورة الطالب فقط، مع بقاء ملفه',exact=True).click()
+                await page.get_by_role('button',name='حذف الصورة',exact=True).click()
+                await expect(page.get_by_text('حُذفت الصورة؛ بقي ملف الطالب محفوظًا.',exact=True)).to_be_visible(timeout=30000)
+                assert query('SELECT image_data FROM student_photos WHERE student_id=%s',(sid,))[0]['image_data'] is None
+                assert query('SELECT archived_at FROM students WHERE student_id=%s',(sid,))[0]['archived_at'] is None
+                await expect(page.get_by_role('img',name='لم تضف صورة للطالب',exact=True)).to_be_visible()
+                # A new upload after deletion receives a new version; no stale reuse.
+                await page.get_by_text('📷 إضافة / تغيير صورة الطالب',exact=True).click()
+                await page.locator(f'.st-key-student_photo_{sid}_upload_3 input[type="file"]').set_input_files(second)
+                await expect(page.get_by_text('الصورة الجديدة قبل الحفظ',exact=True)).to_be_visible(timeout=30000)
+                await expect(page.locator('[data-stale="true"]')).to_have_count(0,timeout=30000)
+                await page.get_by_role('textbox',name='سبب تغيير الصورة *',exact=True).fill('الصورة المختارة الجديدة')
+                await page.get_by_role('button',name='حفظ الصورة',exact=True).click()
+                await expect(page.get_by_text('حُفظت صورة الطالب.',exact=True)).to_be_visible(timeout=30000)
+                await page.locator('.st-key-night_mode label').last.click()
+                await page.screenshot(path=str(OUT/f'file-{width}-night.png'),full_page=True)
+                events=query("SELECT action,before_state,after_state FROM record_changes WHERE table_name='student_photos' AND record_key=%s ORDER BY change_id",(sid,))
+                assert [e['action'] for e in events]==['created','updated','deleted','created']
+                assert all('image_data' not in (e['before_state'] or {}) and 'image_data' not in (e['after_state'] or {}) for e in events)
+                await page.close()
+                # The same file is visible without financial or mutation controls.
+                page=await browser.new_page(viewport={'width':width,'height':1000});await login(page,viewer)
+                await nav(page,'students',staff=True)
+                await search_worker(page,name)
+                await expect(page.get_by_role('img',name='صورة '+name,exact=True)).to_be_visible()
+                await expect(page.get_by_text('💵 الحساب المالي',exact=True)).to_have_count(0)
+                await expect(page.get_by_text('📷 تغيير / حذف صورة الطالب',exact=True)).to_have_count(0)
+                await expect(page.get_by_role('button',name='💾 حفظ التعديلات',exact=True)).to_have_count(0)
+                assert await page.get_by_test_id('stException').count()==0
+                await page.screenshot(path=str(OUT/f'viewer-{width}.png'),full_page=True)
+                results.append(dict(width=width,intake_with_photo=True,invalid_recoverable=True,replaced=True,
+                    removed_without_archiving=True,audit_metadata_only=True,view_only_no_finance=True))
+                await page.close()
+            except Exception:
+                await page.screenshot(path=str(OUT/f'failure-{width}.png'),full_page=True)
+                print((await page.locator('body').aria_snapshot())[:14000])
+                raise
         await browser.close()
     (OUT/'results.json').write_text(json.dumps(results,ensure_ascii=False,indent=2),encoding='utf-8')
     print('Real photo intake, invalid recovery, replacement, removal, private viewer and file day/night passed 390/1280')
