@@ -10,8 +10,8 @@ import io
 import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
-import plotly.express as px
 from datetime import datetime
+from html import escape
 
 import ui
 import helpers as H
@@ -33,20 +33,20 @@ def _render_printable_report_pdf(
 ):
     """Renders a print-ready iframe with a landscape PDF layout, letterhead, and summary footer."""
     
-    headers_html = "".join([f"<th>{col}</th>" for col in df.columns])
+    headers_html = "".join([f"<th>{escape(str(col))}</th>" for col in df.columns])
     
     rows_html = ""
     for _, row in df.iterrows():
-        cells = "".join([f"<td>{str(val) if pd.notna(val) else ''}</td>" for val in row])
+        cells = "".join([f"<td>{escape(str(val)) if pd.notna(val) else ''}</td>" for val in row])
         rows_html += f"<tr>{cells}</tr>"
 
     logo_img_tag = ui.logo_html()
 
-    meta_html = "".join([f"<div><strong>{k}:</strong> {v}</div>" for k, v in meta_info.items()])
+    meta_html = "".join([f"<div><strong>{escape(str(k))}:</strong> {escape(str(v))}</div>" for k, v in meta_info.items()])
 
     summary_html = ""
     if summary_metrics:
-        summary_items = "".join([f'<div class="summary-card"><span>{k}</span><strong>{v}</strong></div>' for k, v in summary_metrics.items()])
+        summary_items = "".join([f'<div class="summary-card"><span>{escape(str(k))}</span><strong>{escape(str(v))}</strong></div>' for k, v in summary_metrics.items()])
         summary_html = f"""
         <div class="summary-section">
             <div class="summary-title">📊 الملخص الإحصائي المالي والإداري</div>
@@ -215,7 +215,7 @@ def _render_printable_report_pdf(
         </div>
 
         <div class="report-title">
-            {report_title} ({len(df)} سجل)
+            {escape(str(report_title))} ({len(df)} سجل)
         </div>
 
         <table>
@@ -236,46 +236,68 @@ def _render_printable_report_pdf(
     components.html(html_content, height=height, scrolling=True)
 
 
-def _get_scalar(conn, query, params=()):
-    """Executes a scalar SQL query safely."""
-    try:
-        cur = conn.cursor()
-        cur.execute(query, params)
-        res = cur.fetchone()
-        cur.close()
-        if res is None:
-            return 0
-        if isinstance(res, dict):
-            val = list(res.values())[0]
-        elif isinstance(res, (tuple, list)):
-            val = res[0]
-        else:
-            val = res
-        return val if val is not None else 0
-    except Exception:
-        return 0
+def _current_students(conn, department=-1, gender="الكل"):
+    query = """SELECT s.student_id AS "رقم الطالب",s.full_name AS "اسم الطالب",
+        COALESCE(d.name,'بدون قسم') AS "القسم",s.gender AS "الجنس",s.birth_date AS "تاريخ الميلاد",
+        p.father_name AS "اسم الأب",p.father_mobile AS "جوال الأب",
+        p.mother_name AS "اسم الأم",p.mother_mobile AS "جوال الأم",s.address AS "العنوان"
+        FROM students s LEFT JOIN parents p ON p.father_id=s.father_id
+        LEFT JOIN student_departments m ON m.student_id=s.student_id
+        LEFT JOIN school_departments d ON d.department_id=m.department_id AND d.archived_at IS NULL
+        WHERE s.archived_at IS NULL"""
+    params = []
+    if department == 0:
+        query += " AND d.department_id IS NULL"
+    elif department != -1:
+        query += " AND d.department_id=%s"
+        params.append(department)
+    if gender != "الكل":
+        query += " AND s.gender=%s"
+        params.append(gender)
+    return ui.df(conn, query+" ORDER BY s.full_name,s.student_id", tuple(params))
+
+
+def _current_debts(conn):
+    import monthly_finance as F
+    day = F.today()
+    # Materialize once for the entire report; then read without per-child connections.
+    F._ensure_all_started(day)
+    children = ui.df(conn,"""SELECT a.student_id,s.full_name,s.archived_at,a.status,
+        p.father_name,p.mother_name,p.father_mobile,p.mother_mobile
+        FROM monthly_accounts a JOIN students s ON s.student_id=a.student_id
+        LEFT JOIN parents p ON p.father_id=s.father_id ORDER BY s.full_name,s.student_id""")
+    rows = []
+    for child in children.to_dict('records'):
+        account = F.projection(conn,child['student_id'],day,materialize=False)
+        if not account or account['due_now'] <= 0:
+            continue
+        rows.append({"اسم الطالب":child['full_name'],
+            "حالة الملف":"مؤرشف" if pd.notna(child['archived_at']) else "نشط",
+            "الرسوم":"معفي" if child['status']=='exempt' else "دفع",
+            "اسم الأب":child['father_name'] or "", "جوال الأب":child['father_mobile'] or "",
+            "اسم الأم":child['mother_name'] or "", "جوال الأم":child['mother_mobile'] or "",
+            "المدفوع فعلياً":account['cash_paid'],"الباقي على الطالب":account['due_now'],
+            "موعد القسط التالي":account['next_due'] if child['status']=='regular' and pd.isna(child['archived_at']) else None})
+    return rows
 
 
 def render(conn):
     ui.section_header("📈", "التقارير والتصدير", "استخراج بيانات مفلترة وتصديرها وإدارتها")
 
-    report_type = st.radio(
-        "اختر نوع التقرير",
-        [
-            "📑 تقرير الإدارة العليا الشامل (التحليلي والمالي)",
-            "📅 تقرير الحسابات الشهرية (أوقية قديمة)",
-            "🏫 كشف الطلاب حسب الصف (للحضور والغياب)",
-            "💵 سجل المقبوضات المالية",
-            "👨‍👩‍👧‍👦 قائمة الطلاب وأولياء الأمور",
-            "📋 قائمة التسجيلات",
-            "⚠️ كشف الديون والذمم المتبقية",
-            "💼 سجل الرواتب والمستحقات",
-            "💸 تقرير المصروفات التشغيلية",
-            "🏛️ تقرير الأصول والموجودات الثابتة",
-        ],
-        horizontal=True,
-    )
-
+    names = {
+        "📑 تقرير الإدارة العليا الشامل (التحليلي والمالي)": "الحركة المالية خلال فترة",
+        "💵 سجل المقبوضات المالية": "الوصولات والدفعات",
+        "👨‍👩‍👧‍👦 قائمة الطلاب وأولياء الأمور": "الطلاب وأولياء الأمور",
+        "🏷️ كشف الحضور حسب القسم": "كشف الحضور حسب القسم",
+        "⚠️ كشف الديون والذمم المتبقية": "المتبقي على الطلاب",
+        "💼 سجل الرواتب والمستحقات": "الرواتب المصروفة",
+        "💸 تقرير المصروفات التشغيلية": "فواتير المصروفات والمتبقي منها",
+        "🏛️ تقرير الأصول والموجودات الثابتة": "جرد التجهيزات",
+    }
+    if st.checkbox("عرض تقارير الصفوف والسنوات السابقة", key="reports_legacy"):
+        names.update({"🏫 كشف الطلاب حسب الصف (للحضور والغياب)": "كشف الصفوف السابق",
+                      "📋 قائمة التسجيلات": "التسجيلات في النظام السابق"})
+    report_type = st.selectbox("اختر التقرير", list(names), format_func=names.get, key="report_type")
     st.markdown("---")
 
     result = pd.DataFrame()
@@ -283,22 +305,13 @@ def render(conn):
     report_title_str = ""
     summary_metrics = {}
 
-    years_df = ui.df(conn, "SELECT year_id,COALESCE(display_year_id,year_id) AS display_year_id FROM academic_years ORDER BY year_id DESC")
-    # Financial reports are independent of academic setup. Never invent a
-    # year or access a nonexistent fallback when the year table is empty.
-    year_list = years_df['year_id'].tolist() if not years_df.empty else []
-    year_labels=dict(zip(years_df.year_id,years_df.display_year_id)) if not years_df.empty else {}
-
-    classes_df = ui.df(conn, """
-        SELECT c.class_id, (c.class_type || ' ' || c.section) AS class_name
-        FROM classes c
-        ORDER BY c.class_type, c.section
-    """)
-
-    if report_type == "📅 تقرير الحسابات الشهرية (أوقية قديمة)":
-        from sections.monthly_payments import render_report
-        render_report(conn)
-        return
+    # Academic setup is read only for explicitly requested historical reports.
+    if report_type in ("🏫 كشف الطلاب حسب الصف (للحضور والغياب)", "📋 قائمة التسجيلات"):
+        years_df = ui.df(conn, "SELECT year_id,COALESCE(display_year_id,year_id) AS display_year_id FROM academic_years ORDER BY year_id DESC")
+        year_list = years_df.year_id.tolist() if not years_df.empty else []
+        year_labels = dict(zip(years_df.year_id,years_df.display_year_id)) if not years_df.empty else {}
+        classes_df = ui.df(conn, "SELECT class_id,(class_type || ' ' || section) AS class_name FROM classes ORDER BY class_type,section")
+        st.caption("هذا تقرير لسجلات النظام السابق. لتوزيع الأطفال الحالي استخدم الأقسام.")
 
     # --------------------------------------------------------------------------
     # 0. EXECUTIVE MANAGEMENT COMPREHENSIVE REPORT
@@ -314,15 +327,7 @@ def render(conn):
             return
         summary=F.financial_report(conn,start,end)
         money=lambda n: f"{H.format_money(n)} {F.CURRENCY}"
-        students_count=int(_get_scalar(conn,"SELECT COUNT(*) FROM students WHERE archived_at IS NULL"))
-        teachers_count=int(_get_scalar(conn,"SELECT COUNT(*) FROM teachers WHERE archived_at IS NULL"))
-        classes_count=int(_get_scalar(conn,"SELECT COUNT(*) FROM classes WHERE archived_at IS NULL"))
-        assets=_get_scalar(conn,"SELECT COALESCE(SUM(total_cost),0) FROM assets WHERE archived_at IS NULL")
-        st.markdown("### 📑 تقرير إدارة الروضة")
-        a,b,c=st.columns(3)
-        a.metric("الطلاب",students_count)
-        b.metric("المعلمات",teachers_count)
-        c.metric("الصفوف",classes_count)
+        st.markdown("### الحركة المالية خلال الفترة المحددة")
         a,b,c=st.columns(3)
         a.metric("إجمالي المقبوضات",money(summary["total_cash"]))
         b.metric("إجمالي المصروفات",money(summary["expenses"]))
@@ -336,14 +341,12 @@ def render(conn):
             {"البند":"الجيليه المقبوض","المبلغ":money(summary["gilet_cash"])},
             {"البند":"الشهور المقبوضة","المبلغ":money(summary["monthly_cash"])},
             {"البند":"منها دفعات مقدمة، ضمن الشهور","المبلغ":money(summary["prepaid_cash"])},
-            {"البند":"المصروفات التشغيلية النقدية","المبلغ":money(summary["operational_cash"])},
+            {"البند":"المصروفات المسجلة والمدفوعة","المبلغ":money(summary["operational_cash"])},
             {"البند":"الرواتب المصروفة","المبلغ":money(summary["salary_cash"])},
             {"البند":"السلف المصروفة","المبلغ":money(summary["advance_cash"])},
-            {"البند":"قيمة الأصول الثابتة","المبلغ":money(assets)},
         ])
         ui.dataframe(details,use_container_width=True,hide_index=True)
-        st.caption("الدفعات المقدمة ضمن المقبوضات مرة واحدة. "
-                   "الذمم على الطلاب لا تُطرح من النقدية، والرواتب المستحقة غير المصروفة ليست مصروفاً.")
+        st.caption("المتبقي على الطلاب محسوب حتى نهاية الفترة، ومنفصل عن النقد المتبقي. الدفعات المقدمة ضمن المقبوضات مرة واحدة.")
         if st.button("🖨️ معاينة وطباعة تقرير الإدارة (PDF)"):
             _render_printable_report_pdf("تقرير الإدارة",{
                 "الفترة":f"{start} إلى {end}","العملة":F.CURRENCY},details,{
@@ -356,6 +359,9 @@ def render(conn):
     # 1. CLASS ROSTER & ATTENDANCE SHEET REPORT
     # --------------------------------------------------------------------------
     elif report_type == "🏫 كشف الطلاب حسب الصف (للحضور والغياب)":
+        if not year_list:
+            ui.empty_state("لا توجد سنوات دراسية في السجلات السابقة.")
+            return
         if classes_df.empty:
             ui.empty_state("لا توجد صفوف معرفة في النظام.")
             return
@@ -433,42 +439,23 @@ def render(conn):
     # --------------------------------------------------------------------------
     # 3. STUDENTS & GUARDIANS REGISTRY
     # --------------------------------------------------------------------------
-    elif report_type == "👨‍👩‍👧‍👦 قائمة الطلاب وأولياء الأمور":
-        c1, c2 = st.columns(2)
-        gender_filter = c1.selectbox("الجنس", ["الكل", "ذكر", "أنثى"])
-        class_filter_options = ["الكل"] + list(classes_df['class_name']) if not classes_df.empty else ["الكل"]
-        selected_class_filter = c2.selectbox("تصفية حسب الصف الحالي", class_filter_options)
-
-        query = """
-            SELECT DISTINCT s.student_id AS "رقم هوية الطالب", s.full_name AS "اسم الطالب",
-                   s.birth_date AS "تاريخ الميلاد", s.gender AS "الجنس",
-                   p.father_name AS "اسم الأب", p.father_mobile AS "جوال الأب",
-                   p.mother_name AS "اسم الأم", p.address AS "العنوان",
-                   (c.class_type || ' ' || c.section) AS "الصف الحالي"
-            FROM students s 
-            JOIN parents p ON s.father_id = p.father_id
-            LEFT JOIN registrations r ON s.student_id = r.student_id AND r.archived_at IS NULL
-            LEFT JOIN classes c ON r.class_id = c.class_id AND c.archived_at IS NULL
-            WHERE s.archived_at IS NULL
-        """
-        params = []
-        if gender_filter != "الكل":
-            query += " AND s.gender = %s"
-            params.append(gender_filter)
-        if selected_class_filter != "الكل":
-            query += " AND (c.class_type || ' ' || c.section) = %s"
-            params.append(selected_class_filter)
-
-        query += " ORDER BY s.full_name ASC"
-        result = ui.df(conn, query, tuple(params))
-
+    elif report_type in ("👨‍👩‍👧‍👦 قائمة الطلاب وأولياء الأمور", "🏷️ كشف الحضور حسب القسم"):
+        departments = ui.df(conn, "SELECT department_id,name FROM school_departments WHERE archived_at IS NULL ORDER BY name")
+        labels = dict(zip(departments.department_id,departments.name)) if not departments.empty else {}
+        selected = st.selectbox("القسم الحالي", [-1,0]+list(labels),
+            format_func=lambda x: "كل الأطفال" if x==-1 else "بدون قسم" if x==0 else labels[x], key="report_department")
+        gender = st.selectbox("الجنس", ["الكل", "ذكر", "أنثى"], key="report_gender")
+        result = _current_students(conn, selected, gender)
+        attendance = report_type == "🏷️ كشف الحضور حسب القسم"
+        if attendance:
+            result = result[["اسم الطالب", "القسم", "جوال الأب", "جوال الأم"]].copy()
+            for day in ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "ملاحظات"]:
+                result[day] = ""
         if not result.empty:
-            result.insert(0, "م", range(1, len(result) + 1))
-            meta_info = {"الجنس": gender_filter, "الصف": selected_class_filter}
-            report_title_str = "قائمة الطلاب وأولياء الأمور"
-            summary_metrics = {
-                "إجمالي الطلاب": f"{len(result)} طالب/ة"
-            }
+            result.insert(0,"م",range(1,len(result)+1))
+        report_title_str = "كشف الحضور حسب القسم" if attendance else "الطلاب وأولياء الأمور"
+        meta_info = {"القسم": "كل الأطفال" if selected==-1 else "بدون قسم" if selected==0 else labels[selected], "الجنس":gender}
+        summary_metrics = {"عدد الطلاب": str(len(result))}
 
     # --------------------------------------------------------------------------
     # 4. REGISTRATION LIST
@@ -518,25 +505,7 @@ def render(conn):
     # --------------------------------------------------------------------------
     elif report_type == "⚠️ كشف الديون والذمم المتبقية":
         import monthly_finance as F
-        children=ui.df(conn,"""
-            SELECT a.student_id,s.full_name,p.father_name,p.father_mobile
-            FROM monthly_accounts a JOIN students s ON s.student_id=a.student_id
-            JOIN parents p ON p.father_id=s.father_id
-            WHERE a.status='regular' ORDER BY s.full_name
-        """)
-        debt_rows=[]
-        for _,child in children.iterrows():
-            account=F.projection(conn,child["student_id"])
-            if account and account["due_now"]>0:
-                debt_rows.append({
-                    "اسم الطالب":child["full_name"],
-                    "ولي الأمر":child["father_name"] or "",
-                    "الهاتف":child["father_mobile"] or "",
-                    "المدفوع فعلياً":sum(int(r["amount"]) for r in account["receipts"]
-                                         if r["state"]=="active"),
-                    "الباقي على الطالب":account["due_now"],
-                    "موعد أول قسط غير مكتمل":account["next_unpaid"],
-                })
+        debt_rows = _current_debts(conn)
         result=pd.DataFrame(debt_rows)
         report_title_str="كشف ديون الأطفال بالأوقية القديمة"
         meta_info={"التاريخ":str(F.today()),"العملة":F.CURRENCY}
@@ -549,6 +518,7 @@ def render(conn):
     # 6. TEACHER PAYMENTS REPORT
     # --------------------------------------------------------------------------
     elif report_type == "💼 سجل الرواتب والمستحقات":
+        st.caption("حالة المستند مستقلة عن النقد: إلغاء مستند الراتب وحده لا يعني استرداد المبلغ المصروف.")
         c1, c2 = st.columns(2)
         month_filter = c1.text_input("تصفية حسب شهر الراتب (مثال: 2026-10)", value="")
         
@@ -561,7 +531,9 @@ def render(conn):
         query = """
             SELECT tp.payment_id AS "رقم القسيمة", t.full_name AS "اسم المعلم/ة",
                    tp.salary_month AS "شهر الراتب", tp.base_salary AS "الراتب الأساسي",
-                   tp.bonus AS "المكافآت", tp.deductions AS "الخصومات", tp.amount AS "صافي الصرف",
+                   tp.bonus AS "المكافآت", tp.deductions AS "الخصومات", tp.amount AS "قيمة المستند",
+                   COALESCE(tp.cash_amount,tp.amount) AS "النقد المصروف",
+                   CASE tp.record_state WHEN 'active' THEN 'ساري' ELSE 'ملغى' END AS "حالة المستند",
                    tp.payment_date AS "تاريخ الصرف"
             FROM teacher_payments tp
             JOIN teachers t ON tp.national_id = t.national_id
@@ -580,7 +552,7 @@ def render(conn):
 
         if not result.empty:
             result.insert(0, "م", range(1, len(result) + 1))
-            total_salaries = result['صافي الصرف'].sum()
+            total_salaries = result['النقد المصروف'].sum()
             meta_info = {"الشهر": month_filter or "الكل", "المعلم/ة": selected_teacher_name}
             report_title_str = "سجل رواتب المعلمين والمعلمات"
             summary_metrics = {
@@ -592,18 +564,19 @@ def render(conn):
     # 7. OPERATIONAL EXPENSES REPORT
     # --------------------------------------------------------------------------
     elif report_type == "💸 تقرير المصروفات التشغيلية":
+        st.caption("هذه فواتير حسب تاريخ تسجيل المصروف، والمدفوع هو مجموع تسديد كل فاتورة. لمعرفة النقد المصروف خلال فترة استخدم تقرير الحركة المالية.")
         c1, c2, c3 = st.columns(3)
         date_from = c1.date_input("من تاريخ", value=None)
         date_to = c2.date_input("إلى تاريخ", value=None)
-        status_filter = c3.selectbox("حالة الدفع", ["الكل", "مدفوع بالكامل", "متبقي جزء", "غير مدفوع"])
+        status_filter = c3.selectbox("حالة الدفع", ["الكل", "مدفوع بالكامل", "مدفوع جزئياً", "غير مدفوع"])
 
         query = """
             SELECT expense_id AS "رقم المصروف", expense_date AS "التاريخ",
-                   category AS "التصنيف", amount AS "المبلغ الكلي",
+                   category AS "اسم المصروف", amount AS "المبلغ الكلي",
                    amount_paid AS "المبلغ المدفوع", payment_status AS "حالة الدفع",
                    payee AS "الجهة المستفيدة", notes AS "ملاحظات"
             FROM expenses
-            WHERE 1=1
+            WHERE cancelled_at IS NULL AND teacher_payment_id IS NULL AND teacher_advance_id IS NULL
         """
         params = []
         if date_from:
@@ -613,8 +586,9 @@ def render(conn):
             query += " AND expense_date <= %s"
             params.append(str(date_to))
         if status_filter != "الكل":
-            query += " AND payment_status = %s"
-            params.append(status_filter)
+            query += {"مدفوع بالكامل":" AND amount_paid=amount",
+                      "مدفوع جزئياً":" AND amount_paid>0 AND amount_paid<amount",
+                      "غير مدفوع":" AND amount_paid=0"}[status_filter]
 
         query += " ORDER BY expense_date DESC"
         result = ui.df(conn, query, tuple(params))
@@ -626,7 +600,7 @@ def render(conn):
             meta_info = {"الفترة": f"{date_from or 'البداية'} إلى {date_to or 'النهاية'}", "الحالة": status_filter}
             report_title_str = "تقرير المصروفات التشغيلية"
             summary_metrics = {
-                "إجمالي المصروفات": H.format_money(total_exp),
+                "قيمة الفواتير": H.format_money(total_exp),
                 "إجمالي المدفوع فعلياً": H.format_money(total_paid_exp)
             }
 
@@ -635,7 +609,8 @@ def render(conn):
     # --------------------------------------------------------------------------
     else:  # "🏛️ تقرير الأصول والموجودات الثابتة"
         c1, c2 = st.columns(2)
-        condition_filter = c1.selectbox("حالة الأصل", ["الكل", "ممتازة", "جيدة", "تحتاج صيانة", "تالفة"])
+        st.caption("قيمة الجرد ليست مصروفًا نقديًا؛ يظهر الصرف الفعلي في سجل المصروفات.")
+        condition_filter = c1.selectbox("حالة الأصل", ["الكل", "ممتازة", "جيدة", "تحتاج صيانة", "تالفة/مستهلكة"])
         category_input = c2.text_input("تصفية حسب التصنيف", value="")
 
         query = """
@@ -712,11 +687,11 @@ def render(conn):
 
         with c2:
             if st.button("🖨️ معاينة و طباعة التقرير ( PDF)", use_container_width=True):
-                st.session_state['show_report_print_preview'] = True
+                st.session_state['show_report_print_preview'] = report_type
 
-        if st.session_state.get('show_report_print_preview', False):
+        if st.session_state.get('show_report_print_preview') == report_type:
             st.markdown("---")
             st.markdown("#### معاينة الطباعة الرسمية :")
             _render_printable_report_pdf(report_title_str, meta_info, display_df, summary_metrics)
-    elif report_type != "📑 تقرير الأداء العام  ":
+    else:
         ui.empty_state("لا توجد بيانات مطابقة للفلاتر المحددة.")

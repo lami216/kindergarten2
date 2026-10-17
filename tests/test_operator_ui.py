@@ -26,6 +26,9 @@ with patch.object(F, 'financial_overview', return_value=dict.fromkeys(keys, 0)),
     app = AppTest.from_string(source).run(timeout=20)
     assert not app.exception
     assert not app.date_input
+    assert len(app.get("plotly_chart")) == 0
+    assert [e.label for e in app.expander] == ["تفاصيل المقبوضات"]
+    assert not any(any(term in m.value for term in ("استحقاق الرواتب", "تشغيلية مدفوعة", "الأصول والتجهيزات", "الرسوم البيانية")) for m in app.markdown)
     assert app.button(key='home_payment').proto.type == 'secondary'
     app.button(key='home_payment').click().run(timeout=20)
     assert not app.exception

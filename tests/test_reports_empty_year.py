@@ -49,9 +49,17 @@ c.close()
         else:
             assert any(m.label=='الباقي من المداخيل' for m in app.metric)
         if section=='reports':
-            app.radio[0].set_value('📅 تقرير الحسابات الشهرية (أوقية قديمة)').run(timeout=20)
+            # Every current report works without academic years, including current attendance.
+            picker=app.selectbox(key='report_type')
+            for option in list(picker.options)[1:]:
+                index=list(app.selectbox(key='report_type').options).index(option)
+                app.selectbox(key='report_type').select_index(index).run(timeout=20)
+                assert not app.exception,option
+            app.checkbox(key='reports_legacy').check().run(timeout=20)
+            app.selectbox(key='report_type').select_index(8).run(timeout=20)
             assert not app.exception
-            assert any(m.label=='الباقي من المداخيل' for m in app.metric)
+            assert any('لا توجد سنوات' in m.value for m in app.info)
+
         with boot.cursor() as c:
             c.execute('SELECT COUNT(*) AS n FROM academic_years')
             assert c.fetchone()['n']==0

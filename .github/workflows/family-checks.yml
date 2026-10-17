@@ -96,6 +96,8 @@ jobs:
         run: PYTHONPATH=. python tests/browser_payroll_review.py
       - name: Chromium student debt refusal and waiver on mobile
         run: PYTHONPATH=. python tests/browser_student_debt.py
+      - name: Current dashboard and department reports on mobile and desktop
+        run: PYTHONPATH=. python tests/browser_main_cleanup.py
       - name: Chromium single-currency operator and scrolled finance acceptance
         run: PYTHONPATH=. python tests/browser_single_currency.py
       - name: Chromium regression and same-data screenshots
