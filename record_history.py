@@ -41,7 +41,7 @@ def migrate(conn):
             ALTER TABLE record_changes ADD COLUMN IF NOT EXISTS actor_user_id UUID;
             CREATE INDEX IF NOT EXISTS record_changes_user ON record_changes(actor_user_id,change_id);
             CREATE OR REPLACE FUNCTION record_change_capture() RETURNS trigger AS $$
-            DECLARE previous JSONB; following JSONB; verb TEXT; who TEXT; why TEXT;
+            DECLARE previous JSONB; following JSONB; verb TEXT; who TEXT; why TEXT; child_name TEXT;
             BEGIN
                 IF TG_OP <> 'INSERT' THEN previous=to_jsonb(OLD); END IF;
                 IF TG_OP <> 'DELETE' THEN following=to_jsonb(NEW); END IF;
@@ -53,6 +53,10 @@ def migrate(conn):
                     ELSIF TG_OP='UPDATE' AND previous->>'image_sha256' IS NULL
                         AND following->>'image_sha256' IS NOT NULL THEN verb='created'; END IF;
                     previous=previous-'image_data'; following=following-'image_data';
+                    SELECT full_name INTO child_name FROM students
+                        WHERE student_id=COALESCE(following->>'student_id',previous->>'student_id');
+                    IF previous IS NOT NULL THEN previous=previous||jsonb_build_object('full_name',child_name); END IF;
+                    IF following IS NOT NULL THEN following=following||jsonb_build_object('full_name',child_name); END IF;
                 END IF;
                 IF TG_OP='UPDATE' AND (
                     (following->>'archived_at' IS NOT NULL AND previous->>'archived_at' IS NULL)

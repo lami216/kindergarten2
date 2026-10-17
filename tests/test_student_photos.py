@@ -109,7 +109,7 @@ def test_concurrent_photo_replacement_accepts_one_and_keeps_export_complete(acce
         except ValueError: return 'stale'
     with ThreadPoolExecutor(2) as pool: assert sorted(map(str,pool.map(replace,['red','blue'])))==['2','stale']
     from data_export import build_export
-    archive=build_export()
+    archive,_=build_export()
     with zipfile.ZipFile(io.BytesIO(archive)) as z:
         photos=json.loads(z.read('data/student_photos.json'))
         saved=next(r for r in photos if r['student_id']==sid)
