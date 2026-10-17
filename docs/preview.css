@@ -93,5 +93,6 @@ aside { overflow-y:auto; }
 .file-details small{display:block;color:var(--muted);margin-bottom:5px}.file-details p{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
 .file-preview{width:140px;height:140px;object-fit:cover;border-radius:18px;margin:16px 0;border:1px solid var(--border)}
 .file-photo-editor summary,.file-intake-photo summary{cursor:pointer;color:var(--green)}
+.file-photo-editor{padding:0;border:0}
 .file-intake-photo{margin:20px 0}.file-info .panel{min-width:0}.file-photo-editor form{max-width:680px}
 @media(max-width:600px){.file-hero{gap:16px;padding:20px}.file-portrait{width:82px;height:82px;flex-basis:82px;border-radius:18px}.file-identity h2{font-size:22px}.file-details{gap:16px}}

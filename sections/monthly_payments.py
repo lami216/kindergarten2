@@ -34,12 +34,12 @@ def financial_panel(conn, student, *, payment=True, scope=None, profile=False, s
         if not result:
             st.info("الحساب المالي يحتاج تهيئة من صفحة الدفعات.")
         else:
-            a, b, c = st.columns(3)
+            a, b = st.columns(2)
             ui.kpi(a, "💵", "مجموع المدفوع", money_number(result["cash_paid"]), hint=F.CURRENCY)
             ui.kpi(b, "⏳", "الباقي للدفع الآن", money_number(result["due_now"]),
                    bg="#FFFBEB", fg="#B45309", hint=F.CURRENCY)
-            ui.kpi(c, "📅", "الرسوم", "معفي" if result["exempt"] else "عادي",
-                   hint="بداية الاشتراك: " + str(result["account"]["start_date"]))
+            st.caption(('الرسوم: معفي' if result['exempt'] else 'الرسوم: عادي')+
+                ' · بداية الاشتراك: '+str(result['account']['start_date']))
         left, right = st.columns(2)
         if payment and left.button("💵 تسجيل دفعة", key=f"profile_payment_{panel_id}",
                                     type="primary", use_container_width=True):
