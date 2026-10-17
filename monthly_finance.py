@@ -978,6 +978,7 @@ def projection(conn, student, as_of=None, *, materialize=True):
             "paid_periods":paid_count,"paid_through":(anniversary(account["start_date"],contiguous)-timedelta(days=1)
                  if contiguous else None),"due_now":currently_due,
             "future_partial":not_yet_due,"next_unpaid":next_start,
+            "next_due":(unpaid["end"] if unpaid else anniversary(account["start_date"],contiguous+1)) if account.get("due_at_period_end") else next_start,
             "exempt":account["status"]=="exempt",
              "cash_paid":sum(int(r["amount"]) for r in receipts
                              if r["state"]=="active" and r["received_on"]<=day),

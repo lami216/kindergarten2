@@ -123,8 +123,9 @@ def waive_debt(student, reason, confirmed, *, actor, token=None, effective_on=No
         conn.close()
 
 
-def pay_unpaid_fee(student, kind, *, actor, token=None):
+def pay_unpaid_fee(student, kind, *, actor, token=None, expected_due=None):
     """Accept real cash for exactly one requested, presently unpaid fee."""
+    if expected_due is not None: F.amount(expected_due)
     if kind not in ("registration","gilet"):
         raise ValueError("اختر الرسم المستحق فقط.")
     actor=_actor(actor)
@@ -139,10 +140,12 @@ def pay_unpaid_fee(student, kind, *, actor, token=None):
             if not row:
                 raise ValueError("هذا الرسم غير مطلوب لهذا الطفل.")
             due=int(row["price"])-int(row["paid"])-int(row["waived"])
-            c.execute("""SELECT receipt_id,request_hash,amount,student_id
+            c.execute("""SELECT receipt_id,request_hash,amount,student_id,state
                          FROM monthly_receipts WHERE request_token=%s""",(token,))
             old=c.fetchone()
             if old:
+                if expected_due is not None and (expected_due!=int(old["amount"]) or old["state"]!="active"):
+                    raise ValueError("تغيّرت الدفعة؛ أعد فتح نافذة تسديد الرسم.")
                 previous_hash=F._hash({"student":student,"kind":kind,"fee_id":row["fee_id"],
                                       "amount":int(old["amount"]),
                                       "purpose":"specific-unpaid-fee"})
@@ -151,6 +154,8 @@ def pay_unpaid_fee(student, kind, *, actor, token=None):
                 conn.commit()
                 return old["receipt_id"],False
             if due<=0: raise ValueError("لا يوجد مبلغ مستحق لهذا الرسم.")
+            if expected_due is not None and due!=expected_due:
+                raise ValueError("تغيّر المبلغ المستحق؛ أعد فتح نافذة تسديد الرسم.")
             fingerprint=F._hash({"student":student,"kind":kind,"fee_id":row["fee_id"],
                                  "amount":due,"purpose":"specific-unpaid-fee"})
             rid,new=F._issue(c,account,due,"ولي الأمر",actor,token,fingerprint,

@@ -126,6 +126,7 @@ def financial_panel(conn, student, *, payment=True, scope=None, profile=False, s
                 st.info('أُبطلت معاينة الدفع لأن الحساب أُرشف؛ لم تُسجل دفعة جديدة.')
             payment=False
         if payment:
+            _fee_collection(conn,result,student,panel_id)
             token_key=f"monthly_pay_token_{panel_id}"
             version_key=f"monthly_pay_version_{panel_id}"
             version=st.session_state.get(version_key,0)
@@ -181,22 +182,23 @@ def financial_panel(conn, student, *, payment=True, scope=None, profile=False, s
             st.write("التسجيل: " + item_state(registration))
             st.write("الجيليه: " + item_state(garment))
             st.caption("بداية الاشتراك: "+str(result["account"]["start_date"]))
-            st.caption(f"أول شهر غير مكتمل أو موعد الدفعة القادمة: {result['next_unpaid']}")
+            st.caption(f"استحقاق أول شهر غير مكتمل: {result['next_due']}" if result["account"].get("due_at_period_end") else f"أول شهر غير مكتمل أو موعد الدفعة القادمة: {result['next_unpaid']}")
             if result["future_partial"]:
-                st.caption(f"فترات مستقبلية غير مستحقة بعد: {fmt(result['future_partial'])}"
+                st.caption(f"فترات لم يحن استحقاقها بعد: {fmt(result['future_partial'])}"
                            f" · المدفوع مقدماً: {fmt(result['prepaid_paid'])}")
             today=F.today()
             def period_state(p):
+                not_due=(p["end"] if result["account"].get("due_at_period_end") else p["start"])>today
                 remaining=max(0,p["price"]-p["paid"]-p.get("waived",0))
                 if p.get("waived",0) and remaining==0:
                     return "ألغي الدين — ليس قبضاً" if not p["paid"] else "مدفوع جزئياً ودينه ملغى"
                 if p["paid"]==p["price"]:
                     return "مدفوع بالكامل (مقدّم)" if p["start"]>today else "مدفوع بالكامل"
                 if p["paid"]>0:
-                    return "مدفوع جزئياً — لم يستحق" if p["start"]>today else "مدفوع جزئياً — مستحق"
-                return "غير مدفوع — لم يستحق" if p["start"]>today else "غير مدفوع — مستحق"
+                    return "مدفوع جزئياً — لم يستحق" if not_due else "مدفوع جزئياً — مستحق"
+                return "غير مدفوع — لم يستحق" if not_due else "غير مدفوع — مستحق"
             rows=[{"الفترة":f"{period['start']} إلى {period['end']-timedelta(days=1)}",
-                   "المستحق":fmt(period["price"]),"المدفوع فعلياً":fmt(period["paid"]),
+                   "قيمة الشهر":fmt(period["price"]),"المدفوع فعلياً":fmt(period["paid"]),
                    "دين ملغى":fmt(period.get("waived",0)),
                    "الباقي":fmt(max(0,period["price"]-period["paid"]-period.get("waived",0))),
                    "الحالة":period_state(period)}
@@ -417,3 +419,28 @@ def render_report(conn):
                    "السلف المصروفة تُحسب مرة عند صرفها، والخصم من الراتب ليس صرفاً جديداً.")
     except Exception:
         st.error("تعذّر حساب حركة المالية.")
+
+
+def _fee_collection(conn,result,student,panel_id):
+    """Pay an outstanding registration/garment fee without entering archival."""
+    import student_debt as D
+    for kind,label in (('registration','رسوم التسجيل'),('gilet','الجيليه')):
+        fee=result['fees'].get(kind)
+        due=max(0,fee['price']-fee['paid']-fee.get('waived',0)) if fee else 0
+        if not due: continue
+        scope=f'fee_collect_{panel_id}_{kind}'
+        def collect(form,kind=kind,label=label,due=due,scope=scope):
+            token_key=scope+'_token'
+            if '_edit_window_baseline' not in st.session_state:
+                st.session_state[token_key]=str(uuid.uuid4())
+            st.write(f'المبلغ المطلوب لتسديد {label}: **{fmt(due)}**')
+            st.caption('يُسجل قبض فعلي لهذا الرسم وحده ويصدر وصل؛ لا يغيّر توزيع الأقساط الشهرية.')
+            confirmed=form.checkbox('أؤكد قبض مبلغ الرسم الموضح فعليًا')
+            if form.form_submit_button('تأكيد قبض الرسم وإصدار وصل',type='primary',disabled=not confirmed):
+                try:
+                    rid,_=D.pay_unpaid_fee(student,kind,actor=actor(),token=st.session_state[token_key],expected_due=due)
+                    st.session_state[f'monthly_payment_success_{panel_id}']=f'تم تسديد {label} — وصل #{rid}'
+                    ui.finish_edit(); st.rerun()
+                except ValueError as error: st.error(str(error))
+                except Exception: st.error('تعذّر تسجيل القبض؛ لم يصدر وصل جديد.')
+        ui.edit_window('تسديد '+label,scope,collect,label=f'تسديد {label} · {fmt(due)}',conn=conn)

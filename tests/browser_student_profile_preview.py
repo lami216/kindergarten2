@@ -76,6 +76,11 @@ async def run():
                 await page.locator('#student-search').fill('طفل صورة جديد')
                 await page.get_by_role('button',name='فتح الملف ←',exact=True).click()
                 await expect(page.locator('img.file-portrait')).to_be_visible()
+                await page.locator('#profile-pay').click()
+                await page.locator('[data-collect-fee="registration"]').click()
+                await page.locator('#fee-collect-form [name="agree"]').check()
+                await page.get_by_role('button',name='تأكيد قبض الرسم وإصدار وصل',exact=True).click()
+                await expect(page.locator('#toast')).to_contain_text('تم تسديد رسوم التسجيل')
                 assert not errors,errors
                 await page.close()
             await browser.close()

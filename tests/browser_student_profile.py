@@ -139,6 +139,16 @@ async def run():
                 events=query("SELECT action,before_state,after_state FROM record_changes WHERE table_name='student_photos' AND record_key=%s ORDER BY change_id",(sid,))
                 assert [e['action'] for e in events]==['created','updated','deleted','created']
                 assert all('image_data' not in (e['before_state'] or {}) and 'image_data' not in (e['after_state'] or {}) for e in events)
+                assert not query('SELECT receipt_id FROM monthly_receipts WHERE student_id=%s',(sid,))
+                await page.get_by_role('button',name='💵 تسجيل دفعة',exact=True).click()
+                await page.get_by_role('button',name=re.compile('^تسديد رسوم التسجيل')).click()
+                await page.get_by_text('أؤكد قبض مبلغ الرسم الموضح فعليًا',exact=True).click()
+                await expect(page.get_by_role('checkbox',name='أؤكد قبض مبلغ الرسم الموضح فعليًا',exact=True)).to_be_checked()
+                await page.get_by_role('button',name='تأكيد قبض الرسم وإصدار وصل',exact=True).click()
+                await expect(page.get_by_text('تم تسديد رسوم التسجيل',exact=False)).to_be_visible(timeout=30000)
+                paid_fee=query("SELECT amount FROM monthly_receipts WHERE student_id=%s AND state='active'",(sid,))
+                assert len(paid_fee)==1 and paid_fee[0]['amount']==1000
+                assert query('SELECT COALESCE(SUM(a.amount),0) AS amount FROM monthly_allocations a JOIN monthly_receipts r USING(receipt_id) WHERE r.student_id=%s AND a.period_id IS NOT NULL AND a.active',(sid,))[0]['amount']==0
                 await page.close()
                 # The same file is visible without financial or mutation controls.
                 page=await browser.new_page(viewport={'width':width,'height':1000});await login(page,viewer)

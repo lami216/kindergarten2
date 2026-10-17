@@ -95,3 +95,22 @@ def test_zero_intake_freezes_first_month_before_any_file_view(intake):
         assert p['periods'][1]['price']==5000
     with patch.object(F,'today',return_value=date(2026,3,31)):
         assert F.projection(conn,sid)['due_now']==8000
+
+
+def test_outstanding_fees_settle_without_archival_or_monthly_reallocation(intake):
+    conn,create=intake;sid=create();token=str(uuid.uuid4())
+    with patch.object(F,'today',return_value=date(2026,1,31)):
+        assert F.projection(conn,sid)['next_due']==date(2026,2,28)
+        rid,new=D.pay_unpaid_fee(sid,'registration',actor='test',token=token,expected_due=1000)
+        assert new and D.pay_unpaid_fee(sid,'registration',actor='test',token=token,expected_due=1000)==(rid,False)
+        with pytest.raises(ValueError,match='تغيّر'):
+            D.pay_unpaid_fee(sid,'gilet',actor='test',expected_due=1999)
+        p=F.projection(conn,sid)
+        assert p['cash_paid']==1000 and p['due_now']==2000 and all(x['paid']==0 for x in p['periods'])
+        D.pay_unpaid_fee(sid,'gilet',actor='test',expected_due=2000)
+        p=F.projection(conn,sid)
+        assert p['cash_paid']==3000 and p['due_now']==0 and len(p['receipts'])==2
+        with pytest.raises(ValueError,match='تعارض|تغيّرت'):
+            D.pay_unpaid_fee(sid,'registration',actor='test',token=token,expected_due=2000)
+    with patch.object(F,'today',return_value=date(2026,2,28)):
+        assert F.projection(conn,sid)['due_now']==3000
