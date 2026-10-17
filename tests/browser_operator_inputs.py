@@ -93,6 +93,9 @@ async def run():
                     if saved['amount']==1400: break
                     await page.wait_for_timeout(200)
                 assert saved=={'amount':Decimal(1400),'amount_paid':Decimal(1000)},saved
+                await expect(page.locator('[data-testid="stDialog"] [role="dialog"]')).to_have_count(0,timeout=30000)
+                await open_editor.click()
+                await expect(form).to_be_visible(timeout=30000)
                 await expect(total_input).to_have_value('1400.00')
                 await expect(paid_input).to_have_value('1000.00')
                 await expect(page.locator('[data-testid="stException"]')).to_have_count(0)
