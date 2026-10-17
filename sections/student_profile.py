@@ -76,7 +76,7 @@ def fields(values):
 
 
 def details(row):
-    child, family = form.columns(2)
+    child, family = st.columns(2)
     with child, st.container(border=True):
         st.markdown('##### 🎒 بيانات الطفل')
         fields([('تاريخ الميلاد',row.get('birth_date')),('مكان الميلاد',row.get('birth_place')),

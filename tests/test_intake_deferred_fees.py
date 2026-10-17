@@ -25,7 +25,7 @@ def intake():
             family=dict(mother_name='أم الاختبار',mother_mobile='22334455',father_name='',father_mobile='',contact_email='')
             options=dict(mode=mode,start_date='2026-01-31',registration=registration,
                 charge_registration=registration,gilet=gilet,cash=cash,payer='أم الاختبار',due_at_period_end=True)
-            with patch.object(F,'today',return_value=date(2026,1,31)):
+            with patch.object(F,'today',return_value=date(2026,1,31)), patch.object(H,'today',return_value=date(2026,1,31)):
                 result=db.save_child_with_family(child,family,None,token,finance=options,actor='test')
                 assert db.save_child_with_family(child,family,None,token,finance=options,actor='test')==(result[0],False)
             return result[0]

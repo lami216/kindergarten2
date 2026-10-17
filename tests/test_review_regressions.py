@@ -63,6 +63,7 @@ def test_old_child_form_cannot_erase_new_medical_information(ledger):
     app = AppTest.from_string(SCRIPT).run(timeout=30)
     name = row(conn, 'students', student)['full_name']
     app.selectbox(key='student_select_edit').set_value((student, name)).run(timeout=30)
+    app.button(key='open_dialog_student_'+student).click().run(timeout=30)
     R.edit('students', student, {'medical_details': 'حساسية جديدة'}, actor='other session', reason='معلومة جديدة')
     app.text_input(key=f'edit_{student}_address').set_value('عنوان جديد')
     next(b for b in app.button if b.label == '💾 حفظ التعديلات').click().run(timeout=30)
@@ -70,7 +71,9 @@ def test_old_child_form_cannot_erase_new_medical_information(ledger):
     assert any('تغيّر' in e.value for e in app.error)
     assert row(conn, 'students', student)['medical_details'] == 'حساسية جديدة'
     assert row(conn, 'students', student)['address'] is None
-    next(b for b in app.button if b.key == 'refresh_edit_snapshot_student_'+student).click().run(timeout=30)
+    next(b for b in app.button if b.label=='إغلاق دون حفظ').click().run(timeout=30)
+    next(b for b in app.button if b.label=='تجاهل التغييرات والخروج').click().run(timeout=30)
+    app.button(key='open_dialog_student_'+student).click().run(timeout=30)
     assert app.text_area(key=f'edit_{student}_health').value == 'حساسية جديدة'
     app.text_input(key=f'edit_{student}_address').set_value('عنوان جديد')
     next(b for b in app.button if b.label == '💾 حفظ التعديلات').click().run(timeout=30)
