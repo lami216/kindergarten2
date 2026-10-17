@@ -98,6 +98,9 @@ def render(conn):
                 use_container_width=True,
                 type="primary" if is_active else "secondary"
             ):
+                if key=='students':
+                    st.session_state.pop('student_file_id',None)
+                    st.session_state.pop('student_select_edit',None)
                 st.session_state.current_page = key
                 st.rerun()
 

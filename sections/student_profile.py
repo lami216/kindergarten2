@@ -90,7 +90,7 @@ def photo_editor(conn, row, fresh):
     if not A.can('students.edit'): return
     sid = row['student_id']
     base = 'student_photo_'+sid
-    with st.expander('📷 إضافة / تغيير صورة الطالب' if not fresh['image_data'] else '📷 تغيير / حذف صورة الطالب'):
+    with st.expander('📷 صورة الطالب',key=base+'_editor',on_change='rerun'):
         st.caption('صورة اختيارية: JPG أو PNG أو WebP، حتى 5 ميغابايت. تُحفظ بحجم مصغّر دون بيانات الموقع أو الكاميرا.')
         st.session_state.setdefault(base+'_snapshot',fresh['revision'])
         expected = st.session_state[base+'_snapshot']

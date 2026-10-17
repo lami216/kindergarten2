@@ -26,6 +26,9 @@ def render(conn):
         st.caption(profile['username'])
         for key,label in [('home','الرئيسية')]+list(permitted.items()):
             if st.button(label,key='staff_nav_'+key,use_container_width=True):
+                if key=='students':
+                    st.session_state.pop('student_file_id',None)
+                    st.session_state.pop('student_select_edit',None)
                 st.session_state['current_page']=key; st.rerun()
         if st.button('تسجيل الخروج',key='staff_logout'): auth.logout()
     page=st.session_state.get('current_page','home')

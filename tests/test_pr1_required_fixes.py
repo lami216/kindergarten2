@@ -213,6 +213,7 @@ class RequiredFixesPostgresTest(unittest.TestCase):
         app.selectbox(key="student_select_edit").set_value(
             (first_id, "طفل ممتلئ")).run(timeout=20)
         self.assertEqual(app.text_area(key=f"edit_{first_id}_health").value, "نص صحي")
+        app.button(key='student_file_back').click().run(timeout=20)
         app.selectbox(key="student_select_edit").set_value(
             (second_id, "طفل فارغ")).run(timeout=20)
         for key in ("health", "allergy", "notes"):

@@ -66,6 +66,9 @@ def kpi(col, icon, label, value, bg="#E9F5EC", fg="#219044", hint="", unit=""):
 
 def navigate(page, **state):
     """Internal shortcuts use the same router as the sidebar."""
+    if page=='students':
+        st.session_state.pop('student_file_id',None)
+        st.session_state.pop('student_select_edit',None)
     st.session_state.update(state)
     st.session_state.current_page = page
     st.rerun()

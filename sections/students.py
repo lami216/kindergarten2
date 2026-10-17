@@ -303,6 +303,9 @@ def render_intake(conn,parents=None,family_choices=None):
 
 def render(conn):
     import access_control as A
+    if sid:=st.session_state.get('student_file_id'):
+        render_file(conn,sid)
+        return
     _reset_after_success()
     if "kid_form_version" not in st.session_state:
         st.session_state["kid_form_version"] = 0
@@ -376,165 +379,194 @@ def render(conn):
             format_func=lambda x:f'{x[1]} · {x[0]}' if x[1] in duplicate_names else x[1], index=None, placeholder="ابحث عن طفل...",
             key="student_select_edit")
         if chosen:
-            sid = chosen[0]
-            row = students[students["student_id"] == sid].iloc[0]
-            from sections import student_profile as profile
-            photo = profile.header(conn,row)
-            if A.can('payments.view'):
-                with st.container(border=True):
-                    st.markdown('##### 💵 الحساب المالي')
-                    financial_panel(conn, sid, payment=pd.isna(row['archived_at']) and A.can('payments.create'),
-                        profile=True, student_name=row['full_name'])
-            profile.details(row)
-            profile.photo_editor(conn,row,photo)
-            if pd.notna(row["archived_at"]):
-                st.warning("الطالب مؤرشف؛ سجله وحساباته باقية للمراجعة.")
-                archived_finance=F.projection(conn,sid,materialize=False) if A.can('payments.view') else None
-                if archived_finance and archived_finance["due_now"]:
-                    st.error(f"دين أعيد فتحه بعد تصحيح أو إلغاء قبض سابق: "
-                             f"{archived_finance['due_now']:,} أوقية قديمة. "
-                             "لم تُستأنف رسوم شهرية جديدة.")
+            st.session_state['student_file_id']=chosen[0]
+            st.rerun()
+
+
+def render_file(conn, sid):
+    import access_control as A
+    with conn.cursor() as cursor:
+        A.require(cursor,'students.view',lock=False)
+        cursor.execute("""
+            SELECT s.student_id, s.full_name, s.birth_date, s.gender, s.birth_place,
+                   s.address, s.medical_details, s.has_medical_condition,
+                   s.allergies, s.general_notes, s.authorized_pickups, s.father_id,
+                   s.archived_at,COALESCE(d.name,'بدون قسم') AS department_name,
+                   COALESCE(p.father_name, p.mother_name) AS parent_name,
+                    p.father_mobile,p.mother_mobile,p.father_name,p.mother_name,p.contact_email
+            FROM students s JOIN parents p ON p.father_id=s.father_id
+            LEFT JOIN student_departments m ON m.student_id=s.student_id
+            LEFT JOIN school_departments d ON d.department_id=m.department_id
+            WHERE s.student_id=%s
+        """,(sid,))
+        fresh=cursor.fetchone()
+    if not fresh:
+        st.session_state.pop('student_file_id',None)
+        st.info('ملف الطالب غير موجود.'); return
+    row=pd.Series(dict(fresh))
+    ui.section_header('🎒','ملف الطالب','بيانات الطفل والأسرة وحسابه')
+    if st.button('العودة للطلاب',key='student_file_back'):
+        st.session_state.pop('student_file_id',None)
+        st.session_state.pop('student_select_edit',None)
+        st.session_state['student_tabs']='📋 عرض / تعديل / حذف'
+        st.rerun()
+    from sections import student_profile as profile
+    photo = profile.header(conn,row)
+    profile.photo_editor(conn,row,photo)
+    if A.can('payments.view'):
+        with st.container(border=True):
+            st.markdown('##### 💵 الحساب المالي')
+            financial_panel(conn, sid, payment=pd.isna(row['archived_at']) and A.can('payments.create'),
+                profile=True, student_name=row['full_name'])
+    profile.details(row)
+    if pd.notna(row["archived_at"]):
+        st.warning("الطالب مؤرشف؛ سجله وحساباته باقية للمراجعة.")
+        archived_finance=F.projection(conn,sid,materialize=False) if A.can('payments.view') else None
+        if archived_finance and archived_finance["due_now"]:
+            st.error(f"دين أعيد فتحه بعد تصحيح أو إلغاء قبض سابق: "
+                     f"{archived_finance['due_now']:,} أوقية قديمة. "
+                     "لم تُستأنف رسوم شهرية جديدة.")
+        return
+    if not (A.can('students.edit') or A.can('students.delete')):
+        return
+    with st.expander(f"⚙️ تعديل بيانات: {_text(row['full_name'])}", expanded=False):
+        snapshot,snapshot_key=ui.edit_snapshot(conn,'students',sid,scope='student_'+sid,widget_prefix=f'edit_{sid}_')
+        row=pd.Series(snapshot)
+        with st.form(f"edit_student_form_{sid}"):
+            if A.can('students.edit'):
+                a, b, c = st.columns(3)
+                e_name = a.text_input("اسم الطفل", value=_text(row["full_name"]),
+                                      key=f"edit_{sid}_name")
+                old_date = pd.to_datetime(row["birth_date"], errors="coerce")
+                e_birth = b.date_input("تاريخ الميلاد",
+                    value=old_date.date() if pd.notna(old_date) else date(2022, 1, 1),
+                    min_value=date(1990, 1, 1), max_value=F.today(),
+                    key=f"edit_{sid}_birth")
+                original_gender = _text(row["gender"])
+                e_gender = c.selectbox("الجنس", H.GENDERS,
+                    index=H.GENDERS.index(original_gender) if original_gender in H.GENDERS else 0,
+                    key=f"edit_{sid}_gender")
+                a, b = st.columns(2)
+                e_place = a.text_input("مكان الميلاد (اختياري)",
+                             value=_text(row["birth_place"]), key=f"edit_{sid}_place")
+                e_address = b.text_input("العنوان (اختياري)",
+                             value=_text(row["address"]), key=f"edit_{sid}_address")
+                old_medical = _text(row["medical_details"])
+                old_flag = bool(row["has_medical_condition"]) if pd.notna(row["has_medical_condition"]) else False
+                with st.expander("تفاصيل اختيارية"):
+                    e_medical = st.text_area("ملاحظات صحية", value=old_medical,
+                                           key=f"edit_{sid}_health")
+                    e_allergy = st.text_area("الحساسية", value=_text(row["allergies"]),
+                                           key=f"edit_{sid}_allergy")
+                    e_notes = st.text_area("ملاحظات عامة", value=_text(row["general_notes"]),
+                                         key=f"edit_{sid}_notes")
+                    clear_legacy = False
+                    if old_flag and not old_medical.strip():
+                        st.caption("هذا السجل يحمل علامة صحية تاريخية دون ملاحظات.")
+                        clear_legacy = st.checkbox("إزالة علامة الحالة الصحية القديمة",
+                                                   key=f"edit_{sid}_clear_health")
+                pickups = _pickup_editor(f"edit_{sid}",
+                                          initial=_pickups_from_db(row["authorized_pickups"]))
+            a, b = st.columns(2)
+            save = a.form_submit_button("💾 حفظ التعديلات", type="primary",
+                                        use_container_width=True) if A.can('students.edit') else False
+            delete = b.form_submit_button("🗑️ حذف الطالب",
+                                           use_container_width=True) if A.can('students.delete') else False
+            if save:
+                try:
+                    people = _validate_pickups(pickups)
+                    if not e_name.strip() or len(e_name.strip()) > 100:
+                        raise ValueError("يرجى كتابة اسم طفل صحيح.")
+                    if len(e_place.strip()) > 100:
+                        raise ValueError("مكان الميلاد أطول من المسموح.")
+                    import records as R
+                    R.edit('students',sid,dict(full_name=e_name,birth_date=e_birth,
+                        gender=e_gender,birth_place=e_place,address=e_address,
+                        medical_details=e_medical,allergies=e_allergy,general_notes=e_notes,
+                        authorized_pickups=people),actor=st.session_state.get('auth_user'),
+                        reason='تعديل بيانات الطفل من ملفه',expected=R.revision(snapshot),
+                        clear_legacy_medical=clear_legacy)
+                    st.session_state.pop(snapshot_key,None)
+                    st.success("تم حفظ التعديلات.")
+                    st.rerun()
+                except ValueError as exc:
+                    st.error(str(exc))
+                except Exception:
+                    conn.rollback()
+                    st.error("تعذّر حفظ التعديلات؛ يرجى المحاولة مرة أخرى.")
+            if delete:
+                try:
+                    D.archive_student(sid,actor=st.session_state.get("auth_user","مديرة الروضة"))
+                    st.session_state.pop("student_pending_debt",None)
+                    st.success("أُرشف الطالب؛ جميع الحسابات والوصولات محفوظة.")
+                    st.rerun()
+                except ValueError as error:
+                    st.session_state["student_pending_debt"]=sid
+                    st.error(str(error) if A.can('payments.view') else
+                        'تعذّرت الأرشفة؛ يلزم أن يراجع المسؤول حساب الطفل أولًا.')
+                except Exception:
+                    st.error("تعذّر الأرشفة؛ لم تتغير البيانات.")
+        if st.session_state.get("student_pending_debt")==sid:
+            if not A.can('payments.view'):
+                st.info('يمكن للمسؤول تسوية الحساب ثم إتمام الأرشفة.')
                 return
-            if not (A.can('students.edit') or A.can('students.delete')):
-                return
-            with st.expander(f"⚙️ تعديل بيانات: {_text(row['full_name'])}", expanded=False):
-                snapshot,snapshot_key=ui.edit_snapshot(conn,'students',sid,scope='student_'+sid,widget_prefix=f'edit_{sid}_')
-                row=pd.Series(snapshot)
-                with st.form(f"edit_student_form_{sid}"):
-                    if A.can('students.edit'):
-                        a, b, c = st.columns(3)
-                        e_name = a.text_input("اسم الطفل", value=_text(row["full_name"]),
-                                              key=f"edit_{sid}_name")
-                        old_date = pd.to_datetime(row["birth_date"], errors="coerce")
-                        e_birth = b.date_input("تاريخ الميلاد",
-                            value=old_date.date() if pd.notna(old_date) else date(2022, 1, 1),
-                            min_value=date(1990, 1, 1), max_value=F.today(),
-                            key=f"edit_{sid}_birth")
-                        original_gender = _text(row["gender"])
-                        e_gender = c.selectbox("الجنس", H.GENDERS,
-                            index=H.GENDERS.index(original_gender) if original_gender in H.GENDERS else 0,
-                            key=f"edit_{sid}_gender")
-                        a, b = st.columns(2)
-                        e_place = a.text_input("مكان الميلاد (اختياري)",
-                                     value=_text(row["birth_place"]), key=f"edit_{sid}_place")
-                        e_address = b.text_input("العنوان (اختياري)",
-                                     value=_text(row["address"]), key=f"edit_{sid}_address")
-                        old_medical = _text(row["medical_details"])
-                        old_flag = bool(row["has_medical_condition"]) if pd.notna(row["has_medical_condition"]) else False
-                        with st.expander("تفاصيل اختيارية"):
-                            e_medical = st.text_area("ملاحظات صحية", value=old_medical,
-                                                   key=f"edit_{sid}_health")
-                            e_allergy = st.text_area("الحساسية", value=_text(row["allergies"]),
-                                                   key=f"edit_{sid}_allergy")
-                            e_notes = st.text_area("ملاحظات عامة", value=_text(row["general_notes"]),
-                                                 key=f"edit_{sid}_notes")
-                            clear_legacy = False
-                            if old_flag and not old_medical.strip():
-                                st.caption("هذا السجل يحمل علامة صحية تاريخية دون ملاحظات.")
-                                clear_legacy = st.checkbox("إزالة علامة الحالة الصحية القديمة",
-                                                           key=f"edit_{sid}_clear_health")
-                        pickups = _pickup_editor(f"edit_{sid}",
-                                                  initial=_pickups_from_db(row["authorized_pickups"]))
-                    a, b = st.columns(2)
-                    save = a.form_submit_button("💾 حفظ التعديلات", type="primary",
-                                                use_container_width=True) if A.can('students.edit') else False
-                    delete = b.form_submit_button("🗑️ حذف الطالب",
-                                                   use_container_width=True) if A.can('students.delete') else False
-                    if save:
+            remaining=D.waiver_preview(conn,sid)
+            due=int(remaining["due_now"]) if remaining else 0
+            completed_waiver=st.session_state.get(f"student_waiver_success_{sid}")
+            if completed_waiver and not due:
+                st.success(f"أُلغي دين {completed_waiver:,} دون إنشاء قبض. يمكن الآن أرشفة الطالب.")
+            if due:
+                st.error(f"لا يمكن حذف الطالب؛ عليه مبلغ {due:,} أوقية قديمة.")
+                st.caption("القرار بيد المديرة: قبض فعلي أو إلغاء دين موثّق. لا يصدر وصل عند إلغاء الدين.")
+                b1,b2=st.columns(2)
+                if A.can('payments.create') and b1.button("تسجيل دفعة",key=f"student_pay_choice_{sid}"):
+                    st.session_state[f"student_resolve_{sid}"]="pay"
+                if A.can('accounts.delete') and b2.button("إلغاء الدين",key=f"student_waive_choice_{sid}"):
+                    st.session_state[f"student_resolve_{sid}"]="waive"
+                mode=st.session_state.get(f"student_resolve_{sid}")
+                if mode=="pay" and A.can('payments.create'):
+                    st.caption("الدفعة الشهرية بالمبلغ فقط متاحة في الحساب أعلاه.")
+                    unsettled=[(kind,row) for kind,row in remaining["fees"].items()
+                       if row["price"]-row["paid"]-row.get("waived",0)>0]
+                    if unsettled:
+                        fee_map={kind:("رسوم التسجيل" if kind=="registration" else "الجيليه")
+                            +f" — {info['price']-info['paid']-info.get('waived',0):,} أوقية قديمة"
+                            for kind,info in unsettled}
+                        with st.form(f"student_item_collect_{sid}"):
+                            kind=st.selectbox("رسم مستحق للتحصيل النقدي",list(fee_map),
+                                format_func=lambda k:fee_map[k])
+                            paid=st.form_submit_button("تحصيل المبلغ المحدد وإصدار وصل")
+                        if paid:
+                            try:
+                                token_key=f"student_item_token_{sid}"
+                                st.session_state.setdefault(token_key,str(uuid.uuid4()))
+                                receipt_id,_=D.pay_unpaid_fee(sid,kind,
+                                  actor=st.session_state.get("auth_user","مديرة الروضة"),
+                                  token=st.session_state[token_key])
+                                st.session_state[token_key]=str(uuid.uuid4())
+                                st.success(f"تم قبض المبلغ فعلياً؛ الوصل #{receipt_id}.")
+                                st.rerun()
+                            except ValueError as error:
+                                st.error(str(error))
+                            except Exception:
+                                st.error("تعذّر تسجيل القبض؛ لم يصدر وصل.")
+                elif mode=="waive" and A.can('accounts.delete'):
+                    with st.form(f"student_waive_{sid}"):
+                        st.write(f"مجموع الدين الذي سيُلغى دون قبض: **{due:,} أوقية قديمة**")
+                        reason=st.text_area("سبب إلغاء الدين *")
+                        confirm=st.checkbox("أؤكد إلغاء الدين دون قبض أي مبلغ")
+                        apply=st.form_submit_button("تأكيد قرار إلغاء الدين")
+                    if apply:
                         try:
-                            people = _validate_pickups(pickups)
-                            if not e_name.strip() or len(e_name.strip()) > 100:
-                                raise ValueError("يرجى كتابة اسم طفل صحيح.")
-                            if len(e_place.strip()) > 100:
-                                raise ValueError("مكان الميلاد أطول من المسموح.")
-                            import records as R
-                            R.edit('students',sid,dict(full_name=e_name,birth_date=e_birth,
-                                gender=e_gender,birth_place=e_place,address=e_address,
-                                medical_details=e_medical,allergies=e_allergy,general_notes=e_notes,
-                                authorized_pickups=people),actor=st.session_state.get('auth_user'),
-                                reason='تعديل بيانات الطفل من ملفه',expected=R.revision(snapshot),
-                                clear_legacy_medical=clear_legacy)
-                            st.session_state.pop(snapshot_key,None)
-                            st.success("تم حفظ التعديلات.")
-                            st.rerun()
-                        except ValueError as exc:
-                            st.error(str(exc))
-                        except Exception:
-                            conn.rollback()
-                            st.error("تعذّر حفظ التعديلات؛ يرجى المحاولة مرة أخرى.")
-                    if delete:
-                        try:
-                            D.archive_student(sid,actor=st.session_state.get("auth_user","مديرة الروضة"))
-                            st.session_state.pop("student_pending_debt",None)
-                            st.success("أُرشف الطالب؛ جميع الحسابات والوصولات محفوظة.")
+                            key=f"student_waiver_token_{sid}"
+                            st.session_state.setdefault(key,str(uuid.uuid4()))
+                            written,_=D.waive_debt(sid,reason,confirm,
+                                actor=st.session_state.get("auth_user","مديرة الروضة"),
+                                token=st.session_state[key])
+                            st.session_state[key]=str(uuid.uuid4())
+                            st.session_state[f"student_waiver_success_{sid}"]=written
                             st.rerun()
                         except ValueError as error:
-                            st.session_state["student_pending_debt"]=sid
-                            st.error(str(error) if A.can('payments.view') else
-                                'تعذّرت الأرشفة؛ يلزم أن يراجع المسؤول حساب الطفل أولًا.')
+                            st.error(str(error))
                         except Exception:
-                            st.error("تعذّر الأرشفة؛ لم تتغير البيانات.")
-                if st.session_state.get("student_pending_debt")==sid:
-                    if not A.can('payments.view'):
-                        st.info('يمكن للمسؤول تسوية الحساب ثم إتمام الأرشفة.')
-                        return
-                    remaining=D.waiver_preview(conn,sid)
-                    due=int(remaining["due_now"]) if remaining else 0
-                    completed_waiver=st.session_state.get(f"student_waiver_success_{sid}")
-                    if completed_waiver and not due:
-                        st.success(f"أُلغي دين {completed_waiver:,} دون إنشاء قبض. يمكن الآن أرشفة الطالب.")
-                    if due:
-                        st.error(f"لا يمكن حذف الطالب؛ عليه مبلغ {due:,} أوقية قديمة.")
-                        st.caption("القرار بيد المديرة: قبض فعلي أو إلغاء دين موثّق. لا يصدر وصل عند إلغاء الدين.")
-                        b1,b2=st.columns(2)
-                        if A.can('payments.create') and b1.button("تسجيل دفعة",key=f"student_pay_choice_{sid}"):
-                            st.session_state[f"student_resolve_{sid}"]="pay"
-                        if A.can('accounts.delete') and b2.button("إلغاء الدين",key=f"student_waive_choice_{sid}"):
-                            st.session_state[f"student_resolve_{sid}"]="waive"
-                        mode=st.session_state.get(f"student_resolve_{sid}")
-                        if mode=="pay" and A.can('payments.create'):
-                            st.caption("الدفعة الشهرية بالمبلغ فقط متاحة في الحساب أعلاه.")
-                            unsettled=[(kind,row) for kind,row in remaining["fees"].items()
-                               if row["price"]-row["paid"]-row.get("waived",0)>0]
-                            if unsettled:
-                                fee_map={kind:("رسوم التسجيل" if kind=="registration" else "الجيليه")
-                                    +f" — {info['price']-info['paid']-info.get('waived',0):,} أوقية قديمة"
-                                    for kind,info in unsettled}
-                                with st.form(f"student_item_collect_{sid}"):
-                                    kind=st.selectbox("رسم مستحق للتحصيل النقدي",list(fee_map),
-                                        format_func=lambda k:fee_map[k])
-                                    paid=st.form_submit_button("تحصيل المبلغ المحدد وإصدار وصل")
-                                if paid:
-                                    try:
-                                        token_key=f"student_item_token_{sid}"
-                                        st.session_state.setdefault(token_key,str(uuid.uuid4()))
-                                        receipt_id,_=D.pay_unpaid_fee(sid,kind,
-                                          actor=st.session_state.get("auth_user","مديرة الروضة"),
-                                          token=st.session_state[token_key])
-                                        st.session_state[token_key]=str(uuid.uuid4())
-                                        st.success(f"تم قبض المبلغ فعلياً؛ الوصل #{receipt_id}.")
-                                        st.rerun()
-                                    except ValueError as error:
-                                        st.error(str(error))
-                                    except Exception:
-                                        st.error("تعذّر تسجيل القبض؛ لم يصدر وصل.")
-                        elif mode=="waive" and A.can('accounts.delete'):
-                            with st.form(f"student_waive_{sid}"):
-                                st.write(f"مجموع الدين الذي سيُلغى دون قبض: **{due:,} أوقية قديمة**")
-                                reason=st.text_area("سبب إلغاء الدين *")
-                                confirm=st.checkbox("أؤكد إلغاء الدين دون قبض أي مبلغ")
-                                apply=st.form_submit_button("تأكيد قرار إلغاء الدين")
-                            if apply:
-                                try:
-                                    key=f"student_waiver_token_{sid}"
-                                    st.session_state.setdefault(key,str(uuid.uuid4()))
-                                    written,_=D.waive_debt(sid,reason,confirm,
-                                        actor=st.session_state.get("auth_user","مديرة الروضة"),
-                                        token=st.session_state[key])
-                                    st.session_state[key]=str(uuid.uuid4())
-                                    st.session_state[f"student_waiver_success_{sid}"]=written
-                                    st.rerun()
-                                except ValueError as error:
-                                    st.error(str(error))
-                                except Exception:
-                                    st.error("تعذّر إلغاء الدين؛ بقي الدين محفوظاً.")
+                            st.error("تعذّر إلغاء الدين؛ بقي الدين محفوظاً.")
