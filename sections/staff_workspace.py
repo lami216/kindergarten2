@@ -45,6 +45,13 @@ def render(conn):
         # The route is checked against the live session, beyond sidebar hiding.
         available=[page+'.'+a for a in A.RESOURCES[page][1] if A.can(page+'.'+a)]
         A.require(c,available[0])
+    if page=='students':
+        from sections import students
+        if A.can('students.view'): students.render(conn)
+        else:
+            ui.section_header('🎒','تسجيل طالب','بيانات الطفل والأسرة')
+            students.render_intake(conn)
+        return
     ui.section_header('🌱',permitted[page],'الأعمال المتاحة لحسابك')
     if page=='reports':
         from sections import reports
@@ -54,6 +61,9 @@ def render(conn):
         change_history.render(conn); return
     if page=='payments':
         from sections import monthly_payments as M
+        requested=st.session_state.pop('payments_requested_tab',None)
+        if requested:
+            st.session_state['staff_payment_tabs']='الوصولات' if requested=='🧾 الوصولات' else 'حساب الطفل'
         accounts,receipts=st.tabs(['حساب الطفل','الوصولات'],key='staff_payment_tabs',on_change='rerun')
         with accounts: M.render_accounts(conn,allow_payment=A.can('payments.create'))
         with receipts: M.render_receipts(conn)

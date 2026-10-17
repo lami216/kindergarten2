@@ -84,3 +84,14 @@ aside { overflow-y:auto; }
 .table-wrap table:has([data-record-type="departments"]) th:first-child { width:36%; }
 .table-wrap table:has([data-record-type="departments"]) th:nth-child(2) { width:22%; }
 @media(max-width:520px) { .managed-row { align-items:flex-start; flex-direction:column; } #record-dialog { padding:18px; } .table-wrap:has([data-record-type="departments"]) th,.table-wrap:has([data-record-type="departments"]) td { padding:10px 5px; } }
+/* Student file: private portrait, compact identity, readable family details. */
+.file-hero{display:flex;align-items:center;gap:24px}
+.file-portrait{width:112px;height:112px;flex:0 0 112px;object-fit:cover;border-radius:24px;border:3px solid var(--surface);box-shadow:0 0 0 1px var(--border)}
+.file-initial{display:grid;place-items:center;font-size:42px;font-weight:700;background:var(--soft);color:var(--green)}
+.file-identity{min-width:0}.file-identity h2{font-size:28px;margin:4px 0 8px;overflow-wrap:anywhere}
+.file-identity p{margin:0 0 12px}.file-details{display:grid;grid-template-columns:1fr 1fr;gap:20px;padding-top:20px}
+.file-details small{display:block;color:var(--muted);margin-bottom:5px}.file-details p{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
+.file-preview{width:140px;height:140px;object-fit:cover;border-radius:18px;margin:16px 0;border:1px solid var(--border)}
+.file-photo-editor summary,.file-intake-photo summary{cursor:pointer;color:var(--green)}
+.file-intake-photo{margin:20px 0}.file-info .panel{min-width:0}.file-photo-editor form{max-width:680px}
+@media(max-width:600px){.file-hero{gap:16px;padding:20px}.file-portrait{width:82px;height:82px;flex-basis:82px;border-radius:18px}.file-identity h2{font-size:22px}.file-details{gap:16px}}

@@ -2,7 +2,7 @@
 from psycopg2 import sql
 
 TABLES = {
-    'students': 'student_id', 'parents': 'father_id', 'teachers': 'national_id',
+    'students': 'student_id', 'student_photos': 'student_id', 'parents': 'father_id', 'teachers': 'national_id',
     'school_departments': 'department_id', 'student_departments': 'student_id',
     'department_transfers': 'transfer_id', 'classes': 'class_id',
     'academic_years': 'year_id', 'registrations': 'registration_id',
@@ -47,6 +47,13 @@ def migrate(conn):
                 IF TG_OP <> 'DELETE' THEN following=to_jsonb(NEW); END IF;
                 IF TG_OP='UPDATE' AND previous=following THEN RETURN NEW; END IF;
                 verb=CASE TG_OP WHEN 'INSERT' THEN 'created' WHEN 'DELETE' THEN 'deleted' ELSE 'updated' END;
+                IF TG_TABLE_NAME='student_photos' THEN
+                    IF TG_OP='UPDATE' AND previous->>'image_sha256' IS NOT NULL
+                        AND following->>'image_sha256' IS NULL THEN verb='deleted';
+                    ELSIF TG_OP='UPDATE' AND previous->>'image_sha256' IS NULL
+                        AND following->>'image_sha256' IS NOT NULL THEN verb='created'; END IF;
+                    previous=previous-'image_data'; following=following-'image_data';
+                END IF;
                 IF TG_OP='UPDATE' AND (
                     (following->>'archived_at' IS NOT NULL AND previous->>'archived_at' IS NULL)
                     OR (following->>'cancelled_at' IS NOT NULL AND previous->>'cancelled_at' IS NULL)

@@ -20,6 +20,7 @@ ADD_KEYS = ("kid_name", "kid_birth", "kid_gender", "kid_place", "kid_address",
             "kid_notes", "kid_use_existing", "kid_existing_family",
             "kid_finance_mode", "kid_initial_registration", "kid_initial_gilet",
             "kid_initial_amount", "kid_finance_start")
+ADD_KEYS += ('kid_photo',)
 
 
 def _text(value):
@@ -175,6 +176,9 @@ def render_intake(conn,parents=None,family_choices=None):
         gender = a.selectbox("الجنس *", H.GENDERS, key=_form_key("kid_gender"))
         place = b.text_input("مكان الميلاد (اختياري)", key=_form_key("kid_place"))
         address = st.text_input("العنوان (اختياري)", key=_form_key("kid_address"))
+        with st.expander('📷 صورة الطالب (اختياري)'):
+            photo = st.file_uploader('صورة الطفل',type=['jpg','jpeg','png','webp'],max_upload_size=5,
+                key=_form_key('kid_photo'),help='حتى 5 ميغابايت. يمكنك إضافتها أو تغييرها لاحقًا من ملف الطالب.')
         family = dict(father_name="", father_mobile="", mother_name="",
                       mother_mobile="", contact_email="")
         parent_id = None
@@ -283,7 +287,7 @@ def render_intake(conn,parents=None,family_choices=None):
                            "payer": payer}
                 _, created = db.save_child_with_family(
                     child, family, parent_id, st.session_state["kid_request_token"],
-                    finance=finance, actor=actor())
+                    finance=finance, actor=actor(), photo=photo.getvalue() if photo else None)
                 st.session_state["kid_last_saved"] = (
                     "✅ تم حفظ الطفل والأهل بنجاح. النموذج فارغ لإدخال طفل آخر."
                     if created else
@@ -298,6 +302,7 @@ def render_intake(conn,parents=None,family_choices=None):
 
 
 def render(conn):
+    import access_control as A
     _reset_after_success()
     if "kid_form_version" not in st.session_state:
         st.session_state["kid_form_version"] = 0
@@ -305,7 +310,8 @@ def render(conn):
         st.session_state["kid_request_token"] = str(uuid.uuid4())
 
     ui.section_header("🎒", "إدارة الطلاب", "إضافة وتعديل ومتابعة بيانات الأطفال")
-    tab_add, tab_view = st.tabs(["➕ إضافة طالب جديد", "📋 عرض / تعديل / حذف"])
+    tabs = st.tabs((["➕ إضافة طالب جديد"] if A.can('students.create') else [])+["📋 عرض / تعديل / حذف"],
+        key='student_tabs',on_change='rerun')
     parents = ui.df(conn, """
         SELECT father_id, father_name, mother_name, father_mobile, mother_mobile
         FROM parents WHERE archived_at IS NULL ORDER BY COALESCE(father_name, mother_name)
@@ -316,17 +322,18 @@ def render(conn):
         phones = " / ".join(x for x in (_text(row["father_mobile"]), _text(row["mother_mobile"])) if x)
         family_choices.append((row["father_id"], f"{names} — {phones}"))
 
-    with tab_add:
-        render_intake(conn,parents,family_choices)
+    if A.can('students.create'):
+        with tabs[0]:
+            render_intake(conn,parents,family_choices)
 
-    with tab_view:
+    with tabs[-1]:
         students = ui.df(conn, """
             SELECT s.student_id, s.full_name, s.birth_date, s.gender, s.birth_place,
                    s.address, s.medical_details, s.has_medical_condition,
                    s.allergies, s.general_notes, s.authorized_pickups, s.father_id,
                    s.archived_at,COALESCE(d.name,'بدون قسم') AS department_name,
                    COALESCE(p.father_name, p.mother_name) AS parent_name,
-                    p.father_mobile,p.mother_mobile,p.father_name,p.mother_name
+                    p.father_mobile,p.mother_mobile,p.father_name,p.mother_name,p.contact_email
             FROM students s JOIN parents p ON p.father_id=s.father_id
             LEFT JOIN student_departments m ON m.student_id=s.student_id
             LEFT JOIN school_departments d ON d.department_id=m.department_id
@@ -371,66 +378,68 @@ def render(conn):
         if chosen:
             sid = chosen[0]
             row = students[students["student_id"] == sid].iloc[0]
-            st.markdown(f"#### {row['full_name']}")
-            st.caption(f"القسم: {row['department_name']}")
-            contacts=" / ".join(filter(None,[
-                _text(row["father_name"]),_text(row["mother_name"])]))
-            phone=" / ".join(filter(None,[
-                _text(row["father_mobile"]),_text(row["mother_mobile"])]))
-            st.caption(f"ولي الأمر: {contacts or 'غير مسجل'} · الهاتف: {phone or 'غير مسجل'}")
-            st.caption(f"تاريخ الميلاد: {_text(row['birth_date']) or 'غير مسجل'}"
-                       f" · الجنس: {_text(row['gender']) or 'غير مسجل'}")
-            financial_panel(conn, sid, payment=pd.isna(row["archived_at"]), profile=True, student_name=row["full_name"])
+            from sections import student_profile as profile
+            photo = profile.header(conn,row)
+            if A.can('payments.view'):
+                with st.container(border=True):
+                    st.markdown('##### 💵 الحساب المالي')
+                    financial_panel(conn, sid, payment=pd.isna(row['archived_at']) and A.can('payments.create'),
+                        profile=True, student_name=row['full_name'])
+            profile.details(row)
+            profile.photo_editor(conn,row,photo)
             if pd.notna(row["archived_at"]):
                 st.warning("الطالب مؤرشف؛ سجله وحساباته باقية للمراجعة.")
-                archived_finance=F.projection(conn,sid,materialize=False)
+                archived_finance=F.projection(conn,sid,materialize=False) if A.can('payments.view') else None
                 if archived_finance and archived_finance["due_now"]:
                     st.error(f"دين أعيد فتحه بعد تصحيح أو إلغاء قبض سابق: "
                              f"{archived_finance['due_now']:,} أوقية قديمة. "
                              "لم تُستأنف رسوم شهرية جديدة.")
                 return
+            if not (A.can('students.edit') or A.can('students.delete')):
+                return
             with st.expander(f"⚙️ تعديل بيانات: {_text(row['full_name'])}", expanded=False):
                 snapshot,snapshot_key=ui.edit_snapshot(conn,'students',sid,scope='student_'+sid,widget_prefix=f'edit_{sid}_')
                 row=pd.Series(snapshot)
                 with st.form(f"edit_student_form_{sid}"):
-                    a, b, c = st.columns(3)
-                    e_name = a.text_input("اسم الطفل", value=_text(row["full_name"]),
-                                          key=f"edit_{sid}_name")
-                    old_date = pd.to_datetime(row["birth_date"], errors="coerce")
-                    e_birth = b.date_input("تاريخ الميلاد",
-                        value=old_date.date() if pd.notna(old_date) else date(2022, 1, 1),
-                        min_value=date(1990, 1, 1), max_value=F.today(),
-                        key=f"edit_{sid}_birth")
-                    original_gender = _text(row["gender"])
-                    e_gender = c.selectbox("الجنس", H.GENDERS,
-                        index=H.GENDERS.index(original_gender) if original_gender in H.GENDERS else 0,
-                        key=f"edit_{sid}_gender")
-                    a, b = st.columns(2)
-                    e_place = a.text_input("مكان الميلاد (اختياري)",
-                                 value=_text(row["birth_place"]), key=f"edit_{sid}_place")
-                    e_address = b.text_input("العنوان (اختياري)",
-                                 value=_text(row["address"]), key=f"edit_{sid}_address")
-                    old_medical = _text(row["medical_details"])
-                    old_flag = bool(row["has_medical_condition"]) if pd.notna(row["has_medical_condition"]) else False
-                    with st.expander("تفاصيل اختيارية"):
-                        e_medical = st.text_area("ملاحظات صحية", value=old_medical,
-                                               key=f"edit_{sid}_health")
-                        e_allergy = st.text_area("الحساسية", value=_text(row["allergies"]),
-                                               key=f"edit_{sid}_allergy")
-                        e_notes = st.text_area("ملاحظات عامة", value=_text(row["general_notes"]),
-                                             key=f"edit_{sid}_notes")
-                        clear_legacy = False
-                        if old_flag and not old_medical.strip():
-                            st.caption("هذا السجل يحمل علامة صحية تاريخية دون ملاحظات.")
-                            clear_legacy = st.checkbox("إزالة علامة الحالة الصحية القديمة",
-                                                       key=f"edit_{sid}_clear_health")
-                    pickups = _pickup_editor(f"edit_{sid}",
-                                              initial=_pickups_from_db(row["authorized_pickups"]))
+                    if A.can('students.edit'):
+                        a, b, c = st.columns(3)
+                        e_name = a.text_input("اسم الطفل", value=_text(row["full_name"]),
+                                              key=f"edit_{sid}_name")
+                        old_date = pd.to_datetime(row["birth_date"], errors="coerce")
+                        e_birth = b.date_input("تاريخ الميلاد",
+                            value=old_date.date() if pd.notna(old_date) else date(2022, 1, 1),
+                            min_value=date(1990, 1, 1), max_value=F.today(),
+                            key=f"edit_{sid}_birth")
+                        original_gender = _text(row["gender"])
+                        e_gender = c.selectbox("الجنس", H.GENDERS,
+                            index=H.GENDERS.index(original_gender) if original_gender in H.GENDERS else 0,
+                            key=f"edit_{sid}_gender")
+                        a, b = st.columns(2)
+                        e_place = a.text_input("مكان الميلاد (اختياري)",
+                                     value=_text(row["birth_place"]), key=f"edit_{sid}_place")
+                        e_address = b.text_input("العنوان (اختياري)",
+                                     value=_text(row["address"]), key=f"edit_{sid}_address")
+                        old_medical = _text(row["medical_details"])
+                        old_flag = bool(row["has_medical_condition"]) if pd.notna(row["has_medical_condition"]) else False
+                        with st.expander("تفاصيل اختيارية"):
+                            e_medical = st.text_area("ملاحظات صحية", value=old_medical,
+                                                   key=f"edit_{sid}_health")
+                            e_allergy = st.text_area("الحساسية", value=_text(row["allergies"]),
+                                                   key=f"edit_{sid}_allergy")
+                            e_notes = st.text_area("ملاحظات عامة", value=_text(row["general_notes"]),
+                                                 key=f"edit_{sid}_notes")
+                            clear_legacy = False
+                            if old_flag and not old_medical.strip():
+                                st.caption("هذا السجل يحمل علامة صحية تاريخية دون ملاحظات.")
+                                clear_legacy = st.checkbox("إزالة علامة الحالة الصحية القديمة",
+                                                           key=f"edit_{sid}_clear_health")
+                        pickups = _pickup_editor(f"edit_{sid}",
+                                                  initial=_pickups_from_db(row["authorized_pickups"]))
                     a, b = st.columns(2)
                     save = a.form_submit_button("💾 حفظ التعديلات", type="primary",
-                                                use_container_width=True)
+                                                use_container_width=True) if A.can('students.edit') else False
                     delete = b.form_submit_button("🗑️ حذف الطالب",
-                                                   use_container_width=True)
+                                                   use_container_width=True) if A.can('students.delete') else False
                     if save:
                         try:
                             people = _validate_pickups(pickups)

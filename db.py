@@ -95,7 +95,7 @@ def contact_validation_error(father_name, father_mobile, mother_name, mother_mob
     return None
 
 
-def _child_request_fingerprint(child, family, existing_parent_id, finance=None):
+def _child_request_fingerprint(child, family, existing_parent_id, finance=None, photo=None):
     """Hash the normalized data we actually persist, not a UI session identifier."""
     cleaned_child = {
         "full_name": child["full_name"].strip(),
@@ -120,6 +120,8 @@ def _child_request_fingerprint(child, family, existing_parent_id, finance=None):
                 "mother_mobile", "contact_email")
         }}
     payload = {"child": cleaned_child, "family": cleaned_family}
+    if photo is not None:
+        payload['photo_sha256'] = photo['image_sha256']
     if finance is not None:
         payload["finance"] = finance
     encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True,
@@ -128,7 +130,7 @@ def _child_request_fingerprint(child, family, existing_parent_id, finance=None):
 
 
 def save_child_with_family(child, family, existing_parent_id, request_token,
-                           finance=None, actor='مديرة الروضة'):
+                           finance=None, actor='مديرة الروضة', photo=None):
     """Persist family + child atomically; request_token makes repeated clicks idempotent.
 
     Returns (student_id, created). Existing family is only linked, never overwritten.
@@ -142,7 +144,9 @@ def save_child_with_family(child, family, existing_parent_id, request_token,
             family["mother_name"], family["mother_mobile"])
         if problem:
             raise ValueError(problem)
-    fingerprint = _child_request_fingerprint(child, family, existing_parent_id, finance)
+    import student_photos
+    portrait = student_photos.normalize(photo) if photo is not None else None
+    fingerprint = _child_request_fingerprint(child, family, existing_parent_id, finance, portrait)
     connection = new_transaction_connection()
     try:
         with connection.cursor() as cur:
@@ -201,6 +205,8 @@ def save_child_with_family(child, family, existing_parent_id, request_token,
                   child["allergies"].strip() or None, child["general_notes"].strip() or None,
                   json.dumps(child["authorized_pickups"], ensure_ascii=False),
                   parent_id, str(request_token), fingerprint))
+            if portrait is not None:
+                student_photos.insert_in_transaction(cur, student_id, portrait)
             if finance is not None:
                 import monthly_finance
                 monthly_finance.initialize_in_transaction(
@@ -434,6 +440,8 @@ def _apply_schema(conn):
     import school_departments
     school_departments.migrate(conn)
     import records
+    import student_photos
+    student_photos.migrate(conn)
     records.migrate(conn)
     import access_control
     access_control.migrate(conn)

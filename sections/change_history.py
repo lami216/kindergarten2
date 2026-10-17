@@ -6,6 +6,8 @@ import records as R
 
 ACTIONS={'created':'إضافة','updated':'تعديل','cancelled':'إلغاء / حذف','deleted':'حذف'}
 FIELD_NAMES={
+    'image_sha256':'بصمة الصورة','width':'عرض الصورة','height':'ارتفاع الصورة',
+    'byte_size':'حجم الصورة بالبايت','mime_type':'نوع الصورة',
     'name':'اسم القسم','full_name':'الاسم','birth_date':'تاريخ الميلاد','gender':'الجنس',
     'father_name':'اسم الأب','father_mobile':'هاتف الأب','mother_name':'اسم الأم','mother_mobile':'هاتف الأم',
     'contact_email':'بريد التواصل','medical_details':'ملاحظات صحية','allergies':'الحساسية',

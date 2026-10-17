@@ -26,7 +26,7 @@ FIELDS = {
     'assets': ('purchase_date','item_name','category','quantity','unit_cost','condition_status','notes'),
     'registrations': ('student_id','class_id','year_id','status','registration_date','annual_tuition'),
 }
-LABELS = {'school_departments':'الأقسام','students':'الطلاب','parents':'أولياء الأمور',
+LABELS = {'school_departments':'الأقسام','students':'الطلاب','student_photos':'صور الطلاب','parents':'أولياء الأمور',
           'teachers':'المعلمات','classes':'الصفوف السابقة','academic_years':'السنوات الدراسية',
           'assets':'الأصول والمعدات','registrations':'التسجيلات السابقة','expenses':'المصروفات',
           'monthly_receipts':'الدفعات الشهرية','payments':'الدفعات السابقة',
