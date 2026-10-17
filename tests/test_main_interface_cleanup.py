@@ -72,7 +72,7 @@ def test_exempt_and_archived_debts_and_current_placement_remain_reportable():
         assert len(matched)==2 and sum(r['الباقي على الطالب'] for r in matched)==2000
         assert {r['حالة الملف'] for r in matched}=={'نشط','مؤرشف'}
         assert {r['الرسوم'] for r in matched}=={'معفي'}
-        assert all(r['جوال الأم']=='00000987' and not r['جوال الأب'] for r in matched)
+        assert all(r['جوال الأم']=='00000987' and not r['جوال الأب'] for r in matched),matched
         assert all(r['موعد القسط التالي'] is None for r in matched)
         current=reports._current_students(conn,department)
         assert list(current['رقم الطالب'])==[ids[0]]

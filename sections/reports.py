@@ -254,7 +254,11 @@ def _current_students(conn, department=-1, gender="الكل"):
     if gender != "الكل":
         query += " AND s.gender=%s"
         params.append(gender)
-    return ui.df(conn, query+" ORDER BY s.full_name,s.student_id", tuple(params))
+    result = ui.df(conn, query+" ORDER BY s.full_name,s.student_id", tuple(params))
+    if result.empty:
+        return pd.DataFrame(columns=["رقم الطالب","اسم الطالب","القسم","الجنس","تاريخ الميلاد",
+            "اسم الأب","جوال الأب","اسم الأم","جوال الأم","العنوان"])
+    return result
 
 
 def _current_debts(conn):
@@ -267,6 +271,8 @@ def _current_debts(conn):
         FROM monthly_accounts a JOIN students s ON s.student_id=a.student_id
         LEFT JOIN parents p ON p.father_id=s.father_id ORDER BY s.full_name,s.student_id""")
     rows = []
+    contacts=['father_name','father_mobile','mother_name','mother_mobile']
+    children=children.fillna({name:'' for name in contacts})
     for child in children.to_dict('records'):
         account = F.projection(conn,child['student_id'],day,materialize=False)
         if not account or account['due_now'] <= 0:
