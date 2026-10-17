@@ -470,10 +470,14 @@ def render(conn):
                             st.rerun()
                         except ValueError as error:
                             st.session_state["student_pending_debt"]=sid
-                            st.error(str(error))
+                            st.error(str(error) if A.can('payments.view') else
+                                'تعذّرت الأرشفة؛ يلزم أن يراجع المسؤول حساب الطفل أولًا.')
                         except Exception:
                             st.error("تعذّر الأرشفة؛ لم تتغير البيانات.")
                 if st.session_state.get("student_pending_debt")==sid:
+                    if not A.can('payments.view'):
+                        st.info('يمكن للمسؤول تسوية الحساب ثم إتمام الأرشفة.')
+                        return
                     remaining=D.waiver_preview(conn,sid)
                     due=int(remaining["due_now"]) if remaining else 0
                     completed_waiver=st.session_state.get(f"student_waiver_success_{sid}")
@@ -483,12 +487,12 @@ def render(conn):
                         st.error(f"لا يمكن حذف الطالب؛ عليه مبلغ {due:,} أوقية قديمة.")
                         st.caption("القرار بيد المديرة: قبض فعلي أو إلغاء دين موثّق. لا يصدر وصل عند إلغاء الدين.")
                         b1,b2=st.columns(2)
-                        if b1.button("تسجيل دفعة",key=f"student_pay_choice_{sid}"):
+                        if A.can('payments.create') and b1.button("تسجيل دفعة",key=f"student_pay_choice_{sid}"):
                             st.session_state[f"student_resolve_{sid}"]="pay"
-                        if b2.button("إلغاء الدين",key=f"student_waive_choice_{sid}"):
+                        if A.can('accounts.delete') and b2.button("إلغاء الدين",key=f"student_waive_choice_{sid}"):
                             st.session_state[f"student_resolve_{sid}"]="waive"
                         mode=st.session_state.get(f"student_resolve_{sid}")
-                        if mode=="pay":
+                        if mode=="pay" and A.can('payments.create'):
                             st.caption("الدفعة الشهرية بالمبلغ فقط متاحة في الحساب أعلاه.")
                             unsettled=[(kind,row) for kind,row in remaining["fees"].items()
                                if row["price"]-row["paid"]-row.get("waived",0)>0]
@@ -514,7 +518,7 @@ def render(conn):
                                         st.error(str(error))
                                     except Exception:
                                         st.error("تعذّر تسجيل القبض؛ لم يصدر وصل.")
-                        elif mode=="waive":
+                        elif mode=="waive" and A.can('accounts.delete'):
                             with st.form(f"student_waive_{sid}"):
                                 st.write(f"مجموع الدين الذي سيُلغى دون قبض: **{due:,} أوقية قديمة**")
                                 reason=st.text_area("سبب إلغاء الدين *")

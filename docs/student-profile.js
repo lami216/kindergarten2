@@ -27,6 +27,7 @@ async function normalizePortrait(file){
  const jpg=bytes[0]===255&&bytes[1]===216&&bytes[2]===255;
  const webp=new TextDecoder().decode(bytes.slice(0,4))==='RIFF'&&new TextDecoder().decode(bytes.slice(8,12))==='WEBP';
  if(!['image/jpeg','image/png','image/webp'].includes(file.type)||!(png||jpg||webp))throw Error('اختر ملف صورة سليمًا بصيغة JPG أو PNG أو WebP.');
+ if(webp){const view=new DataView(bytes.buffer);for(let offset=12;offset+8<=bytes.length;){const tag=new TextDecoder().decode(bytes.slice(offset,offset+4)),size=view.getUint32(offset+4,true);if(tag==='ANIM'||tag==='ANMF')throw Error('اختر صورة ثابتة، وليست صورة متحركة.');offset+=8+size+(size%2);}}
  let bitmap;try{bitmap=await createImageBitmap(file,{imageOrientation:'from-image'});}catch{throw Error('تعذّر قراءة الصورة؛ اختر ملف صورة سليمًا.');}
  try{
   if(bitmap.width*bitmap.height>12000000)throw Error('أبعاد الصورة كبيرة جدًا؛ اختر صورة أصغر من 12 مليون بكسل.');
