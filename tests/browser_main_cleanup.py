@@ -65,6 +65,7 @@ async def run():
             page=await context.new_page()
             await page.goto('http://127.0.0.1:8501',wait_until='domcontentloaded')
             await expect(page.get_by_text('ملخص الروضة',exact=True)).to_be_visible(timeout=30000)
+            await navigate(page,'dashboard')
             for night in (False,True):
                 toggle=page.locator('.st-key-night_mode [role="switch"]').first
                 if await toggle.is_checked()!=night:
