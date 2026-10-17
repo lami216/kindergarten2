@@ -238,8 +238,8 @@ async def run():
         await page.locator(".st-key-kid_mother_name input").fill("أم فحص")
         await page.locator(".st-key-kid_mother_phone input").fill("0599112233")
         await page.get_by_text("دفع",exact=True).first.click()
-        await page.locator(".st-key-kid_initial_registration label").first.click()
-        await page.locator(".st-key-kid_initial_gilet label").first.click()
+        await expect(page.locator(".st-key-kid_initial_registration").get_by_role("checkbox")).to_be_checked()
+        await expect(page.locator(".st-key-kid_initial_gilet").get_by_role("checkbox")).to_be_checked()
         await page.locator(".st-key-kid_initial_amount input").fill("2000")
         await page.get_by_role("button",name=re.compile("حفظ بيانات الطفل والأهل")).click()
         error=page.get_by_test_id("stAlertContentError").get_by_text("المبلغ لا يغطي",exact=False).first
