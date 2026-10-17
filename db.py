@@ -33,12 +33,13 @@ def _pin_business_timezone(conn, *, autocommit):
     return conn
 
 
-@st.cache_resource
-def get_connection():
+@st.cache_resource(scope="session", validate=lambda connection: not connection.closed,
+                   on_release=lambda connection: connection.close())
+def _session_connection(session_key):
     """
-    Returns a cached PostgreSQL database connection.
-    st.cache_resource ensures the TCP connection to Supabase stays alive
-    and is reused across page reruns instead of reconnecting on every click.
+    Returns a PostgreSQL connection owned by one Streamlit session.
+    The session cache reuses it across reruns and closes it on release.
+    Audit context and autocommit writes cannot cross into another user session.
     """
     if "postgres" in st.secrets:
         conn = psycopg2.connect(
@@ -58,6 +59,12 @@ def get_connection():
     return _pin_business_timezone(conn, autocommit=True)
 
 
+def get_connection():
+    # Explicit session identity also isolates callers whose runtime contexts
+    # happen to reuse the same session ID (including Streamlit AppTest).
+    st.session_state.setdefault('_db_session_key',str(uuid.uuid4()))
+    return _session_connection(st.session_state['_db_session_key'])
+
 
 def new_transaction_connection():
     """Independent transaction: never mutate the cached autocommit connection."""
@@ -68,7 +75,11 @@ def new_transaction_connection():
             host="YOUR_SUPABASE_HOST", database="postgres", user="postgres",
             password="YOUR_PASSWORD", port="5432", cursor_factory=RealDictCursor
         )
-    return _pin_business_timezone(connection, autocommit=False)
+    connection = _pin_business_timezone(connection, autocommit=False)
+    import record_history
+    with connection.cursor() as cursor:
+        record_history.context(cursor, st.session_state.get('auth_user') or 'النظام')
+    return connection
 
 
 def contact_validation_error(father_name, father_mobile, mother_name, mother_mobile):
@@ -84,7 +95,7 @@ def contact_validation_error(father_name, father_mobile, mother_name, mother_mob
     return None
 
 
-def _child_request_fingerprint(child, family, existing_parent_id, finance=None):
+def _child_request_fingerprint(child, family, existing_parent_id, finance=None, photo=None):
     """Hash the normalized data we actually persist, not a UI session identifier."""
     cleaned_child = {
         "full_name": child["full_name"].strip(),
@@ -109,6 +120,8 @@ def _child_request_fingerprint(child, family, existing_parent_id, finance=None):
                 "mother_mobile", "contact_email")
         }}
     payload = {"child": cleaned_child, "family": cleaned_family}
+    if photo is not None:
+        payload['photo_sha256'] = photo['image_sha256']
     if finance is not None:
         payload["finance"] = finance
     encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True,
@@ -117,7 +130,7 @@ def _child_request_fingerprint(child, family, existing_parent_id, finance=None):
 
 
 def save_child_with_family(child, family, existing_parent_id, request_token,
-                           finance=None, actor='مديرة الروضة'):
+                           finance=None, actor='مديرة الروضة', photo=None):
     """Persist family + child atomically; request_token makes repeated clicks idempotent.
 
     Returns (student_id, created). Existing family is only linked, never overwritten.
@@ -131,10 +144,20 @@ def save_child_with_family(child, family, existing_parent_id, request_token,
             family["mother_name"], family["mother_mobile"])
         if problem:
             raise ValueError(problem)
-    fingerprint = _child_request_fingerprint(child, family, existing_parent_id, finance)
+    import student_photos
+    portrait = student_photos.normalize(photo) if photo is not None else None
+    fingerprint = _child_request_fingerprint(child, family, existing_parent_id, finance, portrait)
     connection = new_transaction_connection()
     try:
         with connection.cursor() as cur:
+            import access_control as A
+            actor=A.actor(cur,'students.create',actor)
+            if existing_parent_id: A.require(cur,'students.view')
+            if finance and finance.get('mode')=='exempt': A.require(cur,'accounts.edit')
+            if finance and finance.get('cash'): A.require(cur,'payments.create')
+            cur.execute("SELECT set_config('app.write_permission','students.create',true)")
+            import record_history
+            record_history.context(cur, actor, 'إضافة طالب وبيانات الأهل')
             # Serialize retries under the same token before checking the payload.
             cur.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))",
                         (str(request_token),))
@@ -151,7 +174,7 @@ def save_child_with_family(child, family, existing_parent_id, request_token,
                 connection.commit()
                 return already["student_id"], False
             if existing_parent_id:
-                cur.execute("SELECT father_id FROM parents WHERE father_id=%s FOR KEY SHARE",
+                cur.execute("SELECT father_id FROM parents WHERE father_id=%s AND archived_at IS NULL FOR SHARE",
                             (existing_parent_id,))
                 if not cur.fetchone():
                     raise ValueError("ولي الأمر المحدد غير موجود، حدّث الصفحة واختر مجدداً.")
@@ -182,6 +205,8 @@ def save_child_with_family(child, family, existing_parent_id, request_token,
                   child["allergies"].strip() or None, child["general_notes"].strip() or None,
                   json.dumps(child["authorized_pickups"], ensure_ascii=False),
                   parent_id, str(request_token), fingerprint))
+            if portrait is not None:
+                student_photos.insert_in_transaction(cur, student_id, portrait)
             if finance is not None:
                 import monthly_finance
                 monthly_finance.initialize_in_transaction(
@@ -196,11 +221,25 @@ def save_child_with_family(child, family, existing_parent_id, request_token,
 
 
 def init_db():
-    """
-    Ensures required PostgreSQL tables exist on startup.
-    Runs fast schema checks and structural migrations.
-    """
-    conn = get_connection()
+    """Explicit setup/test compatibility entrypoint. Never called by pages."""
+    from schema_migrations import upgrade
+    return upgrade(get_connection())
+
+
+def assert_schema_ready(conn):
+    """Readiness only: opening a page must never execute schema changes."""
+    from schema_migrations import VERSION, SchemaNotReady
+    with conn.cursor() as cursor:
+        cursor.execute("SELECT to_regclass('app_schema_migrations') AS relation")
+        if not cursor.fetchone()['relation']:
+            raise SchemaNotReady()
+        cursor.execute('SELECT MAX(version) AS version FROM app_schema_migrations')
+        if cursor.fetchone()['version'] != VERSION:
+            raise SchemaNotReady()
+
+
+def _apply_schema(conn):
+    """Schema body; caller owns the migration lock and the entire transaction."""
     with conn.cursor() as cur:
         cur.execute("""
             CREATE TABLE IF NOT EXISTS academic_years (
@@ -398,3 +437,11 @@ def init_db():
     # independent versioned monthly finance tables.
     import monthly_finance
     monthly_finance.migrate(conn)
+    import school_departments
+    school_departments.migrate(conn)
+    import records
+    import student_photos
+    student_photos.migrate(conn)
+    records.migrate(conn)
+    import access_control
+    access_control.migrate(conn)

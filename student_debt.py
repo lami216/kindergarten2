@@ -31,11 +31,22 @@ def _debt(c, student, when):
              WHERE a.period_id=p.period_id AND a.active AND r.state='active'),0) AS paid,
            COALESCE((SELECT SUM(w.amount) FROM monthly_waivers w
              WHERE w.period_id=p.period_id),0) AS waived
-           FROM monthly_periods p WHERE p.student_id=%s AND p.starts<=%s
+           FROM monthly_periods p JOIN monthly_accounts m USING(student_id)
+           WHERE p.student_id=%s AND (CASE WHEN m.due_at_period_end THEN p.ends ELSE p.starts END)<=%s
            ORDER BY p.period_no""",(student,when))
     periods=[dict(x) for x in c.fetchall()]
     return [dict(x,remaining=int(x["price"])-int(x["paid"])-int(x["waived"]))
             for x in fees+periods]
+
+
+def current_debt(c, student, account, *, as_of=None):
+    """Read issued debt for every status; only regular accounts issue new months."""
+    day=as_of or F.today()
+    F._due_started(c,student,account,as_of=day)
+    for boundary in (account.get('departure_on'),
+                     account.get('exempt_from') if account['status']=='exempt' else None):
+        if boundary: day=min(day,boundary)
+    return _debt(c,student,day)
 
 
 def waiver_preview(conn, student, *, as_of=None):
@@ -63,7 +74,9 @@ def waive_debt(student, reason, confirmed, *, actor, token=None, effective_on=No
     conn=db.new_transaction_connection()
     try:
         with conn.cursor() as c:
-            account=F._lock(c,student)
+            import access_control as A
+            actor=A.actor(c,'accounts.delete',actor)
+            account=F._lock(c,student,for_payment=False)
             c.execute("SELECT gross_waived,request_hash FROM monthly_waiver_batches WHERE request_token=%s",
                       (token,))
             old=c.fetchone()
@@ -75,8 +88,7 @@ def waive_debt(student, reason, confirmed, *, actor, token=None, effective_on=No
                 return total,False
             if account["archived_at"]:
                 raise ValueError("الحساب مؤرشف؛ لا تلغِ ديناً جديداً دون مراجعة مالية.")
-            F._due_started(c,student,account,as_of=day)
-            rows=_debt(c,student,day)
+            rows=current_debt(c,student,account,as_of=day)
             total=sum(max(0,r["remaining"]) for r in rows)
             if not total:
                 raise ValueError("لا يوجد دين مستحق لإلغائه.")
@@ -111,8 +123,9 @@ def waive_debt(student, reason, confirmed, *, actor, token=None, effective_on=No
         conn.close()
 
 
-def pay_unpaid_fee(student, kind, *, actor, token=None):
+def pay_unpaid_fee(student, kind, *, actor, token=None, expected_due=None):
     """Accept real cash for exactly one requested, presently unpaid fee."""
+    if expected_due is not None: F.amount(expected_due)
     if kind not in ("registration","gilet"):
         raise ValueError("اختر الرسم المستحق فقط.")
     actor=_actor(actor)
@@ -120,15 +133,19 @@ def pay_unpaid_fee(student, kind, *, actor, token=None):
     conn=db.new_transaction_connection()
     try:
         with conn.cursor() as c:
+            import access_control as A
+            actor=A.actor(c,'payments.create',actor)
             account=F._lock(c,student)
             row=F._fee(c,student,kind)
             if not row:
                 raise ValueError("هذا الرسم غير مطلوب لهذا الطفل.")
             due=int(row["price"])-int(row["paid"])-int(row["waived"])
-            c.execute("""SELECT receipt_id,request_hash,amount,student_id
+            c.execute("""SELECT receipt_id,request_hash,amount,student_id,state
                          FROM monthly_receipts WHERE request_token=%s""",(token,))
             old=c.fetchone()
             if old:
+                if expected_due is not None and (expected_due!=int(old["amount"]) or old["state"]!="active"):
+                    raise ValueError("تغيّرت الدفعة؛ أعد فتح نافذة تسديد الرسم.")
                 previous_hash=F._hash({"student":student,"kind":kind,"fee_id":row["fee_id"],
                                       "amount":int(old["amount"]),
                                       "purpose":"specific-unpaid-fee"})
@@ -137,6 +154,8 @@ def pay_unpaid_fee(student, kind, *, actor, token=None):
                 conn.commit()
                 return old["receipt_id"],False
             if due<=0: raise ValueError("لا يوجد مبلغ مستحق لهذا الرسم.")
+            if expected_due is not None and due!=expected_due:
+                raise ValueError("تغيّر المبلغ المستحق؛ أعد فتح نافذة تسديد الرسم.")
             fingerprint=F._hash({"student":student,"kind":kind,"fee_id":row["fee_id"],
                                  "amount":due,"purpose":"specific-unpaid-fee"})
             rid,new=F._issue(c,account,due,"ولي الأمر",actor,token,fingerprint,
@@ -156,15 +175,16 @@ def archive_student(student, *, actor):
     conn=db.new_transaction_connection()
     try:
         with conn.cursor() as c:
+            import access_control as A
+            actor=A.actor(c,'students.delete',actor)
             c.execute("SELECT student_id,archived_at FROM students WHERE student_id=%s FOR UPDATE",(student,))
             child=c.fetchone()
             if not child: raise ValueError("الطالب غير موجود.")
             if child["archived_at"]: raise ValueError("هذا الطالب مؤرشف بالفعل.")
-            c.execute("SELECT student_id,status,start_date,departure_on FROM monthly_accounts WHERE student_id=%s FOR UPDATE",(student,))
+            c.execute("SELECT * FROM monthly_accounts WHERE student_id=%s FOR UPDATE",(student,))
             account=c.fetchone()
-            if account and account["status"]=="regular":
-                F._due_started(c,student,account)
-                rows=_debt(c,student,F.today())
+            if account:
+                rows=current_debt(c,student,account)
                 due=sum(max(0,r["remaining"]) for r in rows)
                 if due:
                     raise ValueError(f"لا يمكن حذف الطالب؛ عليه مبلغ {due:,} أوقية قديمة.")
@@ -189,6 +209,8 @@ def remove_guardian_if_unlinked(guardian_id):
     conn=db.new_transaction_connection()
     try:
         with conn.cursor() as c:
+            import access_control as A
+            A.require(c,'parents.delete')
             c.execute("SELECT father_id FROM parents WHERE father_id=%s FOR UPDATE",(guardian_id,))
             if not c.fetchone():
                 raise ValueError("ولي الأمر غير موجود.")
@@ -198,12 +220,11 @@ def remove_guardian_if_unlinked(guardian_id):
             if children:
                 # Real child identities must remain linked, even when archived.
                 child=children[0]
-                c.execute("""SELECT student_id,status,start_date,departure_on FROM monthly_accounts
+                c.execute("""SELECT * FROM monthly_accounts
                              WHERE student_id=%s FOR UPDATE""",(child["student_id"],))
                 account=c.fetchone()
-                if account and account["status"]=="regular":
-                    F._due_started(c,child["student_id"],account)
-                    due=sum(max(0,x["remaining"]) for x in _debt(c,child["student_id"],F.today()))
+                if account:
+                    due=sum(max(0,x["remaining"]) for x in current_debt(c,child["student_id"],account))
                     if due:
                         raise ValueError(f"لا يمكن حذف ولي الأمر؛ الطفل {child['full_name']} عليه مبلغ {due:,} أوقية قديمة.")
                 raise ValueError("لا يمكن حذف ولي الأمر؛ ما زالت به ملفات أطفال مرتبطة، بما فيها المؤرشفة.")

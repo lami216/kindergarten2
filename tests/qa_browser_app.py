@@ -20,14 +20,20 @@ st.set_page_config(page_title="QA — الروضة", layout="wide", initial_side
 st.session_state["auth_user"] = "Chromium QA"
 apply_style()
 
-@st.cache_resource
-def _connection():
-    conn = psycopg2.connect(os.environ["TEST_POSTGRES_DSN"],
-                            cursor_factory=RealDictCursor)
-    conn.autocommit = True
-    return conn
-
-conn = _connection()
+import db
+conn = db.get_connection()
+st.markdown(f'<div id="qa-session" data-backend="{conn.get_backend_pid()}"></div>',unsafe_allow_html=True)
+if hasattr(db, 'assert_schema_ready'):
+    db.assert_schema_ready(conn)
+    import access_control as A
+    A.can=lambda permission:True
+    A.require=lambda cursor,permission,**kwargs: {'is_admin':True,'username':'Chromium QA'}
+    A.actor=lambda cursor,permission,legacy_actor=None:legacy_actor
+    # Dialog fragments revalidate the current identity as well as mutations.
+    A.current=lambda cursor=None,lock=False: {'is_admin':True,'username':'Chromium QA'}
+    import record_history
+    with conn.cursor() as cursor:
+        record_history.context(cursor, st.session_state['auth_user'], local=False)
 section = sidebar.render(conn)
 if section == "students":
     students.render(conn)
@@ -36,11 +42,11 @@ elif section == "parents":
 elif section == "payments":
     from sections import payments
     payments.render(conn)
-elif section in ("reports","dashboard","expenses","salaries","registration"):
-    from sections import reports, dashboard, expenses, salaries, registration
+elif section in ("reports","dashboard","expenses","salaries","registration","records","history"):
+    from sections import reports, dashboard, expenses, salaries, registration, record_manager, change_history
     routes={"reports":reports.render,"dashboard":dashboard.render,
             "expenses":expenses.render,"salaries":salaries.render,
-            "registration":registration.render}
+            "registration":registration.render,'records':record_manager.render,'history':change_history.render}
     routes[section](conn)
 else:
     st.info("صفحة ليست ضمن مسارات اختبار المالية.")

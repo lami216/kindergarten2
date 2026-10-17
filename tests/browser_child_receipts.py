@@ -41,14 +41,15 @@ def seed():
     token=uuid.uuid4().hex[:19]
     sid,pid="S"+token,"P"+token
     name="طفل وصل "+token[:6]
-    query("INSERT INTO parents(father_id,mother_name,mother_mobile) "
-          "VALUES(%s,'أم وصولات','0599666777')",(pid,))
+    phone=str(20000000+int(token,16)%70000000)
+    query("INSERT INTO parents(father_id,mother_name,mother_mobile,father_mobile) "
+          "VALUES(%s,'أم وصولات',%s,%s)",(pid,phone,'1'+phone))
     query("INSERT INTO students(student_id,full_name,father_id) VALUES(%s,%s,%s)",
           (sid,name,pid))
     query("INSERT INTO monthly_accounts(student_id,status,start_date,created_by) "
           "VALUES(%s,'regular',%s,'Chromium QA')",
           (sid,F.today()-timedelta(days=12)))
-    return sid,name
+    return sid,name,phone
 
 
 async def goto_students(page):
@@ -76,14 +77,19 @@ async def open_child(page,name):
     await chooser.click()
     await chooser.fill(name)
     await page.locator('[role="listbox"]').get_by_text(name,exact=True).last.click(timeout=18000)
+    # Student files contain a compact summary; financial intake is explicit.
+    await expect(page.get_by_role("spinbutton",name="المبلغ المدفوع")).to_have_count(0)
+    await expect(page.get_by_role("button",name="تصدير PDF")).to_have_count(0)
+    await page.get_by_role("button",name="💵 تسجيل دفعة",exact=True).click()
     await expect(page.get_by_text("تسجيل دفعة — مبلغ فقط")).to_be_visible(timeout=20000)
 
 
 async def toggle_theme(page,dark):
-    switch=page.locator(".st-key-night_mode [role='switch']").first
+    key="dialog_theme" if await page.locator(".st-key-dialog_theme").is_visible() else "night_mode"
+    switch=page.locator(f".st-key-{key} [role='switch']").first
     await expect(switch).to_be_visible()
     if await switch.is_checked()!=dark:
-        await page.locator(".st-key-night_mode label").last.click()
+        await page.locator(f".st-key-{key} label").last.click()
     if dark: await expect(switch).to_be_checked()
     else: await expect(switch).not_to_be_checked()
     expected="rgb(16, 21, 25)" if dark else "rgb(250, 250, 249)"
@@ -112,7 +118,7 @@ async def photo(page,slug,focus=None):
 
 
 async def run_variant(browser,width,dark):
-    sid,name=seed()
+    sid,name,phone=seed()
     ctx=await browser.new_context(viewport={"width":width,"height":850},accept_downloads=True)
     page=await ctx.new_page()
     await open_child(page,name)
@@ -132,6 +138,23 @@ async def run_variant(browser,width,dark):
     with_receipt=query("SELECT receipt_id,state,amount FROM monthly_receipts WHERE student_id=%s",(sid,))
     assert len(with_receipt)==1 and with_receipt[0]["amount"]==6000,with_receipt
     original=with_receipt[0]["receipt_id"]
+    # Saving a payment does not open its document. Open it deliberately.
+    await expect(page.get_by_text(f"وصل قبض #{original}")).not_to_be_visible()
+    await page.get_by_role("tab",name="🧾 الوصولات",exact=True).click()
+    search=page.get_by_role("textbox",name="بحث باسم الطفل أو هاتف الأب أو الأم أو رقم الوصل")
+    for term in (name,phone,'1'+phone,phone.translate(str.maketrans('0123456789','٠١٢٣٤٥٦٧٨٩'))):
+        await search.fill(term)
+        await search.press("Enter")
+        await expect(page.locator(f".st-key-finance_receipt_open_{original} button")).to_be_visible()
+    await search.fill("[not a match")
+    await search.press("Enter")
+    await expect(page.get_by_text("لا توجد وصولات تطابق هذا البحث.",exact=True)).to_be_visible()
+    await search.fill("")
+    await search.press("Enter")
+    await expect(page.get_by_text("لا توجد وصولات تطابق هذا البحث.",exact=True)).not_to_be_visible()
+    await search.fill(str(original))
+    await search.press("Enter")
+    await page.locator(f".st-key-finance_receipt_open_{original} button").click()
     await expect(page.get_by_text(f"وصل قبض #{original}")).to_be_visible(timeout=20000)
     for title in ("تعديل الوصل","إلغاء الوصل","تصدير PDF","سجل العمليات"):
         await expect(page.get_by_role("button",name=title)).to_be_visible()
@@ -150,7 +173,7 @@ async def run_variant(browser,width,dark):
     await page.get_by_role("button",name="تعديل الوصل").click()
     await expect(page.get_by_role("spinbutton",name="المبلغ المصحح")).to_be_visible()
     await page.get_by_role("spinbutton",name="المبلغ المصحح").fill("4500")
-    await page.get_by_role("spinbutton",name="المبلغ المصحح").press("Tab")
+    await page.get_by_role("spinbutton",name="المبلغ المصحح").press("Enter")
     await page.get_by_role("textbox",name="سبب التصحيح *").fill("تصحيح موثق للمتصفح")
     await page.get_by_role("button",name="معاينة أثر التصحيح").click()
     await expect(page.get_by_text("القبض القديم:",exact=False)).to_be_visible()
@@ -218,6 +241,10 @@ async def run():
     print("Real child payment, original/corrected/void receipt, PDF, history & "
           "computed day/night CSS passed at 390 and 1280px")
 
+
+if __name__=='__main__':
+    from tests.qa_auth import install
+    install()
 
 if __name__=="__main__":
     asyncio.run(run())

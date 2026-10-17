@@ -18,7 +18,7 @@ def render(conn):
 
     tab_add, tab_view = st.tabs(["➕ إضافة صف", "📋 عرض / تعديل / حذف"])
 
-    teachers_df = ui.df(conn, "SELECT national_id, full_name FROM teachers")
+    teachers_df = ui.df(conn, "SELECT national_id, full_name FROM teachers WHERE archived_at IS NULL")
     teacher_options = {"— بدون تعيين —": None}
     teacher_options.update({r.full_name: r.national_id for r in teachers_df.itertuples()})
 
@@ -34,7 +34,7 @@ def render(conn):
             submitted = st.form_submit_button("💾 حفظ الصف", type="primary", use_container_width=True)
 
             if submitted:
-                existing = ui.df(conn, "SELECT 1 FROM classes WHERE class_type=%s AND section=%s",
+                existing = ui.df(conn, "SELECT 1 FROM classes WHERE class_type=%s AND section=%s AND archived_at IS NULL",
                                   (class_type, section))
                 if not existing.empty:
                     st.error("❌ هذا الصف (النوع + الشعبة) موجود مسبقاً.")
@@ -58,14 +58,14 @@ def render(conn):
         classes = ui.df(conn, """
             SELECT c.class_id, c.class_type, c.section, c.class_name, t.full_name AS teacher_name,
                    c.teacher_id
-            FROM classes c LEFT JOIN teachers t ON c.teacher_id = t.national_id
+            FROM classes c LEFT JOIN teachers t ON c.teacher_id = t.national_id WHERE c.archived_at IS NULL
         """)
         if classes.empty:
             ui.empty_state("لا توجد صفوف بعد.")
         else:
             counts = ui.df(conn, """
                 SELECT class_id, COUNT(*) AS n FROM registrations
-                WHERE year_id = (SELECT year_id FROM academic_years ORDER BY start_date DESC LIMIT 1)
+                WHERE archived_at IS NULL AND year_id = (SELECT year_id FROM academic_years WHERE archived_at IS NULL ORDER BY start_date DESC NULLS LAST,year_id DESC LIMIT 1)
                 GROUP BY class_id
             """)
             
@@ -98,44 +98,4 @@ def render(conn):
             if selected:
                 cid = selected[0]
                 row = classes[classes['class_id'] == cid].iloc[0]
-
-                with st.expander(f"⚙️ تعديل بيانات: {row['label']}", expanded=True):
-                    with st.form("edit_class_form"):
-                        e_name = st.text_input("اسم الصف", value=row['class_name'] or "")
-                        current_teacher = row['teacher_name'] if pd.notna(row['teacher_name']) else "— بدون تعيين —"
-                        idx = list(teacher_options.keys()).index(current_teacher) if current_teacher in teacher_options else 0
-                        e_teacher = st.selectbox("المعلم/ة المسؤول/ة", list(teacher_options.keys()), index=idx)
-
-                        b1, b2 = st.columns(2)
-                        save = b1.form_submit_button("💾 حفظ", type="primary", use_container_width=True)
-                        delete = b2.form_submit_button("🗑️ حذف الصف", use_container_width=True)
-
-                        if save:
-                            try:
-                                cur = conn.cursor()
-                                cur.execute("UPDATE classes SET class_name=%s, teacher_id=%s WHERE class_id=%s",
-                                            (e_name, teacher_options[e_teacher], cid))
-                                conn.commit()
-                                cur.close()
-                                st.success("✅ تم الحفظ.")
-                                st.rerun()
-                            except Exception as e:
-                                conn.rollback()
-                                st.error(f"❌ حدث خطأ أثناء الحفظ: {e}")
-
-                        if delete:
-                            linked_df = ui.df(conn, "SELECT COUNT(*) AS c FROM registrations WHERE class_id=%s", (cid,))
-                            linked = linked_df.iloc[0]['c'] if not linked_df.empty else 0
-                            if linked > 0:
-                                st.error(f"⚠️ يوجد {linked} تسجيل مرتبط بهذا الصف. لا يمكن الحذف.")
-                            else:
-                                try:
-                                    cur = conn.cursor()
-                                    cur.execute("DELETE FROM classes WHERE class_id=%s", (cid,))
-                                    conn.commit()
-                                    cur.close()
-                                    st.warning("🗑️ تم حذف الصف بنجاح!")
-                                    st.rerun()
-                                except Exception as e:
-                                    conn.rollback()
-                                    st.error(f"❌ حدث خطأ أثناء الحذف: {e}")
+                ui.open_record_editor('classes',cid)

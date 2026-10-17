@@ -15,7 +15,7 @@ from datetime import datetime
 def render(conn):
     ui.section_header("💸", "رواتب المعلمات", "إدارة صرف وتعديل وإعادة طباعة قسائم الرواتب الشهرية")
 
-    teachers_df = ui.df(conn, "SELECT national_id, full_name, salary FROM teachers WHERE archived_at IS NULL ORDER BY full_name")
+    teachers_df = ui.df(conn, "SELECT national_id,COALESCE(display_national_id,national_id) AS display_national_id, full_name, salary FROM teachers WHERE archived_at IS NULL ORDER BY full_name")
     
     if teachers_df.empty:
         st.info("لا توجد معلمات نشطات للصرف؛ السجلات السابقة ما زالت متاحة.")
@@ -23,7 +23,7 @@ def render(conn):
     tab_pay, tab_log, tab_advance = st.tabs([
         "➕ صرف راتب شهري", "📋 سجل الرواتب والإعادة", "💰 سلف المعلمات"])
 
-    teacher_map = {f"{r.full_name} ({r.national_id})": (r.national_id, float(r.salary), r.full_name) for r in teachers_df.itertuples()}
+    teacher_map = {f"{r.full_name} ({r.display_national_id})": (r.national_id, float(r.salary), r.full_name) for r in teachers_df.itertuples()}
 
     # -------------------------------------------------- TAB 1: DISBURSE SALARY --
     with tab_pay:
@@ -39,7 +39,11 @@ def render(conn):
         success = st.session_state.pop("salary_saved_notice", None)
         if success:
             st.success(success)
-        with st.form(f"disburse_salary_form_v{salary_version}"):
+        quote_key=f'salary_displayed_quote_v{salary_version}'
+        previous_quote=st.session_state.get(quote_key)
+        quote=None
+        # Live widgets rerun when amounts change; st.form batches them until save.
+        with st.container(border=True,key=f"disburse_salary_form_v{salary_version}"):
             col1, col2, col3 = st.columns(3)
             salary_month = col1.text_input("عن شهر (YYYY-MM) *", value=current_month, key=f"salary_month_v{salary_version}")
             base_salary = col2.number_input("الراتب الأساسي (أوقية قديمة)", min_value=0.0, value=default_salary, step=50.0, key=f"salary_base_v{salary_version}_{t_id or 'none'}")
@@ -49,15 +53,29 @@ def render(conn):
             deductions = col4.number_input("خصومات (أوقية قديمة)", min_value=0.0, value=0.0, step=50.0, key=f"salary_deductions_v{salary_version}")
             notes = col5.text_input("ملاحظات إضافية (اختياري)", key=f"salary_notes_v{salary_version}")
 
-            net_salary = max(0.0, base_salary + bonus - deductions)
-            st.info(f"💵 **صافي الراتب المستحق للصرف:** {H.format_money(net_salary)} أوقية قديمة")
+            if t_id:
+                try:
+                    preview=P.salary_preview(base_salary,bonus,deductions)
+                    quote={'teacher':t_id,'month':salary_month,**preview}
+                    st.info(f"💵 **صافي الراتب المستحق للصرف:** {H.format_money(preview['net'])} أوقية قديمة")
+                except ValueError as error:
+                    st.error(str(error))
+            else:
+                st.info('اختر المعلمة لعرض صافي الراتب قبل الصرف.')
 
-            pay_submitted = st.form_submit_button("🧾 تسجيل الصرف وطباعة قسيمة الراتب", type="primary", use_container_width=True)
+            # Persist the displayed quote before the new save button reaches
+            # the browser, including during Streamlit's streaming reruns.
+            st.session_state[quote_key]=quote
+            pay_submitted = st.button("🧾 تسجيل الصرف وطباعة قسيمة الراتب",
+                key=f'salary_save_v{salary_version}',type="primary",use_container_width=True,
+                disabled=quote is None)
 
         if pay_submitted:
             try:
                 if not t_id:
                     raise ValueError("اختر المعلمة أولاً.")
+                if quote is None or previous_quote!=quote:
+                    raise ValueError('تغيّرت البيانات؛ راجع صافي الراتب المحدّث ثم اضغط تسجيل الصرف مرة أخرى.')
                 payment_id, created = P.save_salary(t_id, salary_month, base_salary,
                     bonus, deductions, notes, actor=st.session_state.get("auth_user", "مديرة الروضة"),
                     token=st.session_state["salary_request_token"])
@@ -75,7 +93,7 @@ def render(conn):
     # ---------------------------------- TAB 2: LOG, REPRINT, EDIT & DELETE --
     with tab_log:
         salary_logs = ui.df(conn, """
-            SELECT tp.payment_id, tp.national_id, t.full_name AS "المعلمة",
+            SELECT tp.payment_id, tp.national_id, COALESCE(t.display_national_id,t.national_id) AS display_national_id,t.full_name AS "المعلمة",
                    tp.salary_month AS "عن شهر", tp.base_salary AS "الأساسي",
                    tp.bonus AS "المكافأة", tp.deductions AS "الخصم",
                    tp.cash_amount AS "الصافي المدفوع", CASE tp.record_state
@@ -90,13 +108,13 @@ def render(conn):
         if salary_logs.empty:
             ui.empty_state("لا توجد رواتب مدفوعة مسجلة بعد.")
         else:
-            search = st.text_input("🔍 ابحث باسم المعلمة أو الشهر")
+            search = st.text_input("🔍 ابحث باسم المعلمة أو الشهر",key='salary_log_search')
             shown = salary_logs.copy()
             if search:
-                shown = shown[shown["المعلمة"].str.contains(search, na=False) |
-                              shown["عن شهر"].str.contains(search, na=False)]
+                shown = shown[shown["المعلمة"].str.contains(search, na=False, regex=False) |
+                              shown["عن شهر"].str.contains(search, na=False, regex=False)]
 
-            display_df = shown.drop(columns=['payment_id', 'national_id'])
+            display_df = shown.drop(columns=['payment_id', 'national_id','display_national_id'])
             ui.dataframe(display_df, use_container_width=True, hide_index=True)
             st.metric("💰 مجموع النقد المصروف فعلاً", f"{H.format_money(shown['الصافي المدفوع'].sum())} أوقية قديمة")
 
@@ -129,7 +147,7 @@ def render(conn):
                     teacher_receipt.render_salary_slip(
                         payment_id=p_id,
                         teacher_name=sal_row['المعلمة'],
-                        national_id=sal_row['national_id'],
+                        national_id=sal_row['display_national_id'],
                         payment_date=str(sal_row['تاريخ الصرف']),
                         salary_month=sal_row['عن شهر'],
                         base_salary=float(sal_row['الأساسي']),
@@ -139,15 +157,17 @@ def render(conn):
                         notes=sal_row['ملاحظات'] or ""
                     )
 
-                # ✏️ Edit & Delete Form
-                with st.expander(f"✏️ تصحيح بيانات / إلغاء القسيمة #{p_id}", expanded=False):
-                    with st.form("edit_salary_form"):
-                        ec1, ec2, ec3 = st.columns(3)
+                ui.open_record_editor('teacher_payments',int(p_id),'تعديل مبلغ الراتب أو إلغاء الإدخال')
+                salary_snapshot,salary_snapshot_key=ui.edit_snapshot(conn,'teacher_payments',int(p_id),scope='salary_'+str(p_id),widget_prefix='salary_meta_')
+                # Document-only review keeps cash; monetary corrections use the full editor.
+                def review_salary(form):
+                    with st.container():
+                        ec1, ec2, ec3 = form.columns(3)
                         e_month = ec1.text_input("عن شهر", value=sal_row['عن شهر'])
                         e_base = ec2.number_input("الراتب الأساسي", min_value=0.0, value=float(sal_row['الأساسي']), step=50.0, disabled=True)
                         e_bonus = ec3.number_input("المكافأة", min_value=0.0, value=float(sal_row['المكافأة']), step=50.0, disabled=True)
 
-                        ec4, ec5 = st.columns(2)
+                        ec4, ec5 = form.columns(2)
                         e_deductions = ec4.number_input("الخصومات", min_value=0.0, value=float(sal_row['الخصم']), step=50.0, disabled=True)
                         e_notes = ec5.text_input("ملاحظات", value=sal_row['ملاحظات'] or "")
 
@@ -155,20 +175,27 @@ def render(conn):
                         st.caption(f"💡 صافي الراتب الجديد بعد التعديل: **{H.format_money(e_net)} أوقية قديمة**")
 
                         st.caption("التصحيح هنا للبيانات فقط؛ النقد المصروف أصلاً لا يتغير ولا تُعتبر الإزالة استردادًا.")
-                        reason = st.text_input("سبب التصحيح أو الإلغاء *",key=f"payroll_reason_{p_id}")
-                        btn1, btn2 = st.columns(2)
+                        reason = form.text_input("سبب التصحيح أو الإلغاء *",key=f"payroll_reason_{p_id}")
+                        confirm_document=form.checkbox('أفهم أن إلغاء القسيمة يبقي مبلغ الصرف في الحسابات',key=f'salary_meta_confirm_{p_id}')
+                        btn1, btn2 = form.columns(2)
                         save_edit = btn1.form_submit_button("حفظ التصحيح", type="primary")
                         delete_sal = btn2.form_submit_button("إلغاء القسيمة مع الاحتفاظ بالصرف")
                         if save_edit or delete_sal:
                             try:
+                                if delete_sal and not confirm_document: raise ValueError('أكد بقاء النقد المصروف قبل إلغاء المستند.')
+                                import records as R
                                 P.amend("teacher_payments", p_id, actor=st.session_state.get("auth_user","مديرة الروضة"),
-                                        reason=reason, cancel=delete_sal, month=e_month, notes=e_notes)
+                                        reason=reason, cancel=delete_sal, month=e_month, notes=e_notes,expected=R.revision(salary_snapshot))
+                                st.session_state.pop(salary_snapshot_key,None)
                                 st.session_state["salary_saved_notice"] = "تم حفظ قرار التدقيق دون تغيير مبلغ النقد المصروف."
+                                ui.finish_edit()
                                 st.rerun()
                             except ValueError as error:
                                 st.error(str(error))
                             except Exception:
                                 st.error("تعذّر حفظ التصحيح أو الإلغاء.")
+
+                ui.edit_window("تصحيح بيانات القسيمة",f"salary_document_{p_id}",review_salary,conn=conn)
 
     # An advance is a cash event when paid. Later deductions in a salary slip
     # affect its NET salary amount; no second expense is generated for the advance.
@@ -220,21 +247,30 @@ def render(conn):
             aid=st.selectbox("اختر سلفة للمراجعة",list(advances["رقم السلفة"]),index=None)
             if aid:
                 entry=advances[advances["رقم السلفة"]==aid].iloc[0]
-                st.caption("إلغاء المستند لا يعني رجوع النقد؛ ويظل الصرف في التقرير.")
-                with st.form(f"advance_audit_{aid}"):
-                    corrected_month=st.text_input("شهر الخصم الصحيح",value=entry["شهر الخصم"])
-                    corrected_notes=st.text_input("ملاحظات",value=entry["ملاحظات"] or "")
-                    audit_reason=st.text_input("السبب *")
-                    a,b=st.columns(2)
+                ui.open_record_editor('teacher_advances',int(aid),'تعديل مبلغ السلفة أو إلغاء الإدخال')
+                advance_snapshot,advance_snapshot_key=ui.edit_snapshot(conn,'teacher_advances',int(aid),scope='advance_'+str(aid),widget_prefix='advance_meta_')
+                st.caption("إلغاء المستند يبقي مبلغ الصرف في التقرير. إلغاء إدخال مالي خاطئ من المحرر يزيل أثره من الصرف.")
+                def review_advance(form):
+                    corrected_month=form.text_input("شهر الخصم الصحيح",value=entry["شهر الخصم"])
+                    corrected_notes=form.text_input("ملاحظات",value=entry["ملاحظات"] or "")
+                    audit_reason=form.text_input("السبب *")
+                    a,b=form.columns(2)
                     edit=a.form_submit_button("تصحيح بيانات السلفة")
+                    confirm_advance=form.checkbox('أفهم أن إلغاء مستند السلفة يبقي النقد المصروف',key=f'advance_meta_confirm_{aid}')
                     void=b.form_submit_button("إلغاء مستند السلفة")
                     if edit or void:
                         try:
+                            if void and not confirm_advance: raise ValueError('أكد بقاء النقد المصروف قبل إلغاء المستند.')
+                            import records as R
                             P.amend("teacher_advances",int(aid),actor=st.session_state.get("auth_user","مديرة الروضة"),
-                                    reason=audit_reason,cancel=void,month=corrected_month,notes=corrected_notes)
+                                    reason=audit_reason,cancel=void,month=corrected_month,notes=corrected_notes,expected=R.revision(advance_snapshot))
+                            st.session_state.pop(advance_snapshot_key,None)
                             st.success("حُفظ التدقيق؛ النقد المصروف محفوظ.")
+                            ui.finish_edit()
                             st.rerun()
                         except ValueError as error:
                             st.error(str(error))
                         except Exception:
                             st.error("تعذّر حفظ تدقيق السلفة.")
+
+                ui.edit_window("تصحيح بيانات السلفة",f"advance_document_{aid}",review_advance,conn=conn)

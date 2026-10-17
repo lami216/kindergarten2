@@ -48,7 +48,11 @@ async def navigate(page, section):
     await nav.wait_for(state="attached", timeout=30000)
     if not await nav.is_visible():
         opener = page.locator('[data-testid="stExpandSidebarButton"]')
-        await opener.first.click(timeout=10000)
+        if await opener.first.is_visible():
+            await opener.first.click(timeout=10000)
+        group=page.get_by_text("ملفات الروضة",exact=True)
+        if not await nav.is_visible() and await group.count():
+            await group.click()
     await nav.click(timeout=10000)
     heading = "إدارة الطلاب" if section == "students" else "أولياء الأمور"
     await expect(page.locator(".section-title")).to_contain_text(heading, timeout=15000)

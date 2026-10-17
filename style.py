@@ -105,14 +105,14 @@ div[data-testid="stHeadingWithHeadline"]:hover a {
 .section-title {
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
     gap: 10px;
     font-size: 26px;
     font-weight: 800 !important;
     font-family: 'Cairo', sans-serif !important;
     color: var(--primary-dark);
     margin-bottom: 4px;
-    text-align: center;
+    text-align: right;
 }
 
 .section-sub {
@@ -121,7 +121,7 @@ div[data-testid="stHeadingWithHeadline"]:hover a {
     font-size: 15px;
     font-weight: 600 !important;
     font-family: 'Cairo', sans-serif !important;
-    text-align: center;
+    text-align: right;
 }
 
 /* ---------------------------------------------------------------- */
@@ -283,90 +283,40 @@ div[data-testid="stDataFrame"] {
 }
 
 .kpi-card {
-    background: var(--card-bg);
-    border-radius: 16px;
-    padding: 14px 16px;
-    box-shadow: var(--shadow-sm);
-    border: 1px solid var(--card-border);
-    display: flex !important;
-    flex-direction: row-reverse !important;
-    align-items: center !important;
-    justify-content: space-between !important;
-    gap: 12px !important;
-    min-height: 86px;
-    height: 100%;
-    box-sizing: border-box;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    background:var(--card-bg); border:1px solid var(--card-border);
+    border-inline-start:3px solid var(--kpi-accent,var(--primary));
+    border-radius:12px; padding:12px 14px; box-shadow:var(--shadow-sm);
+    display:grid !important; grid-template-columns:minmax(0,1fr);
+    align-items:center !important;
+    gap:8px !important; min-height:92px; height:100%; box-sizing:border-box;
+}
+.kpi-heading { display:flex; align-items:center; gap:8px; min-width:0; }
+.kpi-label { color:var(--text-muted); font-size:12px !important; line-height:1.5; font-weight:600; min-width:0; overflow-wrap:break-word; }
+.kpi-icon { display:inline-flex; align-items:center; justify-content:center;
+    width:28px; height:28px; min-width:28px; border-radius:8px; font-size:17px; flex-shrink:0; }
+.kpi-number { display:flex; flex-wrap:wrap; align-items:baseline; gap:6px; max-width:100%; }
+.kpi-value { font-size:23px !important; font-weight:800; line-height:1.3;
+    color:var(--text-main); overflow-wrap:anywhere; min-width:0; }
+.kpi-unit { color:var(--text-muted); font-size:11px; }
+.kpi-hint { grid-column:1/-1; color:var(--text-muted); font-size:11px; line-height:1.4; }
+.stMainBlockContainer { max-width:1400px; }
+.form-section-title {
+    display:table; background:var(--primary-light); color:var(--primary-dark) !important;
+    padding:8px 12px; border-radius:8px; font-size:15px !important;
+    font-weight:600 !important; margin:12px 0 !important; line-height:1.6;
+}
+.st-key-dashboard_summary [data-testid="stHorizontalBlock"] { flex-wrap:nowrap !important; }
+.st-key-dashboard_summary [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {
+    min-width:0 !important; width:auto !important; flex:1 1 0 !important;
 }
 
-.kpi-card:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-md);
-}
-
-.kpi-content {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: flex-start;
-    text-align: right;
-    flex: 1;
-    min-width: 0;
-}
-
-.kpi-value {
-    font-size: 20px !important;
-    font-weight: 800 !important;
-    color: var(--text-main);
-    line-height: 1.2;
-    font-family: 'Cairo', sans-serif !important;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.kpi-label {
-    font-size: 13px !important;
-    font-weight: 600 !important;
-    color: var(--text-muted);
-    margin-top: 3px;
-    line-height: 1.3;
-    font-family: 'Cairo', sans-serif !important;
-}
-
-.kpi-icon {
-    width: 46px !important;
-    height: 46px !important;
-    min-width: 46px !important;
-    min-height: 46px !important;
-    border-radius: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 22px;
-    flex-shrink: 0 !important;
-    background: var(--primary-light);
-    color: var(--primary-dark);
-}
-
-/* Keep original dashboard KPI cards, but show the full values on tablets.
-   Five native dashboard columns otherwise ellipsize the currency at 768px. */
 @media (min-width:700px) and (max-width:1100px) {
-    .kpi-card { gap:6px !important; padding:9px !important; }
-    .kpi-icon {
-        width:32px !important; height:32px !important;
-        min-width:32px !important; min-height:32px !important;
-        font-size:17px !important;
-    }
-    .kpi-value {
-        font-size:clamp(11px,1.5vw,17px) !important;
-        white-space:normal !important;
-        overflow:visible !important;
-        text-overflow:clip !important;
-        overflow-wrap:anywhere !important;
-    }
+    .kpi-card { padding:10px; }
+    .kpi-heading { gap:5px; }
     .kpi-label { font-size:11px !important; }
+    .kpi-value { font-size:20px !important; }
 }
+[class*="st-key-home_"] button:active { background:var(--primary) !important; color:white !important; }
 
 /* ---------------------------------------------------------------- */
 /* ORIGINAL LOGIN FORM & INPUT FIELD STYLING (RESTORED)             */
@@ -533,6 +483,12 @@ SHELL_CSS = """
 [class*="st-key-kid_finance_mode"] :is(button[aria-pressed="true"],button[aria-checked="true"]) :is(p,span,svg) {
     color:#ffffff !important;
 }
+/* Fee mode now uses two ordinary buttons. Retain selected contrast and size. */
+[class*="st-key-kid_finance_mode"] button { min-height:54px; }
+[class*="st-key-kid_finance_mode"] button[kind="primary"] {
+    background:#006348 !important; color:#fff !important; border-color:#006348 !important;
+}
+[class*="st-key-kid_finance_mode"] button[kind="primary"] :is(p,span,svg) { color:#fff !important; }
 /* Native controls remain visible and use the existing palette. */
 .st-key-appearance_control {
     position:fixed; top:8px; left:12px; width:150px !important;
@@ -666,6 +622,38 @@ div[data-testid="stForm"] div[data-baseweb="input"]:focus-within,
 [data-baseweb="popover"], [data-baseweb="menu"], [role="listbox"],
 [role="option"], [data-baseweb="calendar"], [data-baseweb="calendar"] button {
     background:var(--card-bg) !important; color:var(--text-main) !important;
+}
+/* BaseWeb renders the calendar in a portal, outside .stApp. Day cells are
+   divs with inline light-theme colors, not buttons. Paint the whole surface. */
+[data-baseweb="calendar"], [data-baseweb="calendar"] :is(div,button,span,select) {
+    background-color:var(--card-bg) !important;
+    color:var(--text-main) !important;
+    opacity:1 !important;
+}
+[data-baseweb="calendar"] svg { fill:currentColor !important; }
+/* Native light-theme pseudo-elements also paint empty cells and selection.
+   Use the actual cell surface; otherwise white bars/red rings survive. */
+[data-baseweb="calendar"] [role="gridcell"]::before,
+[data-baseweb="calendar"] [role="gridcell"]::after { content:none !important; }
+[data-baseweb="calendar"] [aria-disabled="true"],
+[data-baseweb="calendar"] [aria-disabled="true"] *,
+[data-baseweb="calendar"] [aria-label^="Not available"],
+[data-baseweb="calendar"] [aria-label^="Not available"] * {
+    color:var(--text-muted) !important; cursor:not-allowed;
+}
+[data-baseweb="calendar"] [role="gridcell"]:not([aria-disabled="true"]):hover,
+[data-baseweb="calendar"] [role="gridcell"]:not([aria-disabled="true"]):hover * {
+    background-color:var(--primary-light) !important;
+}
+[data-baseweb="calendar"] [aria-selected="true"],
+[data-baseweb="calendar"] [aria-selected="true"] *,
+[data-baseweb="calendar"] [aria-label^="Selected"],
+[data-baseweb="calendar"] [aria-label^="Selected"] * {
+    background-color:#006348 !important; color:#fff !important;
+    border-radius:50% !important;
+}
+[data-baseweb="calendar"] :focus-visible {
+    outline:2px solid #8dd9bc !important; outline-offset:-2px;
 }
 [data-baseweb="select"] span { color:var(--text-main) !important; }
 [role="option"]:hover, [role="option"][aria-selected="true"] {

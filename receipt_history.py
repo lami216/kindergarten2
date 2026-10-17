@@ -28,18 +28,18 @@ def receipt_detail(conn, receipt_id, *, student_id=None):
         if row is None or (student_id is not None and row["student_id"]!=student_id):
             raise ValueError("الوصل غير موجود في ملف الطفل.")
         receipt=dict(row)
-        c.execute("""SELECT a.allocation_id,a.amount,a.active,f.kind AS fee_kind,
-             p.period_no,p.starts,p.ends,
-             COALESCE(f.price,p.price) AS stored_fee_price
+        c.execute("""SELECT a.allocation_id,a.amount,a.active,s.fee_kind,
+             s.period_no,s.starts,s.ends,s.stored_fee_price,s.source AS snapshot_source
           FROM monthly_allocations a
-          LEFT JOIN monthly_fees f ON f.fee_id=a.fee_id
-          LEFT JOIN monthly_periods p ON p.period_id=a.period_id
+          LEFT JOIN monthly_allocation_snapshots s ON s.allocation_id=a.allocation_id
           WHERE a.receipt_id=%s ORDER BY a.allocation_id""",(int(receipt_id),))
         items=[dict(r) for r in c.fetchall()]
         c.execute("""SELECT receipt_id,amount,received_on,state
                      FROM monthly_receipts WHERE corrects_id=%s
                      ORDER BY receipt_id""",(int(receipt_id),))
         replacements=[dict(r) for r in c.fetchall()]
+    if any(i['snapshot_source'] is None for i in items):
+        raise ValueError('تفصيل الوصل الثابت غير مكتمل؛ يلزم تدقيقه قبل التصدير.')
     if sum(int(i["amount"]) for i in items)!=int(receipt["amount"]):
         raise ValueError("أصل الوصل وتفصيل تخصيصاته غير متطابقين؛ يلزم تدقيق مالي.")
     return {"receipt":receipt,"items":items,"replacements":replacements}
@@ -143,7 +143,7 @@ def receipt_impact(conn, receipt_id, *, new_amount=None,
         raise ValueError("اسم الدافع غير صالح.")
     student=row["student_id"]
     with conn.cursor() as c:
-        c.execute("""SELECT status,start_date,departure_on FROM monthly_accounts
+        c.execute("""SELECT status,start_date,departure_on,due_at_period_end FROM monthly_accounts
                      WHERE student_id=%s""",(student,))
         account=c.fetchone()
         if not account or account["status"]!="regular":
@@ -200,7 +200,7 @@ def receipt_impact(conn, receipt_id, *, new_amount=None,
         allocated=min(cash_left,owed)
         if allocated:
             label=f"الشهر {index+1}: {p['starts']} — {p['ends']}"
-            prospective.append({"kind":"month","label":label,"start":p["starts"],
+            prospective.append({"kind":"month","label":label,"start":p["starts"],"end":p["ends"],
                 "price":int(p["price"]),"previously_paid":int(p["paid"]),
                 "waived":int(p["waived"]),"amount":allocated})
             cash_left-=allocated
@@ -211,9 +211,9 @@ def receipt_impact(conn, receipt_id, *, new_amount=None,
     cutoff=min(today(),account["departure_on"]) if account["departure_on"] else today()
     # The original receipt was valid and recognized before replacement.
     original_due_coverage=sum(int(x["amount"]) for x in data["items"]
-        if x["fee_kind"] or (x["starts"] and x["starts"]<=cutoff))
+        if x["fee_kind"] or ((x["ends"] if account.get("due_at_period_end") else x["starts"]) and (x["ends"] if account.get("due_at_period_end") else x["starts"])<=cutoff))
     corrected_due_coverage=sum(x["amount"] for x in prospective
-        if x["kind"]!="month" or x["start"]<=cutoff)
+        if x["kind"]!="month" or (x["end"] if account.get("due_at_period_end") else x["start"])<=cutoff)
     projected_due=(int(current["due_now"])+original_due_coverage-
                    corrected_due_coverage) if current else None
     return {"revision":receipt_revision(conn,student),"receipt":data,

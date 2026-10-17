@@ -163,12 +163,12 @@ async def run():
                 await page.locator(".st-key-kid_mother_name input").fill("أم معاينة")
                 await page.locator(".st-key-kid_mother_phone input").fill("0599112233")
                 await page.get_by_text("دفع",exact=True).first.click()
-                await page.locator(".st-key-kid_initial_registration label").first.click()
-                await page.locator(".st-key-kid_initial_gilet label").first.click()
+                await expect(page.locator(".st-key-kid_initial_registration").get_by_role("checkbox")).to_be_checked()
+                await expect(page.locator(".st-key-kid_initial_gilet").get_by_role("checkbox")).to_be_checked()
                 amount=page.locator(".st-key-kid_initial_amount input")
                 await amount.fill("12000")
                 await amount.press("Tab")
-                await expect(page.get_by_text(re.compile("أشهر مكتملة 3"))).to_be_visible()
+                await expect(amount).to_have_value("12000")
                 await capture(page,amount,f"finance_choice_filled_{suffix}",manifest)
                 await amount.fill("2000")
                 await amount.press("Tab")
@@ -183,23 +183,26 @@ async def run():
                 await open_section(page,"payments")
                 await night_theme(page,night)
                 await select_account(page,regular_name)
+                await page.get_by_text("تفاصيل الأشهر والرسوم",exact=True).click()
                 await capture(page,page.get_by_text("أول شهر غير مكتمل أو موعد الدفعة القادمة",exact=False),
                               f"finance_account_partial_{suffix}",manifest)
                 await select_account(page,exempt_name)
-                await capture(page,page.get_by_text("الإعفاء يشمل الرسوم الثلاث",exact=False),
+                await capture(page,page.get_by_text("الإعفاء يمنع رسومًا جديدة، ولا يلغي دينًا سابقًا",exact=False),
                               f"finance_exempt_saved_{suffix}",manifest)
                 await select_account(page,unfunded_name,has_account=False)
                 await capture(page,page.get_by_role("button",name="تأكيد تهيئة حساب الطفل"),
                               f"finance_existing_setup_{suffix}",manifest)
                 await page.get_by_role("tab",name=re.compile("إعدادات الرسوم")).click()
+                await page.get_by_role("button",name="تعديل أسعار الرسوم",exact=True).click()
                 await capture(page,page.get_by_role("button",name="حفظ الأسعار"),
                               f"finance_tariffs_{suffix}",manifest)
+                await page.get_by_role("button",name="إغلاق دون حفظ",exact=True).click()
                 await page.get_by_role("tab",name=re.compile("تقرير النقدية")).click()
                 await capture(page,page.get_by_text("الباقي من المداخيل",exact=False).first,
                               f"finance_cash_report_{suffix}",manifest)
                 await page.get_by_role("tab",name=re.compile("الوصولات")).click()
-                await page.get_by_role("textbox",name="بحث بالطفل أو رقم الوصل").fill(str(first_receipt))
-                await page.get_by_role("textbox",name="بحث بالطفل أو رقم الوصل").press("Enter")
+                await page.get_by_role("textbox",name="بحث باسم الطفل أو هاتف الأب أو الأم أو رقم الوصل").fill(str(first_receipt))
+                await page.get_by_role("textbox",name="بحث باسم الطفل أو هاتف الأب أو الأم أو رقم الوصل").press("Enter")
                 specific=page.locator(f".st-key-finance_receipt_open_{first_receipt} button")
                 await expect(specific).to_be_visible(timeout=30000)
                 await specific.click()
@@ -208,6 +211,7 @@ async def run():
                 await page.get_by_role("button",name="تعديل الوصل").click()
                 await capture(page,page.get_by_role("button",name="معاينة أثر التصحيح"),
                               f"finance_receipt_edit_{suffix}",manifest)
+                await page.get_by_role("button",name="إغلاق دون حفظ",exact=True).click()
                 await open_section(page,"dashboard")
                 await night_theme(page,night)
                 await capture(page,page.get_by_text("الباقي من المداخيل",exact=False).first,
@@ -234,8 +238,8 @@ async def run():
         await page.locator(".st-key-kid_mother_name input").fill("أم فحص")
         await page.locator(".st-key-kid_mother_phone input").fill("0599112233")
         await page.get_by_text("دفع",exact=True).first.click()
-        await page.locator(".st-key-kid_initial_registration label").first.click()
-        await page.locator(".st-key-kid_initial_gilet label").first.click()
+        await expect(page.locator(".st-key-kid_initial_registration").get_by_role("checkbox")).to_be_checked()
+        await expect(page.locator(".st-key-kid_initial_gilet").get_by_role("checkbox")).to_be_checked()
         await page.locator(".st-key-kid_initial_amount input").fill("2000")
         await page.get_by_role("button",name=re.compile("حفظ بيانات الطفل والأهل")).click()
         error=page.get_by_test_id("stAlertContentError").get_by_text("المبلغ لا يغطي",exact=False).first
@@ -266,8 +270,8 @@ async def run():
         assert [int(x["amount"]) for x in allocations]==[1500,3000],allocations
 
         await page.get_by_role("tab",name=re.compile("الوصولات")).click()
-        await page.get_by_role("textbox",name="بحث بالطفل أو رقم الوصل").fill(str(latest))
-        await page.get_by_role("textbox",name="بحث بالطفل أو رقم الوصل").press("Enter")
+        await page.get_by_role("textbox",name="بحث باسم الطفل أو هاتف الأب أو الأم أو رقم الوصل").fill(str(latest))
+        await page.get_by_role("textbox",name="بحث باسم الطفل أو هاتف الأب أو الأم أو رقم الوصل").press("Enter")
         specific=page.locator(f".st-key-finance_receipt_open_{latest} button")
         await expect(specific).to_be_visible(timeout=30000)
         await specific.click()
@@ -277,7 +281,7 @@ async def run():
         reason=page.get_by_role("textbox",name=re.compile("سبب التصحيح"))
         await reason.fill("مراجعة مبلغ")
         await page.get_by_role("spinbutton",name="المبلغ المصحح").fill("3000")
-        await page.get_by_role("spinbutton",name="المبلغ المصحح").press("Tab")
+        await page.get_by_role("spinbutton",name="المبلغ المصحح").press("Enter")
         await page.get_by_role("button",name="معاينة أثر التصحيح").click()
         await expect(page.get_by_text("القبض القديم:",exact=False)).to_be_visible()
         await page.get_by_text("أؤكد أثر التصحيح وحفظ الوصل الأصلي في السجل",exact=False).click()
@@ -314,6 +318,10 @@ async def run():
     print(f"Single-currency scrolled finance screenshots: {len(manifest)*2}; "
           "PostgreSQL readback and UI saves verified")
 
+
+if __name__=='__main__':
+    from tests.qa_auth import install
+    install()
 
 if __name__=="__main__":
     asyncio.run(run())

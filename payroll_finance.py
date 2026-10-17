@@ -61,6 +61,8 @@ def _insert(table, national_id, args, *, token=None, actor):
     conn = db.new_transaction_connection()
     try:
         with conn.cursor() as c:
+            import access_control as A
+            who=A.actor(c,'salaries.create',who)
             # Transactional advisory lock serializes retries with identical IDs.
             c.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s,0))", (token,))
             c.execute(f"SELECT * FROM {table} WHERE request_token=%s", (token,))
@@ -102,12 +104,25 @@ def _insert(table, national_id, args, *, token=None, actor):
         conn.close()
 
 
+def salary_preview(base, bonus=0, deductions=0):
+    """One exact calculation for the visible preview and the persisted cash."""
+    try:
+        base,bonus,deductions=(Decimal(str(v)) for v in (base,bonus,deductions))
+    except (InvalidOperation,ValueError,TypeError):
+        raise ValueError('أدخل مبالغ صحيحة للراتب والمكافأة والخصومات.') from None
+    if any(not v.is_finite() or v<0 or v.as_tuple().exponent < -2 for v in (base,bonus,deductions)):
+        raise ValueError("قيمة الراتب أو الخصم غير صحيحة.")
+    if deductions>base+bonus:
+        raise ValueError('الخصومات أكبر من الراتب والمكافأة؛ راجع المبالغ.')
+    if base+bonus==deductions:
+        raise ValueError('صافي الراتب يجب أن يكون أكبر من صفر لتسجيل صرف.')
+    return {'base':base,'bonus':bonus,'deductions':deductions,'net':_cash(base+bonus-deductions)}
+
+
 def save_salary(national_id, month, base, bonus=0, deductions=0,
                 notes="", *, actor, token=None, on_date=None):
-    base,bonus,deductions=(Decimal(str(v)) for v in (base,bonus,deductions))
-    if any(v<0 or not v.is_finite() or v.as_tuple().exponent < -2 for v in (base,bonus,deductions)):
-        raise ValueError("قيمة الراتب أو الخصم غير صحيحة.")
-    total=_cash(base+bonus-deductions)
+    preview=salary_preview(base,bonus,deductions)
+    base,bonus,deductions,total=(preview[k] for k in ('base','bonus','deductions','net'))
     return _insert("teacher_payments",str(national_id),
         {"amount":total,"date":str(on_date or business_today()),"month":_month(month),
          "base":base,"bonus":bonus,"deductions":deductions,"notes":str(notes or "")},
@@ -120,7 +135,7 @@ def save_advance(national_id, month, cash, notes="", *, actor, token=None,on_dat
          "notes":str(notes or "")},actor=actor,token=token)
 
 
-def amend(table, ident, *, actor, reason, cancel=False, month=None, notes=None):
+def amend(table, ident, *, actor, reason, cancel=False, month=None, notes=None, expected=None):
     """Document correction/void, not a refund: cash_amount never changes."""
     if table not in ("teacher_payments","teacher_advances"):
         raise ValueError("نوع القسيمة غير صالح.")
@@ -132,9 +147,16 @@ def amend(table, ident, *, actor, reason, cancel=False, month=None, notes=None):
     connection=db.new_transaction_connection()
     try:
         with connection.cursor() as c:
+            import access_control as A
+            actor=A.actor(c,'salaries.delete' if cancel else 'salaries.edit',actor)
+            import record_history
+            record_history.context(c,actor,reason)
             c.execute(f"SELECT * FROM {table} WHERE {column}=%s FOR UPDATE",(ident,))
             old=c.fetchone()
             if not old: raise ValueError("القسيمة غير موجودة.")
+            import records as R
+            if expected is not None and R.revision(old)!=expected:
+                raise ValueError('تغيّر السجل منذ فتحه؛ حدّث النموذج وراجع البيانات الجديدة.')
             if old["record_state"]!="active":
                 raise ValueError("القسيمة ملغاة بالفعل.")
             if cancel:
@@ -160,6 +182,8 @@ def archive_teacher(national_id, *, actor):
     connection=db.new_transaction_connection()
     try:
         with connection.cursor() as c:
+            import access_control as A
+            actor=A.actor(c,'teachers.delete',actor)
             c.execute("""UPDATE teachers SET archived_at=now(),archived_by=%s
                       WHERE national_id=%s AND archived_at IS NULL RETURNING national_id""",
                       (actor,national_id))
@@ -171,3 +195,59 @@ def archive_teacher(national_id, *, actor):
         raise
     finally:
         connection.close()
+
+
+def correct_cash_entry(table, ident, *, actor, reason, expected=None, cancel=False,
+                       amount=None, base=0, bonus=0, deductions=0, month=None, on_date=None, notes='', national_id=None):
+    """Explicit correction of erroneous cash input, distinct from retiring a slip."""
+    if table not in ('teacher_payments','teacher_advances'): raise ValueError('نوع العملية غير صالح.')
+    actor=_actor(actor)
+    if not str(reason or '').strip(): raise ValueError('أدخل سبب التصحيح أو الإلغاء.')
+    if not cancel:
+        month=_month(month)
+        day=date.fromisoformat(str(on_date))
+        if day>business_today(): raise ValueError('تاريخ الصرف لا يكون مستقبليًا.')
+        if table=='teacher_payments':
+            from expense_finance import cash
+            base,bonus,deductions=(cash(x,zero=True) for x in (base,bonus,deductions))
+            amount=_cash(base+bonus-deductions)
+        else: amount=_cash(amount)
+    conn=db.new_transaction_connection()
+    column='payment_id' if table=='teacher_payments' else 'advance_id'
+    try:
+        with conn.cursor() as c:
+            import access_control as A
+            actor=A.actor(c,'salaries.delete' if cancel else 'salaries.edit',actor)
+            import record_history as H
+            import records as R
+            H.context(c,actor,reason)
+            old=R._lock(c,table,ident,expected)
+            if old.get('entry_cancelled_at'):
+                if cancel: conn.commit(); return False
+                raise ValueError('الإدخال ملغى بالفعل.')
+            if cancel:
+                c.execute(f"UPDATE {table} SET cash_amount=0,record_state='cancelled',entry_cancelled_at=now() WHERE {column}=%s RETURNING *",(ident,))
+                action='cash_entry_cancelled'
+            else:
+                teacher=national_id or old['national_id']
+                c.execute('SELECT national_id FROM teachers WHERE national_id=%s AND archived_at IS NULL FOR SHARE',(teacher,))
+                if not c.fetchone() and teacher!=old['national_id']: raise ValueError('المعلمة غير موجودة أو محذوفة.')
+                if table=='teacher_payments':
+                    c.execute('''UPDATE teacher_payments SET national_id=%s,amount=%s,cash_amount=%s,
+                        base_salary=%s,bonus=%s,deductions=%s,salary_month=%s,payment_date=%s,notes=%s
+                        WHERE payment_id=%s RETURNING *''',(teacher,amount,amount,base,bonus,deductions,month,day,notes,ident))
+                else:
+                    c.execute('''UPDATE teacher_advances SET national_id=%s,amount=%s,cash_amount=%s,
+                        salary_month=%s,advance_date=%s,notes=%s WHERE advance_id=%s RETURNING *''',
+                        (teacher,amount,amount,month,day,notes,ident))
+                action='cash_entry_corrected'
+            after=c.fetchone()
+            _audit(c,table,ident,action,actor,reason,old,after)
+            # A explicitly linked mirror cannot leave a phantom supplier debt.
+            link='teacher_payment_id' if table=='teacher_payments' else 'teacher_advance_id'
+            c.execute(f"UPDATE expenses SET amount=%s,amount_paid=%s,payment_status=%s,cancelled_at=CASE WHEN %s THEN now() ELSE cancelled_at END WHERE {link}=%s",
+                      (0 if cancel else amount,0 if cancel else amount,'ملغى' if cancel else 'مدفوع بالكامل',cancel,ident))
+        conn.commit(); return True
+    except Exception:
+        conn.rollback(); raise
+    finally: conn.close()

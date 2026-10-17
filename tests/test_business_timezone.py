@@ -198,7 +198,7 @@ def test_both_app_connection_factories_pin_business_timezone():
     # connections above, must pin the zone and survive rollback.
     secrets={"postgres":{"url":DSN}}
     with patch.object(db.st,"secrets",secrets):
-        cached=db.get_connection.__wrapped__()
+        cached=db._session_connection.__wrapped__("timezone-factory-test")
         transaction=db.new_transaction_connection()
         try:
             for connection in (cached,transaction):

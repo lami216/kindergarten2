@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>روضة أطفال فودي حبيب ساكرا · إدارة الروضة</title>
+<link rel="stylesheet" href="preview.css">
+</head>
+<body class="login-mode">
+<section id="preview-login" class="login-screen" aria-label="صفحة تسجيل الدخول">
+  <div class="login-card">
+    <div class="school-logo login-logo"><img src="school-logo.jpg" alt="شعار روضة أطفال فودي حبيب ساكرا"></div>
+    <h1>روضة أطفال فودي حبيب ساكرا</h1><p class="login-french">Jardin d’enfant FODIYE HABIB SAKERA</p>
+    <span class="login-badge">تسجيل الدخول</span>
+    <button class="primary" id="preview-enter">الدخول إلى الروضة</button>
+  </div>
+</section>
+<aside id="sidebar">
+  <div class="brand"><span class="school-logo sidebar-logo"><img src="school-logo.jpg" alt="شعار روضة أطفال فودي حبيب ساكرا"></span><div><strong>إدارة الروضة</strong><small>يوم أبسط. صورة أوضح.</small></div></div>
+  <div class="school">روضة أطفال فودي حبيب ساكرا</div>
+  <span class="nav-caption">الإدارة اليومية</span>
+  <nav aria-label="القائمة الرئيسية">
+    <button data-page="dashboard" class="active">📊 <span>الرئيسية</span></button>
+    <button data-page="students">🎒 <span>الطلاب</span></button>
+    <button data-page="registration">🏷️ <span>الأقسام</span></button>
+    <button data-page="payments">💵 <span>الدفعات المالية</span></button>
+    <button data-page="expenses">📦 <span>المصروفات</span></button>
+    <button data-page="records">✏️ <span>إدارة السجلات</span></button>
+    <button data-page="history">🕘 <span>سجل التغييرات</span></button>
+  </nav>
+</aside>
+<main>
+  <header class="topbar"><button id="menu" class="quiet" aria-label="فتح القائمة" aria-expanded="false">☰ القائمة</button><span>الإدارة <b>/</b> <span id="crumb">الرئيسية</span></span><button id="theme" class="quiet" aria-label="تبديل الوضع الليلي">☾ الوضع الليلي</button></header>
+  <section id="content" aria-live="polite"></section>
+  <footer>روضة أطفال فودي حبيب ساكرا</footer>
+</main>
+<dialog id="receipt-dialog"><div id="receipt-content"></div><button class="secondary" id="receipt-close">إغلاق الوصل</button></dialog>
+<dialog id="record-dialog"><div id="record-content"></div></dialog>
+<div id="toast" role="status"></div>
+<script src="preview.js"></script>
+<script src="access-preview.js"></script>
+<script src="student-profile.js"></script>
+<script src="edit-windows.js"></script>
+</body></html>

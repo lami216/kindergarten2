@@ -51,7 +51,7 @@ def render_receipt_pdf(conn, receipt_id, *, student_id=None):
            "مصحح لوصل سابق" if r["corrects_id"] else "ساري")
     c.setFillColor(colors.HexColor("#E4F1E9"))
     c.rect(0,h-112,w,112,stroke=0,fill=1)
-    _print(c,right,h-55,"روضة مؤسسة شباب البيرة",size=21)
+    _print(c,right,h-55,"روضة أطفال فودي حبيب ساكرا",size=21)
     _print(c,right,h-82,f"وصل قبض رقم #{int(r['receipt_id'])}",size=14)
     if r["state"]!="active":
         c.saveState()
@@ -81,6 +81,8 @@ def render_receipt_pdf(conn, receipt_id, *, student_id=None):
         stamp=r["cancelled_at"]
         if stamp is not None:
             line("تاريخ القرار",stamp.astimezone(ZoneInfo("Africa/Nouakchott")).strftime("%Y-%m-%d %H:%M"))
+    if any(item.get('snapshot_source')=='legacy_at_migration' for item in data['items']):
+        line('توثيق التفاصيل','ثُبتت البيانات المتاحة عند تحديث سجل الوصولات',font_size=9)
     y-=12
     c.setStrokeColor(colors.HexColor("#C3D7CE"))
     c.line(left,y,right,y)

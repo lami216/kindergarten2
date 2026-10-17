@@ -71,6 +71,7 @@ def migrate(conn):
             created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
             exempt_by TEXT, exempt_at TIMESTAMPTZ
         );
+        ALTER TABLE monthly_accounts ADD COLUMN IF NOT EXISTS due_at_period_end BOOLEAN NOT NULL DEFAULT FALSE;
         CREATE TABLE IF NOT EXISTS monthly_fees (
             fee_id BIGSERIAL PRIMARY KEY,
             student_id VARCHAR(20) NOT NULL REFERENCES monthly_accounts(student_id) ON DELETE RESTRICT,
@@ -355,8 +356,9 @@ def migrate(conn):
                 AFTER INSERT ON expenses
                 FOR EACH ROW EXECUTE FUNCTION record_expense_cash_event();
             ALTER TABLE expenses DROP CONSTRAINT IF EXISTS expense_valid_amount_paid;
+            ALTER TABLE expenses ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMPTZ;
             ALTER TABLE expenses ADD CONSTRAINT expense_valid_amount_paid
-                CHECK(amount>0 AND amount_paid>=0 AND amount_paid<=amount);
+                CHECK((amount>0 OR (amount=0 AND cancelled_at IS NOT NULL)) AND amount_paid>=0 AND amount_paid<=amount);
         """)
         c.execute("INSERT INTO finance_schema_versions(version) VALUES(7) ON CONFLICT DO NOTHING")
         # Version 8: durable idempotency and a stable, indexed audit history.
@@ -378,8 +380,8 @@ def migrate(conn):
                 ON monthly_receipts(corrects_id);
         """)
         c.execute("INSERT INTO finance_schema_versions(version) VALUES(8) ON CONFLICT DO NOTHING")
-    if not conn.autocommit:
-        conn.commit()
+        import receipt_snapshots
+        receipt_snapshots.migrate(c)
 
 
 def prices(conn):
@@ -405,27 +407,35 @@ def _audit(c, student, receipt, action, actor, before, after, reason=None):
          json.dumps(after, default=str, ensure_ascii=False), reason))
 
 
-def update_tariffs(registration, gilet, tuition, actor):
+def update_tariffs(registration, gilet, tuition, actor, *, reason='', expected=None):
     values = (amount(registration,zero=True),amount(gilet,zero=True),amount(tuition))
     conn = db.new_transaction_connection()
     try:
         with conn.cursor() as c:
+            import access_control as A
+            actor=A.actor(c,'fees.edit',actor)
+            import record_history
+            record_history.context(c,actor,reason)
             c.execute("SELECT pg_advisory_xact_lock(82416079)")
             # Snapshot every already-started unpaid period at the OLD tariff,
             # before updating prices. Future periods use the new tariff.
             c.execute("SELECT student_id FROM monthly_accounts WHERE status='regular' ORDER BY student_id")
             for row in c.fetchall():
-                locked=_lock(c,row["student_id"])
+                locked=_lock(c,row["student_id"],for_payment=False)
                 _due_started(c,row["student_id"],locked)
             c.execute("SELECT registration,gilet,tuition FROM monthly_tariffs WHERE id=1")
             old = c.fetchone()
+            if expected is not None:
+                import records
+                if records.revision(old or {})!=expected:
+                    raise ValueError('تغيّرت الرسوم؛ حدّث الصفحة قبل حفظ التعديل.')
             c.execute("""INSERT INTO monthly_tariffs(id,registration,gilet,tuition,changed_by)
                 VALUES(1,%s,%s,%s,%s)
                 ON CONFLICT(id) DO UPDATE SET registration=EXCLUDED.registration,
                 gilet=EXCLUDED.gilet,tuition=EXCLUDED.tuition,
                 changed_by=EXCLUDED.changed_by,changed_at=now()""",(*values,_actor(actor)))
             _audit(c,None,None,"tariff_change",actor,dict(old) if old else {},
-                   dict(zip(("registration","gilet","tuition"),values)))
+                   dict(zip(("registration","gilet","tuition"),values)),reason)
         conn.commit()
     except Exception:
         conn.rollback()
@@ -434,18 +444,22 @@ def update_tariffs(registration, gilet, tuition, actor):
         conn.close()
 
 
-def _lock(c, student):
-    c.execute("SELECT student_id,status,start_date,departure_on,archived_at FROM monthly_accounts WHERE student_id=%s FOR UPDATE",
+def _lock(c, student, *, for_payment=True):
+    c.execute("SELECT * FROM monthly_accounts WHERE student_id=%s FOR UPDATE",
               (student,))
     row = c.fetchone()
     if not row:
         raise ValueError("لا يوجد حساب شهري لهذا الطفل.")
-    if row["status"] != "regular":
+    if for_payment and row.get('archived_at'):
+        raise ValueError('الحساب مؤرشف؛ أُبطلت معاينة الدفع ولا تُقبل دفعات جديدة.')
+    if for_payment and row["status"] != "regular":
         raise ValueError("هذا الطفل معفي من الرسوم؛ لا تُسجل له دفعات.")
     return row
 
 
 def _due_started(c, student, account, as_of=None):
+    if account["status"] != "regular":
+        return
     as_of = as_of or today()
     if isinstance(as_of,str):
         as_of = date.fromisoformat(as_of)
@@ -538,6 +552,8 @@ def _fund_months(c, receipt, account, money, *, as_of=None):
 def _issue(c, account, cash, payer, actor, token, fingerprint,
            selected_registration=False, selected_gilet=False,
            *, as_of=None, schedule_as_of=None, corrects_id=None):
+    import record_history
+    record_history.context(c,actor,'تصحيح وصل' if corrects_id else 'قبض دفعة')
     amount(cash)
     c.execute("SELECT receipt_id,request_hash,state FROM monthly_receipts WHERE request_token=%s",
               (str(token),))
@@ -546,6 +562,9 @@ def _issue(c, account, cash, payer, actor, token, fingerprint,
         if duplicate["request_hash"] != fingerprint:
             raise ValueError("تعارض طلب الدفعة؛ تغيرت البيانات لنفس رمز الحفظ.")
         return duplicate["receipt_id"],False
+    # Every cash-creation caller rechecks the canonical locked account. A
+    # historical replacement is distinct from receiving new cash.
+    account=_lock(c,account['student_id'],for_payment=corrects_id is None)
     day = as_of or today()
     c.execute("""INSERT INTO monthly_receipts
       (student_id,amount,received_on,payer,request_token,request_hash,created_by,corrects_id)
@@ -562,8 +581,10 @@ def _issue(c, account, cash, payer, actor, token, fingerprint,
               (receipt,))
     if int(c.fetchone()["total"]) != cash:
         raise ValueError("تعذّر توزيع مبلغ الدفعة بالكامل.")
-    c.execute("""SELECT allocation_id,fee_id,period_id,amount FROM monthly_allocations
-                 WHERE receipt_id=%s ORDER BY allocation_id""",(receipt,))
+    c.execute("""SELECT a.allocation_id,a.fee_id,a.period_id,a.amount,
+                 s.fee_kind,s.period_no,s.starts,s.ends,s.stored_fee_price
+                 FROM monthly_allocations a JOIN monthly_allocation_snapshots s USING(allocation_id)
+                 WHERE a.receipt_id=%s ORDER BY a.allocation_id""",(receipt,))
     allocation_snapshot=[dict(x) for x in c.fetchall()]
     _audit(c,account["student_id"],receipt,"receipt_issued",actor,{},
            {"receipt_id":receipt,"amount":cash,"received_on":str(day),
@@ -579,6 +600,8 @@ def preview(cash, registration, gilet, settings):
         raise ValueError("لم تُضبط الرسوم بعد. افتح إعدادات الرسوم في صفحة الدفعات.")
     reg=int(settings["registration"]) if registration else 0
     garment=int(settings["gilet"]) if gilet else 0
+    if cash == 0:
+        return {"registration":reg,"gilet":garment,"monthly":0,"full_months":0,"next_partial":0}
     if cash < reg+garment:
         raise ValueError("المبلغ لا يغطي رسوم التسجيل والجيليه المختارة.")
     remainder=cash-reg-garment
@@ -592,6 +615,8 @@ def preview(cash, registration, gilet, settings):
 
 def initialize_in_transaction(c, student, options, actor, token):
     """Called inside the existing atomic family+student transaction."""
+    import record_history
+    record_history.context(c,actor,'تهيئة رسوم الطالب')
     mode = options.get("mode","regular")
     if mode not in ("regular","exempt"):
         raise ValueError("خيار الرسوم غير معروف.")
@@ -602,14 +627,15 @@ def initialize_in_transaction(c, student, options, actor, token):
         if options.get("cash") or options.get("registration") or options.get("gilet"):
             raise ValueError("المعفى لا تُسجل له دفعة نقدية.")
         c.execute("""INSERT INTO monthly_accounts
-           (student_id,status,start_date,created_by,exempt_by,exempt_at)
-           VALUES(%s,'exempt',%s,%s,%s,now())""",(student,anchor,_actor(actor),_actor(actor)))
+           (student_id,status,start_date,created_by,exempt_by,exempt_at,due_at_period_end)
+           VALUES(%s,'exempt',%s,%s,%s,now(),%s)""",(student,anchor,_actor(actor),_actor(actor),bool(options.get("due_at_period_end",False))))
         _audit(c,student,None,"exemption",actor,{},{"all_fees":"exempt","start_date":anchor})
         return None
     settings=_tariffs(c)
-    c.execute("""INSERT INTO monthly_accounts(student_id,status,start_date,created_by)
-                  VALUES(%s,'regular',%s,%s)""",(student,anchor,_actor(actor)))
-    c.execute("""INSERT INTO monthly_fees(student_id,kind,price)
+    c.execute("""INSERT INTO monthly_accounts(student_id,status,start_date,created_by,due_at_period_end)
+                  VALUES(%s,'regular',%s,%s,%s)""",(student,anchor,_actor(actor),bool(options.get("due_at_period_end",False))))
+    if options.get("charge_registration",True):
+        c.execute("""INSERT INTO monthly_fees(student_id,kind,price)
                   VALUES(%s,'registration',%s)""",(student,settings["registration"]))
     buy_gilet=bool(options.get("gilet",False))
     if buy_gilet:
@@ -617,11 +643,13 @@ def initialize_in_transaction(c, student, options, actor, token):
                   (student,settings["gilet"]))
     cash=options.get("cash",0)
     amount(cash,zero=True)
+    account={"student_id":student,"start_date":anchor,"status":"regular"}
+    # Freeze the current month even when cash is zero or funds only the fees.
+    if options.get("due_at_period_end"):
+        _due_started(c,student,account)
     if not cash:
-        if options.get("registration") or buy_gilet:
-            raise ValueError("حدد مبلغاً يغطي الرسوم المختارة.")
+        # Selected fees remain obligations. Zero cash never creates a receipt.
         return None
-    account={"student_id":student,"start_date":anchor}
     receipt,_=_issue(c,account,cash,options.get("payer","ولي الأمر"),actor,
          uuid.uuid5(uuid.UUID(str(token)),"initial"),_hash(options),
          selected_registration=bool(options.get("registration")),
@@ -681,12 +709,15 @@ def payment_preview(conn, student, cash):
 
 
 def take_payment(student, cash, *, payer="", token=None, actor="مديرة الروضة", as_of=None, expected_revision=None, expected_tariff=None):
+    actor=_actor(actor)
     cash=amount(cash)
     token=str(token or uuid.uuid4())
     fp=_hash({"student":student,"amount":cash,"payer":payer.strip(),"kind":"monthly"})
     connection=db.new_transaction_connection()
     try:
         with connection.cursor() as c:
+            import access_control as A
+            actor=A.actor(c,'payments.create',actor)
             # Lock account for all receipts/corrections and schedule generation.
             account=_lock(c,student)
             _assert_receipt_revision(c,student,expected_revision)
@@ -707,6 +738,8 @@ def take_payment(student, cash, *, payer="", token=None, actor="مديرة ال�
 
 
 def _cancel_in_tx(c, student, receipt_id, reason, actor):
+    import record_history
+    record_history.context(c,actor,reason)
     if not reason.strip():
         raise ValueError("يرجى كتابة سبب الإلغاء أو التصحيح.")
     c.execute("SELECT * FROM monthly_receipts WHERE receipt_id=%s AND student_id=%s FOR UPDATE",
@@ -759,12 +792,14 @@ def cancel_receipt(receipt_id, reason, *, actor="مديرة الروضة",
     connection = db.new_transaction_connection()
     try:
         with connection.cursor() as c:
+            import access_control as A
+            actor=A.actor(c,'payments.delete',actor)
             c.execute("SELECT student_id FROM monthly_receipts WHERE receipt_id=%s",
                       (receipt_id,))
             row = c.fetchone()
             if not row:
                 raise ValueError("الوصل غير موجود.")
-            account = _lock(c,row["student_id"])
+            account = _lock(c,row["student_id"],for_payment=False)
             c.execute("SELECT request_hash FROM monthly_receipt_operations "
                       "WHERE request_token=%s",(token,))
             duplicate = c.fetchone()
@@ -801,11 +836,15 @@ def correct_receipt(receipt_id, new_amount, reason, *, actor="مديرة الر�
     connection = db.new_transaction_connection()
     try:
         with connection.cursor() as c:
+            import access_control as A
+            actor=A.actor(c,'payments.edit',actor)
             c.execute("SELECT * FROM monthly_receipts WHERE receipt_id=%s",(receipt_id,))
             old = c.fetchone()
             if not old:
                 raise ValueError("الوصل غير موجود.")
-            account = _lock(c,old["student_id"])
+            account = _lock(c,old["student_id"],for_payment=False)
+            if account['status']!='regular':
+                raise ValueError('الحساب معفي؛ يمكن إلغاء الوصل القديم دون تسجيل قبض جديد.')
             correct_date = received_on if received_on is not None else old["received_on"]
             if isinstance(correct_date,str):
                 correct_date = date.fromisoformat(correct_date)
@@ -866,7 +905,7 @@ def ensure_started(student, as_of=None):
     conn=db.new_transaction_connection()
     try:
         with conn.cursor() as c:
-            account=_lock(c,student)
+            account=_lock(c,student,for_payment=False)
             _due_started(c,student,account,as_of)
         conn.commit()
     except Exception:
@@ -926,17 +965,20 @@ def projection(conn, student, as_of=None, *, materialize=True):
         contiguous+=1
     charge_active = day >= account["start_date"]
     cutoff = min(day, account["departure_on"]) if account.get("departure_on") else day
+    if account['status']=='exempt' and account.get('exempt_from'):
+        cutoff=min(cutoff,account['exempt_from'])
     currently_due=sum(max(0,p["price"]-p["paid"]-p.get("waived",0)) for p in periods
-                      if p["start"]<=cutoff and charge_active)
+                      if (p["end"] if account.get("due_at_period_end") else p["start"])<=cutoff and charge_active)
     if charge_active:
         currently_due+=sum(max(0,r["price"]-r["paid"]-r.get("waived",0)) for r in fees.values())
-    not_yet_due=sum(max(0,p["price"]-p["paid"]-p.get("waived",0)) for p in periods if p["start"]>cutoff)
+    not_yet_due=sum(max(0,p["price"]-p["paid"]-p.get("waived",0)) for p in periods if (p["end"] if account.get("due_at_period_end") else p["start"])>cutoff)
     unpaid=next((p for p in periods if p["paid"]+p.get("waived",0)<p["price"]),None)
     next_start=(unpaid["start"] if unpaid else anniversary(account["start_date"],contiguous))
     return {"account":dict(account),"fees":fees,"periods":periods,"receipts":receipts,
             "paid_periods":paid_count,"paid_through":(anniversary(account["start_date"],contiguous)-timedelta(days=1)
                  if contiguous else None),"due_now":currently_due,
             "future_partial":not_yet_due,"next_unpaid":next_start,
+            "next_due":(unpaid["end"] if unpaid else anniversary(account["start_date"],contiguous+1)) if account.get("due_at_period_end") else next_start,
             "exempt":account["status"]=="exempt",
              "cash_paid":sum(int(r["amount"]) for r in receipts
                              if r["state"]=="active" and r["received_on"]<=day),
@@ -981,6 +1023,8 @@ def initialize_existing_account(student, start_date, mode, confirmed, *, actor="
     connection=db.new_transaction_connection()
     try:
         with connection.cursor() as c:
+            import access_control as A
+            actor=A.actor(c,'accounts.edit',actor)
             # Serialize competing attempts per child and guard historical funds.
             c.execute("SELECT student_id FROM students WHERE student_id=%s FOR UPDATE",(student,))
             if not c.fetchone():
@@ -1010,6 +1054,77 @@ def initialize_existing_account(student, start_date, mode, confirmed, *, actor="
         connection.close()
 
 
+def _ensure_all_started(as_of):
+    """One transaction, ordered account locks and a set-based period insert.
+
+    The tariff lock matches update_tariffs; existing prices are immutable here.
+    Intervals are always added to the original anchor (Jan 31 -> Mar 31).
+    """
+    cutoff = min(as_of, today())
+    connection = db.new_transaction_connection()
+    try:
+        with connection.cursor() as c:
+            c.execute('SELECT pg_advisory_xact_lock(82416079)')
+            c.execute("""SELECT student_id,start_date,departure_on FROM monthly_accounts
+                         WHERE status='regular' AND start_date<=%s
+                         ORDER BY student_id FOR UPDATE""", (cutoff,))
+            accounts = c.fetchall()
+            if accounts:
+                for account in accounts:
+                    end = min(cutoff, account['departure_on'] or cutoff)
+                    if anniversary(account['start_date'],1199)<=end:
+                        raise ValueError('الجدول الزمني أطول من المسموح.')
+                tariff = _tariffs(c)
+                c.execute("""INSERT INTO monthly_periods(student_id,period_no,starts,ends,price)
+                    SELECT a.student_id,n,
+                        (a.start_date+make_interval(months=>n))::date,
+                        (a.start_date+make_interval(months=>n+1))::date,%s
+                    FROM monthly_accounts a CROSS JOIN LATERAL generate_series(0,
+                        LEAST(1198, GREATEST(0,
+                            (extract(year FROM %s::date)::int-extract(year FROM a.start_date)::int)*12
+                            +extract(month FROM %s::date)::int-extract(month FROM a.start_date)::int))) n
+                    WHERE a.status='regular' AND a.start_date<=%s
+                        AND (a.start_date+make_interval(months=>n))::date
+                            <=LEAST(%s::date,COALESCE(a.departure_on,%s::date))
+                    ON CONFLICT(student_id,period_no) DO NOTHING""",
+                    (tariff['tuition'],cutoff,cutoff,cutoff,cutoff,cutoff))
+        connection.commit()
+    except Exception:
+        connection.rollback()
+        raise
+    finally:
+        connection.close()
+
+
+def _total_due(conn, day):
+    """Same obligations/cutoffs as projection, aggregated without child queries."""
+    with conn.cursor() as c:
+        c.execute("""WITH obligations AS (
+            SELECT 'fee' AS kind,f.fee_id AS id, f.price
+            FROM monthly_fees f JOIN monthly_accounts a USING(student_id)
+            WHERE a.start_date<=%(day)s
+            UNION ALL
+            SELECT 'period',p.period_id,p.price
+            FROM monthly_periods p JOIN monthly_accounts a USING(student_id)
+            WHERE a.start_date<=%(day)s AND (CASE WHEN a.due_at_period_end THEN p.ends ELSE p.starts END)<=LEAST(%(day)s,
+                COALESCE(a.departure_on,%(day)s),
+                CASE WHEN a.status='exempt' THEN COALESCE(a.exempt_from,%(day)s) ELSE %(day)s END)
+        ), paid AS (
+            SELECT CASE WHEN fee_id IS NOT NULL THEN 'fee' ELSE 'period' END AS kind,
+                COALESCE(fee_id,period_id) AS id,SUM(x.amount) AS amount
+            FROM monthly_allocations x JOIN monthly_receipts r USING(receipt_id)
+            WHERE x.active AND r.state='active' AND r.received_on<=%(day)s
+            GROUP BY fee_id,period_id
+        ), waived AS (
+            SELECT CASE WHEN fee_id IS NOT NULL THEN 'fee' ELSE 'period' END AS kind,
+                COALESCE(fee_id,period_id) AS id,SUM(amount) AS amount FROM monthly_waivers
+            WHERE effective_on<=%(day)s GROUP BY fee_id,period_id
+        ) SELECT COALESCE(SUM(GREATEST(0,o.price-COALESCE(p.amount,0)-COALESCE(w.amount,0))),0) AS due
+        FROM obligations o LEFT JOIN paid p USING(kind,id)
+        LEFT JOIN waived w USING(kind,id)""", {'day':day})
+        return int(c.fetchone()['due'])
+
+
 def financial_report(conn, start, end):
     """ONE old-ouguiya cash projection; allocations partition receipts, not extra cash.
 
@@ -1019,11 +1134,7 @@ def financial_report(conn, start, end):
     Student debt is a stock at the selected end date, not a cash expense.
     """
     _assert_date_range(start,end)
-    with conn.cursor() as c:
-        c.execute("SELECT student_id FROM monthly_accounts WHERE status='regular'")
-        students=[r["student_id"] for r in c.fetchall()]
-    for student in students:
-        ensure_started(student,as_of=end)
+    _ensure_all_started(end)
     with conn.cursor() as c:
         c.execute("""SELECT COALESCE(SUM(amount),0) AS n FROM monthly_receipts
                      WHERE state='active' AND received_on BETWEEN %s AND %s""",(start,end))
@@ -1077,7 +1188,7 @@ def financial_report(conn, start, end):
         c.execute("""SELECT COALESCE(SUM(COALESCE(cash_amount,amount)),0) AS n FROM teacher_advances
                      WHERE advance_date BETWEEN %s AND %s""",(start,end))
         advances=c.fetchone()["n"]
-    outstanding=sum(projection(conn,s,end,materialize=False)["due_now"] for s in students)
+    outstanding=_total_due(conn,end)
     outflow=operational+salaries+advances
     # An advance deducted later from salary is not another disbursement.
     return {"registration_children":counts.get("registration",0),
@@ -1087,3 +1198,12 @@ def financial_report(conn, start, end):
             "new_cash":cash,"total_cash":cash,
             "operational_cash":operational,"salary_cash":salaries,"advance_cash":advances,
             "expenses":outflow,"remaining_cash":cash-outflow,"due_now":outstanding}
+
+
+def financial_overview(conn):
+    """All recorded cash through the current business day; debt is current stock.
+
+    Reuse the report's receipt/cash-event projection, including cancellations,
+    payroll and advances, without imposing a month or school-year filter.
+    """
+    return financial_report(conn, date.min, today())

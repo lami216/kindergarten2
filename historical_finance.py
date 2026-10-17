@@ -37,7 +37,7 @@ def _audit(cur, receipt, action, actor, reason, before, after):
 
 
 def change_receipt(receipt_number, *, actor, reason, cancel=False,
-                   new_amount=None, payer=None, payment_for=None, details=None):
+                   new_amount=None, payer=None, payment_for=None, details=None, on_date=None, expected=None):
     """Safely edit or void a legacy receipt, keeping the row and audit evidence.
 
     Returns its historical registration ID so the existing annual registration
@@ -58,11 +58,18 @@ def change_receipt(receipt_number, *, actor, reason, cancel=False,
     conn = db.new_transaction_connection()
     try:
         with conn.cursor() as c:
+            import access_control as A
+            actor=A.actor(c,'payments.delete' if cancel else 'payments.edit',actor)
+            import record_history
+            record_history.context(c,actor,reason)
             c.execute("SELECT * FROM payments WHERE receipt_number=%s FOR UPDATE",
                       (receipt_number,))
             original=c.fetchone()
             if not original:
                 raise ValueError("الوصل غير موجود.")
+            if expected is not None:
+                import records
+                if records.revision(original)!=expected: raise ValueError('تغيّر الوصل؛ حدّث بياناته قبل الحفظ.')
             if original["receipt_state"] != "active":
                 raise ValueError("الوصل ملغى بالفعل، ولا يمكن تعديله.")
             previous=_snapshot(original)
@@ -73,10 +80,14 @@ def change_receipt(receipt_number, *, actor, reason, cancel=False,
                        (actor.strip()[:100],reason.strip(),receipt_number))
                 action="legacy_receipt_cancelled"
             else:
+                from datetime import date
+                from monthly_finance import today
+                day=date.fromisoformat(str(on_date or original['payment_date']))
+                if day>today(): raise ValueError('تاريخ القبض لا يكون مستقبليًا.')
                 c.execute("""UPDATE payments SET amount=%s,payer_name=%s,
-                       payment_for=%s,payment_for_other=%s
+                       payment_for=%s,payment_for_other=%s,payment_date=%s
                        WHERE receipt_number=%s RETURNING *""",
-                       (money,payer.strip(),payment_for,details or None,receipt_number))
+                       (money,payer.strip(),payment_for,details or None,day,receipt_number))
                 action="legacy_receipt_corrected"
             after=_snapshot(c.fetchone())
             _audit(c,receipt_number,action,actor,reason.strip(),previous,after)

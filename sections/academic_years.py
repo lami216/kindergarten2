@@ -8,6 +8,7 @@ have linked registrations.
 """
 
 import streamlit as st
+import uuid
 
 import ui
 
@@ -32,14 +33,14 @@ def render(conn):
                 if not year_id:
                     st.warning("⚠️ يرجى إدخال السنة الدراسية.")
                 else:
-                    existing = ui.df(conn, "SELECT 1 FROM academic_years WHERE year_id=%s", (year_id,))
+                    existing = ui.df(conn, "SELECT 1 FROM academic_years WHERE COALESCE(display_year_id,year_id)=%s AND archived_at IS NULL", (year_id,))
                     if not existing.empty:
                         st.error("❌ هذه السنة الدراسية موجودة مسبقاً.")
                     else:
                         try:
                             cur = conn.cursor()
-                            cur.execute("INSERT INTO academic_years VALUES (%s,%s,%s,%s)",
-                                        (year_id, str(start_date), str(end_date), cohort_name))
+                            cur.execute("INSERT INTO academic_years (year_id,display_year_id,start_date,end_date,cohort_name) VALUES (%s,%s,%s,%s,%s)",
+                                        ('Y'+uuid.uuid4().hex[:19],year_id, str(start_date), str(end_date), cohort_name))
                             conn.commit()
                             cur.close()
                             st.success("✅ تم حفظ السنة الدراسية بنجاح! 🎉")
@@ -50,11 +51,13 @@ def render(conn):
 
     # ------------------------------------------- TAB 2: VIEW / EDIT / DELETE --
     with tab_view:
-        years = ui.df(conn, "SELECT * FROM academic_years ORDER BY start_date DESC")
+        years = ui.df(conn, "SELECT * FROM academic_years WHERE archived_at IS NULL ORDER BY start_date DESC")
         if years.empty:
             ui.empty_state("لا توجد سنوات دراسية بعد.")
         else:
-            ui.dataframe(years.rename(columns={
+            display=years[['year_id','start_date','end_date','cohort_name']].copy()
+            display['year_id']=years['display_year_id'].fillna(years['year_id'])
+            ui.dataframe(display.rename(columns={
                 'year_id': 'السنة الدراسية', 'start_date': 'تاريخ البداية',
                 'end_date': 'تاريخ النهاية', 'cohort_name': 'اسم الفوج'
             }), use_container_width=True, hide_index=True)
@@ -62,7 +65,7 @@ def render(conn):
             st.markdown("---")
             st.markdown("##### ✏️ تعديل أو حذف سنة دراسية")
 
-            year_options = [(row['year_id'], f"{row['year_id']} — {row['cohort_name'] or 'بدون اسم فوج'}")
+            year_options = [(row['year_id'], f"{row['display_year_id'] or row['year_id']} — {row['cohort_name'] or 'بدون اسم فوج'}")
                             for _, row in years.iterrows()]
             selected = st.selectbox(
                 "اختر السنة الدراسية", options=year_options,
@@ -73,41 +76,4 @@ def render(conn):
             if selected:
                 yid = selected[0]
                 row = years[years['year_id'] == yid].iloc[0]
-
-                with st.expander(f"⚙️ تعديل بيانات: {yid}", expanded=True):
-                    with st.form("edit_year_form"):
-                        e_cohort = st.text_input("اسم الفوج", value=row['cohort_name'] or "")
-
-                        b1, b2 = st.columns(2)
-                        save = b1.form_submit_button("💾 حفظ", type="primary", use_container_width=True)
-                        delete = b2.form_submit_button("🗑️ حذف السنة الدراسية", use_container_width=True)
-
-                        if save:
-                            try:
-                                cur = conn.cursor()
-                                cur.execute("UPDATE academic_years SET cohort_name=%s WHERE year_id=%s",
-                                            (e_cohort, yid))
-                                conn.commit()
-                                cur.close()
-                                st.success("✅ تم الحفظ.")
-                                st.rerun()
-                            except Exception as e:
-                                conn.rollback()
-                                st.error(f"❌ حدث خطأ أثناء الحفظ: {e}")
-
-                        if delete:
-                            linked_df = ui.df(conn, "SELECT COUNT(*) AS c FROM registrations WHERE year_id=%s", (yid,))
-                            linked = linked_df.iloc[0]['c'] if not linked_df.empty else 0
-                            if linked > 0:
-                                st.error(f"⚠️ يوجد {linked} تسجيل مرتبط بهذه السنة. لا يمكن الحذف.")
-                            else:
-                                try:
-                                    cur = conn.cursor()
-                                    cur.execute("DELETE FROM academic_years WHERE year_id=%s", (yid,))
-                                    conn.commit()
-                                    cur.close()
-                                    st.warning("🗑️ تم حذف السنة الدراسية بنجاح!")
-                                    st.rerun()
-                                except Exception as e:
-                                    conn.rollback()
-                                    st.error(f"❌ حدث خطأ أثناء الحذف: {e}")
+                ui.open_record_editor('academic_years',yid)

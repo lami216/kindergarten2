@@ -57,12 +57,15 @@ async def open_student(page,name,*,include_archived=False):
     await expect(select).to_be_visible()
     await select.click()
     await select.fill(name)
-    # Select by the exact visible student label. A transient BaseWeb
-    # highlight attribute is not guaranteed on virtualized options.
-    await page.get_by_text(name,exact=True).last.click(timeout=15000)
+    # A Streamlit rerun can remount the dropdown portal after typing. Keyboard
+    # selection reopens it, and the profile heading verifies the exact identity.
+    await select.press("ArrowDown")
+    await select.press("Enter")
+    await expect(page.get_by_role("heading",name=name,exact=True)).to_be_visible(timeout=20000)
     if include_archived:
         await expect(page.get_by_text("الطالب مؤرشف",exact=False).first).to_be_visible(timeout=20000)
     else:
+        await page.get_by_role("button",name="تعديل بيانات الطالب",exact=True).click()
         await expect(page.get_by_role("button",name="🗑️ حذف الطالب")).to_be_visible(timeout=15000)
 
 
@@ -72,7 +75,7 @@ async def wait_for_real_theme(page, dark, *, form=False):
     expected_form="rgb(32, 34, 35)" if dark else "rgb(255, 255, 255)"
     await page.wait_for_function("""({canvas, form, requireForm}) => {
         const main=document.querySelector('.stApp');
-        const waiver=[...document.querySelectorAll('[data-testid="stForm"]')].at(-1);
+        const waiver=[...document.querySelectorAll('[class*="st-key-student_debt_decision_"]')].at(-1);
         if (!main || (requireForm && !waiver)) return false;
         const actual=getComputedStyle(main).backgroundColor;
         const formColor=waiver && getComputedStyle(waiver).backgroundColor;
@@ -85,7 +88,7 @@ async def wait_for_real_theme(page, dark, *, form=False):
     await page.wait_for_timeout(400)
     colors=await page.evaluate("""() => {
         const main=document.querySelector('.stApp');
-        const forms=[...document.querySelectorAll('[data-testid="stForm"]')];
+        const forms=[...document.querySelectorAll('[class*="st-key-student_debt_decision_"]')];
         const form=forms.at(-1);
         const css=e=>e?{background:getComputedStyle(e).backgroundColor,
                          color:getComputedStyle(e).color}:null;
@@ -97,10 +100,11 @@ async def wait_for_real_theme(page, dark, *, form=False):
 
 
 async def change_theme(page,dark,*,form=False):
-    switch=page.locator(".st-key-night_mode [role='switch']").first
+    key="dialog_theme" if await page.locator(".st-key-dialog_theme").is_visible() else "night_mode"
+    switch=page.locator(f".st-key-{key} [role='switch']").first
     await expect(switch).to_be_visible()
     if await switch.is_checked()!=dark:
-        await page.locator(".st-key-night_mode label").last.click()
+        await page.locator(f".st-key-{key} label").last.click()
     if dark: await expect(switch).to_be_checked()
     else: await expect(switch).not_to_be_checked()
     return await wait_for_real_theme(page,dark,form=form)
@@ -136,7 +140,7 @@ async def run():
         await expect(page.get_by_role("button",name="تأكيد قرار إلغاء الدين")).to_be_visible()
         metrics["waiver_empty_light"]=await wait_for_real_theme(page,False,form=True)
         await snapshot(page,"student_debt_waiver_390_day.png",
-                       page.locator('[data-testid="stForm"]').last)
+                       page.locator('[class*="st-key-student_debt_decision_"]').last)
         reason=page.get_by_role("textbox",name="سبب إلغاء الدين *")
         await reason.fill("قرار مديرة موثق دون قبض نقدي")
         checkbox=page.get_by_role("checkbox",name="أؤكد إلغاء الدين دون قبض أي مبلغ")
@@ -145,7 +149,7 @@ async def run():
         await expect(checkbox).to_be_checked()
         await expect(reason).to_have_value("قرار مديرة موثق دون قبض نقدي")
         await snapshot(page,"student_debt_confirm_390_day.png",
-                       page.locator('[data-testid="stForm"]').last)
+                       page.locator('[class*="st-key-student_debt_decision_"]').last)
 
         # Switching a Streamlit theme reruns the form: re-enter form values,
         # because unsubmitted form inputs are not part of server session state.
@@ -160,7 +164,7 @@ async def run():
         await expect(reason).to_have_value("قرار مديرة موثق دون قبض نقدي")
         metrics["confirm_dark"]=await wait_for_real_theme(page,True,form=True)
         await snapshot(page,"student_debt_waiver_390_night.png",
-                       page.locator('[data-testid="stForm"]').last)
+                       page.locator('[class*="st-key-student_debt_decision_"]').last)
 
         await page.get_by_role("button",name="تأكيد قرار إلغاء الدين").click()
         await expect(page.get_by_text("أُلغي دين",exact=False).first).to_be_visible(timeout=20000)
@@ -202,6 +206,10 @@ async def run():
     print("Chromium debt refused, light/dark computed canvas & form verified; "
           "waiver reason, confirmation, archived history and zero-cash passed")
 
+
+if __name__=='__main__':
+    from tests.qa_auth import install
+    install()
 
 if __name__=="__main__":
     asyncio.run(run())

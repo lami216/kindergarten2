@@ -342,7 +342,7 @@ class MonthlyFinanceDBTests(unittest.TestCase):
         label=f"{parent['mother_name']} — {parent['mother_mobile']}"
         app.selectbox(key="kid_existing_family").set_value(
             (parent["father_id"],label)).run(timeout=20)
-        app.segmented_control(key="kid_finance_mode").set_value("دفع").run(timeout=20)
+        app.button(key="kid_finance_mode_دفع").click().run(timeout=20)
         app.number_input(key="kid_initial_amount").set_value(3000)
         next(b for b in app.button if "حفظ بيانات الطفل والأهل" in b.label).click().run(timeout=20)
         self.assertEqual(len(app.exception),0)

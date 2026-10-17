@@ -58,9 +58,14 @@ async def run():
         assert len(slips)==1,slips
         await expect(page.locator(".st-key-salary_month_v1 input")).to_be_visible(timeout=15000)
         # A separate consciously initiated payment is still permitted.
-        await page.get_by_role("button",name="🧾 تسجيل الصرف وطباعة قسيمة الراتب").click()
-        await expect(page.get_by_text("تم صرف الراتب وحفظ القسيمة",exact=False)).to_be_visible(timeout=20000)
-        assert len(sql("SELECT payment_id FROM teacher_payments WHERE national_id=%s",(tid,)))==2
+        # Wait for the new button, not a stale success message / button from
+        # the first streamed rerun. Version 2 proves the second commit finished.
+        second=page.locator('.st-key-salary_save_v1 button')
+        await expect(second).to_be_enabled(timeout=20000)
+        await second.click()
+        await expect(page.locator('.st-key-salary_month_v2 input')).to_be_visible(timeout=20000)
+        saved=sql("SELECT payment_id FROM teacher_payments WHERE national_id=%s",(tid,))
+        assert len(saved)==2,saved
 
         await page.get_by_role("tab",name="💰 سلف المعلمات").click()
         await select_teacher(page,".st-key-advance_teacher_v0",name)

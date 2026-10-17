@@ -60,6 +60,32 @@ class SingleCurrencyCashTests(unittest.TestCase):
     def report(self,start=None,end=None):
         return F.financial_report(self.admin,start or self.day,end or self.tomorrow)
 
+    def test_current_overview_includes_previous_month_cash_and_partial_expense(self):
+        from datetime import timedelta
+        current = F.today()
+        previous = current.replace(day=1) - timedelta(days=1)
+        self.day = previous
+        baseline = F.financial_overview(self.admin)
+        sid = self.register(cash=4000, registration=True)
+        with self.admin.cursor() as c:
+            c.execute("""INSERT INTO expenses(expense_date,category,amount,amount_paid)
+                         VALUES(%s,'ملخص سابق',5000,1500)""", (previous,))
+            c.execute("""INSERT INTO expenses(expense_date,category,amount,amount_paid)
+                         VALUES(%s,'مصروف بتاريخ قادم',9000,9000)""",
+                      (current + timedelta(days=1),))
+        current_summary = F.financial_overview(self.admin)
+        assert current_summary['total_cash'] - baseline['total_cash'] == 4000
+        assert current_summary['expenses'] - baseline['expenses'] == 1500
+        assert current_summary['remaining_cash'] - baseline['remaining_cash'] == 2500
+        assert current_summary['registration_children'] - baseline['registration_children'] == 1
+        with self.admin.cursor() as c:
+            c.execute("SELECT receipt_id FROM monthly_receipts WHERE student_id=%s", (sid,))
+            receipt = c.fetchone()['receipt_id']
+        F.cancel_receipt(receipt, 'اختبار استبعاد وصل ملغى من الملخص', actor='fixture')
+        after_cancel = F.financial_overview(self.admin)
+        assert after_cancel['total_cash'] == baseline['total_cash']
+        assert after_cancel['expenses'] == current_summary['expenses']
+
     def test_cash_12000_then_expense_2000_then_monthly_6000_and_cancel(self):
         baseline=self.report()
         sid=self.register(cash=12000,registration=True,gilet=True)

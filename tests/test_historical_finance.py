@@ -23,8 +23,9 @@ DSN = os.environ.get("TEST_POSTGRES_DSN")
 
 def connect():
     c=psycopg2.connect(DSN,cursor_factory=RealDictCursor)
-    c.autocommit=False
-    return c
+    # Match production connections, including CURRENT_DATE near midnight when
+    # CI deliberately sets a different server timezone.
+    return db._pin_business_timezone(c,autocommit=False)
 
 
 @unittest.skipUnless(DSN, "isolated PostgreSQL is required")
