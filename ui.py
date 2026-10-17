@@ -65,10 +65,10 @@ def finish_edit():
     st.session_state.pop('_edit_window_discard', None)
 
 
-def edit_window(title, scope, body, *, label=None, opened=False, reset_keys=(), conn=None):
+def edit_window(title, scope, body, *, label=None, opened=False, reset_keys=(), conn=None, compact=False):
     """One non-dismissible modal with explicit dirty-close/discard controls."""
     for key in st.session_state.pop('_edit_cleanup', []): st.session_state.pop(key, None)
-    if not opened and st.button(label or title, key='open_dialog_'+scope, use_container_width=True):
+    if not opened and st.button(label or title, key='open_dialog_'+scope, use_container_width=not compact):
         finish_edit()
         st.session_state['_edit_window'] = scope
     if opened and st.session_state.get('_edit_window') != scope:

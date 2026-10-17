@@ -144,4 +144,4 @@ def photo_editor(conn, row, fresh):
             except ValueError as error: st.error(str(error))
             except Exception: st.error('تعذّر حفظ الصورة؛ لم يتغير ملف الطالب. حاول مجددًا.')
 
-    ui.edit_window('صورة الطالب',base,edit_photo,label='📷 '+('تغيير / حذف' if fresh['image_data'] is not None else 'إضافة'),conn=conn)
+    ui.edit_window('صورة الطالب',base,edit_photo,label='📷 '+('تغيير / حذف' if fresh['image_data'] is not None else 'إضافة'),conn=conn,compact=True)
