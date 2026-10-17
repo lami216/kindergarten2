@@ -304,6 +304,7 @@ def render(conn):
         names.update({"🏫 كشف الطلاب حسب الصف (للحضور والغياب)": "كشف الصفوف السابق",
                       "📋 قائمة التسجيلات": "التسجيلات في النظام السابق"})
     report_type = st.selectbox("اختر التقرير", list(names), format_func=names.get, key="report_type")
+    st.markdown("##### " + names[report_type])
     st.markdown("---")
 
     result = pd.DataFrame()
@@ -333,7 +334,6 @@ def render(conn):
             return
         summary=F.financial_report(conn,start,end)
         money=lambda n: f"{H.format_money(n)} {F.CURRENCY}"
-        st.markdown("### الحركة المالية خلال الفترة المحددة")
         a,b,c=st.columns(3)
         a.metric("إجمالي المقبوضات",money(summary["total_cash"]))
         b.metric("إجمالي المصروفات",money(summary["expenses"]))

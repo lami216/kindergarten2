@@ -25,9 +25,17 @@ async def navigate(page,section):
 
 
 async def choose_report(page,label):
-    picker=page.locator('.st-key-report_type').get_by_role('combobox')
-    await picker.click()
-    await page.locator('[role="listbox"]').get_by_text(label,exact=True).click()
+    picker=page.locator('.st-key-report_type input[role="combobox"]')
+    try:
+        await picker.click()
+        await picker.fill(label)
+        await page.get_by_role('option').filter(has_text=label).last.click()
+        # This heading comes from the server-rendered report, not the client picker.
+        await expect(page.get_by_role('heading',name=label,exact=True)).to_be_visible()
+    except Exception:
+        await page.screenshot(path=str(OUT/'report-selection-failure.png'))
+        print(await page.locator('.stApp').aria_snapshot(),flush=True)
+        raise
 
 
 async def exported_report(page,path):
