@@ -71,6 +71,7 @@ def migrate(conn):
             created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
             exempt_by TEXT, exempt_at TIMESTAMPTZ
         );
+        ALTER TABLE monthly_accounts ADD COLUMN IF NOT EXISTS due_at_period_end BOOLEAN NOT NULL DEFAULT FALSE;
         CREATE TABLE IF NOT EXISTS monthly_fees (
             fee_id BIGSERIAL PRIMARY KEY,
             student_id VARCHAR(20) NOT NULL REFERENCES monthly_accounts(student_id) ON DELETE RESTRICT,
@@ -599,6 +600,8 @@ def preview(cash, registration, gilet, settings):
         raise ValueError("لم تُضبط الرسوم بعد. افتح إعدادات الرسوم في صفحة الدفعات.")
     reg=int(settings["registration"]) if registration else 0
     garment=int(settings["gilet"]) if gilet else 0
+    if cash == 0:
+        return {"registration":reg,"gilet":garment,"monthly":0,"full_months":0,"next_partial":0}
     if cash < reg+garment:
         raise ValueError("المبلغ لا يغطي رسوم التسجيل والجيليه المختارة.")
     remainder=cash-reg-garment
@@ -624,14 +627,15 @@ def initialize_in_transaction(c, student, options, actor, token):
         if options.get("cash") or options.get("registration") or options.get("gilet"):
             raise ValueError("المعفى لا تُسجل له دفعة نقدية.")
         c.execute("""INSERT INTO monthly_accounts
-           (student_id,status,start_date,created_by,exempt_by,exempt_at)
-           VALUES(%s,'exempt',%s,%s,%s,now())""",(student,anchor,_actor(actor),_actor(actor)))
+           (student_id,status,start_date,created_by,exempt_by,exempt_at,due_at_period_end)
+           VALUES(%s,'exempt',%s,%s,%s,now(),%s)""",(student,anchor,_actor(actor),_actor(actor),bool(options.get("due_at_period_end",False))))
         _audit(c,student,None,"exemption",actor,{},{"all_fees":"exempt","start_date":anchor})
         return None
     settings=_tariffs(c)
-    c.execute("""INSERT INTO monthly_accounts(student_id,status,start_date,created_by)
-                  VALUES(%s,'regular',%s,%s)""",(student,anchor,_actor(actor)))
-    c.execute("""INSERT INTO monthly_fees(student_id,kind,price)
+    c.execute("""INSERT INTO monthly_accounts(student_id,status,start_date,created_by,due_at_period_end)
+                  VALUES(%s,'regular',%s,%s,%s)""",(student,anchor,_actor(actor),bool(options.get("due_at_period_end",False))))
+    if options.get("charge_registration",True):
+        c.execute("""INSERT INTO monthly_fees(student_id,kind,price)
                   VALUES(%s,'registration',%s)""",(student,settings["registration"]))
     buy_gilet=bool(options.get("gilet",False))
     if buy_gilet:
@@ -640,8 +644,7 @@ def initialize_in_transaction(c, student, options, actor, token):
     cash=options.get("cash",0)
     amount(cash,zero=True)
     if not cash:
-        if options.get("registration") or buy_gilet:
-            raise ValueError("حدد مبلغاً يغطي الرسوم المختارة.")
+        # Selected fees remain obligations. Zero cash never creates a receipt.
         return None
     account={"student_id":student,"start_date":anchor,"status":"regular"}
     receipt,_=_issue(c,account,cash,options.get("payer","ولي الأمر"),actor,
@@ -962,10 +965,10 @@ def projection(conn, student, as_of=None, *, materialize=True):
     if account['status']=='exempt' and account.get('exempt_from'):
         cutoff=min(cutoff,account['exempt_from'])
     currently_due=sum(max(0,p["price"]-p["paid"]-p.get("waived",0)) for p in periods
-                      if p["start"]<=cutoff and charge_active)
+                      if (p["end"] if account.get("due_at_period_end") else p["start"])<=cutoff and charge_active)
     if charge_active:
         currently_due+=sum(max(0,r["price"]-r["paid"]-r.get("waived",0)) for r in fees.values())
-    not_yet_due=sum(max(0,p["price"]-p["paid"]-p.get("waived",0)) for p in periods if p["start"]>cutoff)
+    not_yet_due=sum(max(0,p["price"]-p["paid"]-p.get("waived",0)) for p in periods if (p["end"] if account.get("due_at_period_end") else p["start"])>cutoff)
     unpaid=next((p for p in periods if p["paid"]+p.get("waived",0)<p["price"]),None)
     next_start=(unpaid["start"] if unpaid else anniversary(account["start_date"],contiguous))
     return {"account":dict(account),"fees":fees,"periods":periods,"receipts":receipts,
@@ -1099,7 +1102,7 @@ def _total_due(conn, day):
             UNION ALL
             SELECT 'period',p.period_id,p.price
             FROM monthly_periods p JOIN monthly_accounts a USING(student_id)
-            WHERE a.start_date<=%(day)s AND p.starts<=LEAST(%(day)s,
+            WHERE a.start_date<=%(day)s AND (CASE WHEN a.due_at_period_end THEN p.ends ELSE p.starts END)<=LEAST(%(day)s,
                 COALESCE(a.departure_on,%(day)s),
                 CASE WHEN a.status='exempt' THEN COALESCE(a.exempt_from,%(day)s) ELSE %(day)s END)
         ), paid AS (

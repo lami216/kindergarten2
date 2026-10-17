@@ -4,6 +4,7 @@ import uuid
 from datetime import timedelta
 
 import streamlit as st
+import ui
 import monthly_finance as F
 import receipt_history as H
 import access_control as A
@@ -156,100 +157,99 @@ def render_inspector(conn,receipt_id,*,scope,student_id=None):
         st.session_state[key+"mode"]="history"
         st.rerun()
     mode=st.session_state.get(key+"mode")
-    if mode=="edit" and r["state"]=="active" and A.can('payments.edit'):
-        st.markdown("###### تصحيح الوصل — لا يمحو الأصل")
-        amount=st.number_input("المبلغ المصحح",min_value=1,max_value=F.MAX_AMOUNT,
-                  value=int(r["amount"]),step=1,key=key+str(receipt_id)+"_amount")
-        day=st.date_input("تاريخ القبض الصحيح",value=r["received_on"],
-                  min_value=__import__("datetime").date(1990,1,1),max_value=F.today(),
-                  key=key+str(receipt_id)+"_date")
-        payer=st.text_input("الدافع",value=r["payer"] or "",
-                  key=key+str(receipt_id)+"_payer")
-        reason=st.text_input("سبب التصحيح *",key=key+str(receipt_id)+"_reason")
-        left,right=st.columns(2)
-        if left.button("معاينة أثر التصحيح",key=key+"preview_button"):
-            try:
-                preview=H.receipt_impact(conn,receipt_id,
-                         new_amount=int(amount),new_date=day,new_payer=payer)
-                preview["reason"]=reason.strip()
-                st.session_state[key+"preview"]=preview
-            except ValueError as error:
-                st.error(str(error))
-        snapshot=st.session_state.get(key+"preview")
-        if snapshot and snapshot["receipt"]["receipt"]["receipt_id"]==receipt_id:
-            st.info(f"القبض القديم: {_amount(r['amount'])} · "
-                    f"القبض الجديد: {_amount(snapshot['new_amount'])} · "
-                    f"الفرق: {_amount(snapshot['cash_delta'])}. "
-                    "التخصيص النهائي يعاد حسابه من الرسوم والفترات المحفوظة.")
-            st.caption("تخصيصات الوصل الأصلي: "+
-                       "، ".join(snapshot["affected_periods"]))
-            st.write("**توزيع الوصل المصحح المتوقع:**")
-            for item in snapshot["new_items"][:30]:
-                st.write(f"{item['label']} · {item['amount']:,} {F.CURRENCY}"
-                         f" · الرسم المثبت {item['price']:,} {F.CURRENCY}")
-            if len(snapshot["new_items"])>30:
-                st.caption(f"فترات إضافية: {len(snapshot['new_items'])-30}")
-            st.caption(f"الدين المستحق قبل التصحيح: "
-                       f"{snapshot['currently_due']:,} {F.CURRENCY} · "
-                       f"بعده وفق المعاينة: {snapshot['projected_due']:,} {F.CURRENCY}")
-            confirmed=st.checkbox("أؤكد أثر التصحيح وحفظ الوصل الأصلي في السجل",
-                        key=key+str(receipt_id)+"_edit_confirm")
-            if right.button("تأكيد تصحيح الوصل",key=key+"commit_edit",
-                             disabled=not confirmed):
-                if (int(amount)!=snapshot["new_amount"] or day!=snapshot["new_date"]
-                    or payer.strip()!=snapshot["new_payer"]
-                    or reason.strip()!=snapshot["reason"] or not reason.strip()):
-                    st.error("تغيّرت بيانات التصحيح منذ المعاينة؛ أعد المعاينة.")
+    def edit_receipt(form):
+        if mode=="edit" and r["state"]=="active" and A.can('payments.edit'):
+            st.markdown("###### تصحيح الوصل — لا يمحو الأصل")
+            amount=form.number_input("المبلغ المصحح",min_value=1,max_value=F.MAX_AMOUNT,
+                      value=int(r["amount"]),step=1,key=key+str(receipt_id)+"_amount")
+            day=form.date_input("تاريخ القبض الصحيح",value=r["received_on"],
+                      min_value=__import__("datetime").date(1990,1,1),max_value=F.today(),
+                      key=key+str(receipt_id)+"_date")
+            payer=form.text_input("الدافع",value=r["payer"] or "",
+                      key=key+str(receipt_id)+"_payer")
+            reason=form.text_input("سبب التصحيح *",key=key+str(receipt_id)+"_reason")
+            left,right=form.columns(2)
+            if left.button("معاينة أثر التصحيح",key=key+"preview_button"):
+                try:
+                    preview=H.receipt_impact(conn,receipt_id,
+                             new_amount=int(amount),new_date=day,new_payer=payer)
+                    preview["reason"]=reason.strip()
+                    st.session_state[key+"preview"]=preview
+                except ValueError as error:
+                    st.error(str(error))
+            snapshot=st.session_state.get(key+"preview")
+            if snapshot and snapshot["receipt"]["receipt"]["receipt_id"]==receipt_id:
+                st.info(f"القبض القديم: {_amount(r['amount'])} · "
+                        f"القبض الجديد: {_amount(snapshot['new_amount'])} · "
+                        f"الفرق: {_amount(snapshot['cash_delta'])}. "
+                        "التخصيص النهائي يعاد حسابه من الرسوم والفترات المحفوظة.")
+                st.caption("تخصيصات الوصل الأصلي: "+
+                           "، ".join(snapshot["affected_periods"]))
+                st.write("**توزيع الوصل المصحح المتوقع:**")
+                for item in snapshot["new_items"][:30]:
+                    st.write(f"{item['label']} · {item['amount']:,} {F.CURRENCY}"
+                             f" · الرسم المثبت {item['price']:,} {F.CURRENCY}")
+                if len(snapshot["new_items"])>30:
+                    st.caption(f"فترات إضافية: {len(snapshot['new_items'])-30}")
+                st.caption(f"الدين المستحق قبل التصحيح: "
+                           f"{snapshot['currently_due']:,} {F.CURRENCY} · "
+                           f"بعده وفق المعاينة: {snapshot['projected_due']:,} {F.CURRENCY}")
+                confirmed=form.checkbox("أؤكد أثر التصحيح وحفظ الوصل الأصلي في السجل",
+                            key=key+str(receipt_id)+"_edit_confirm")
+                if right.button("تأكيد تصحيح الوصل",key=key+"commit_edit",
+                                 disabled=not confirmed):
+                    if (int(amount)!=snapshot["new_amount"] or day!=snapshot["new_date"]
+                        or payer.strip()!=snapshot["new_payer"]
+                        or reason.strip()!=snapshot["reason"] or not reason.strip()):
+                        st.error("تغيّرت بيانات التصحيح منذ المعاينة؛ أعد المعاينة.")
+                    else:
+                        try:
+                            token_key=key+str(receipt_id)+"_edit_token"
+                            st.session_state.setdefault(token_key,str(uuid.uuid4()))
+                            new_id,_=F.correct_receipt(receipt_id,int(amount),reason,
+                                actor=_actor(),token=st.session_state[token_key],
+                                received_on=day,payer=payer,
+                                expected_revision=snapshot["revision"])
+                            st.session_state[token_key]=str(uuid.uuid4())
+                            st.session_state[f"{scope}_receipt_open"]=new_id
+                            st.session_state.pop(key+"preview",None)
+                            st.session_state.pop(key+"mode",None)
+                            _feedback(scope,f"صُحح الوصل وحُفظ الأصل؛ النسخة السارية #{new_id}.")
+                            ui.finish_edit()
+                            st.rerun()
+                        except ValueError as error:
+                            st.error(str(error))
+                        except Exception:
+                            st.error("فشل التصحيح؛ لم تتغير المقبوضات.")
+        elif mode=="cancel" and r["state"]=="active" and A.can('payments.delete'):
+            st.warning("الإلغاء يستبعد قبض هذا الوصل من جميع التقارير المصححة، "
+                       "ويعيد المتبقي دون تسجيل مصروف أو استرداد وهمي.")
+            with st.container():
+                reason=form.text_area("سبب إلغاء الوصل *")
+                confirm=form.checkbox("أؤكد إلغاء هذا الوصل وإبقاء أصله محفوظاً")
+                submit=form.form_submit_button("تأكيد إلغاء الوصل",type="primary")
+            if submit:
+                if not confirm: st.error("يلزم تأكيد الإلغاء صراحةً.")
                 else:
                     try:
-                        token_key=key+str(receipt_id)+"_edit_token"
+                        token_key=key+str(receipt_id)+"_cancel_token"
                         st.session_state.setdefault(token_key,str(uuid.uuid4()))
-                        new_id,_=F.correct_receipt(receipt_id,int(amount),reason,
-                            actor=_actor(),token=st.session_state[token_key],
-                            received_on=day,payer=payer,
-                            expected_revision=snapshot["revision"])
+                        F.cancel_receipt(receipt_id,reason,actor=_actor(),
+                          token=st.session_state[token_key],
+                          expected_revision=st.session_state.get(key+"cancel_revision"))
                         st.session_state[token_key]=str(uuid.uuid4())
-                        st.session_state[f"{scope}_receipt_open"]=new_id
-                        st.session_state.pop(key+"preview",None)
                         st.session_state.pop(key+"mode",None)
-                        _feedback(scope,f"صُحح الوصل وحُفظ الأصل؛ النسخة السارية #{new_id}.")
+                        _feedback(scope,f"أُلغي الوصل #{receipt_id} دون إنشاء مصروف.")
+                        ui.finish_edit()
                         st.rerun()
                     except ValueError as error:
                         st.error(str(error))
                     except Exception:
-                        st.error("فشل التصحيح؛ لم تتغير المقبوضات.")
-        if st.button("رجوع دون تصحيح",key=key+"back_edit"):
-            st.session_state.pop(key+"mode",None)
-            st.session_state.pop(key+"preview",None)
-            st.rerun()
-    elif mode=="cancel" and r["state"]=="active" and A.can('payments.delete'):
-        st.warning("الإلغاء يستبعد قبض هذا الوصل من جميع التقارير المصححة، "
-                   "ويعيد المتبقي دون تسجيل مصروف أو استرداد وهمي.")
-        with st.form(key+"cancel_form_"+str(receipt_id)):
-            reason=st.text_area("سبب إلغاء الوصل *")
-            confirm=st.checkbox("أؤكد إلغاء هذا الوصل وإبقاء أصله محفوظاً")
-            submit=st.form_submit_button("تأكيد إلغاء الوصل",type="primary")
-        if submit:
-            if not confirm: st.error("يلزم تأكيد الإلغاء صراحةً.")
-            else:
-                try:
-                    token_key=key+str(receipt_id)+"_cancel_token"
-                    st.session_state.setdefault(token_key,str(uuid.uuid4()))
-                    F.cancel_receipt(receipt_id,reason,actor=_actor(),
-                      token=st.session_state[token_key],
-                      expected_revision=st.session_state.get(key+"cancel_revision"))
-                    st.session_state[token_key]=str(uuid.uuid4())
-                    st.session_state.pop(key+"mode",None)
-                    _feedback(scope,f"أُلغي الوصل #{receipt_id} دون إنشاء مصروف.")
-                    st.rerun()
-                except ValueError as error:
-                    st.error(str(error))
-                except Exception:
-                    st.error("تعذّر إلغاء الوصل؛ بقي أثره كما هو.")
-        if st.button("رجوع — إبقاء الوصل سارياً",key=key+"back_cancel"):
-            st.session_state.pop(key+"mode",None)
-            st.rerun()
-    elif mode=="history":
+                        st.error("تعذّر إلغاء الوصل؛ بقي أثره كما هو.")
+
+    if mode in ("edit","cancel"):
+        ui.edit_window("تصحيح الوصل" if mode=="edit" else "إلغاء الوصل",key+mode,edit_receipt,opened=True,reset_keys=(key+"mode",key+"preview"),conn=conn)
+    if mode=="history":
         render_history(conn,scope=scope+"_specific_"+str(receipt_id),
                        receipt_id=receipt_id,student_id=student_id,show_open=False)
         if st.button("إغلاق سجل هذا الوصل",key=key+"back_history"):

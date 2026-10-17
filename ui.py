@@ -7,6 +7,97 @@ from html import escape
 import os
 import pandas as pd
 import streamlit as st
+import copy
+import hashlib
+
+
+class EditForm:
+    """Live, keyed inputs in a protected dialog; never patches global Streamlit."""
+    INPUTS = {'text_input','text_area','number_input','date_input','checkbox',
+              'selectbox','multiselect','file_uploader','data_editor','toggle',
+              'radio','segmented_control'}
+
+    def __init__(self, scope, target=None, root=None):
+        self.scope, self.target = scope, target or st
+        self.root = root or self
+        if root is None: self.values = {}
+
+    def __getattr__(self, name):
+        if name == 'form_submit_button': name = 'button'
+        if name == 'columns':
+            return lambda *a, **kw: [EditForm(self.scope, c, self.root) for c in self.target.columns(*a, **kw)]
+        function = getattr(self.target, name)
+        if name not in self.INPUTS: return function
+        def input_(*args, **kwargs):
+            label = kwargs.get('label', args[0] if args else name)
+            key = kwargs.setdefault('key', 'dialog_field_'+hashlib.sha256((self.scope+name+str(label)).encode()).hexdigest()[:20])
+            value = function(*args, **kwargs)
+            # UploadedFile position is mutable; compare its immutable content.
+            if name == 'file_uploader': value_signature = value.getvalue() if value else None
+            elif hasattr(value, 'to_dict'): value_signature = value.to_dict('records')
+            else: value_signature = value
+            self.root.values[key] = copy.deepcopy(value_signature)
+            return value
+        return input_
+
+    def track(self, name, value):
+        self.root.values[self.scope+":"+name] = copy.deepcopy(value)
+
+    def __enter__(self):
+        self.target.__enter__(); return self
+
+    def __exit__(self, *args): return self.target.__exit__(*args)
+
+
+def finish_edit():
+    """Forget the draft only after a successful commit or explicit discard."""
+    active = st.session_state.pop('_edit_window', None)
+    for key in st.session_state.pop('_edit_window_reset', []): st.session_state.pop(key, None)
+    if active:
+        st.session_state['_edit_cleanup'] = st.session_state.pop('_edit_window_fields', [])
+    st.session_state.pop('_edit_window_baseline', None)
+    st.session_state.pop('_edit_window_discard', None)
+
+
+def edit_window(title, scope, body, *, label=None, opened=False, reset_keys=(), conn=None):
+    """One non-dismissible modal with explicit dirty-close/discard controls."""
+    for key in st.session_state.pop('_edit_cleanup', []): st.session_state.pop(key, None)
+    if not opened and st.button(label or title, key='open_dialog_'+scope, use_container_width=True):
+        finish_edit()
+        st.session_state['_edit_window'] = scope
+    if opened and st.session_state.get('_edit_window') != scope:
+        finish_edit(); st.session_state['_edit_window'] = scope
+    if st.session_state.get('_edit_window') != scope: return
+
+    st.session_state['_edit_window_reset'] = list(reset_keys)
+    @st.dialog(title, width='large', dismissible=False)
+    def window():
+        # Dialog interactions rerun as fragments, so recheck the live session here.
+        if conn is not None:
+            if conn.closed: st.rerun()
+            import access_control as A
+            try:
+                with conn.cursor() as cursor: A.current(cursor)
+            except A.AccessDenied:
+                A.clear_state(); st.rerun()
+        form = EditForm(scope)
+        body(form)
+        initial = st.session_state.setdefault('_edit_window_baseline', copy.deepcopy(form.values))
+        # Track newly revealed fields too, without treating their initial value as an edit.
+        for key, value in form.values.items(): initial.setdefault(key, copy.deepcopy(value))
+        dirty = any(initial.get(key) != value for key, value in form.values.items())
+        st.session_state['_edit_window_fields'] = list(set(st.session_state.get('_edit_window_fields', [])) | set(form.values))
+        if st.button('إغلاق دون حفظ', key='close_dialog_'+scope):
+            if dirty: st.session_state['_edit_window_discard'] = True
+            else: finish_edit(); st.rerun()
+        if st.session_state.get('_edit_window_discard'):
+            st.warning('لديك تغييرات غير محفوظة. هل تريد تجاهلها والخروج؟')
+            left,right = st.columns(2)
+            if left.button('تجاهل التغييرات والخروج', key='discard_dialog_'+scope):
+                finish_edit(); st.rerun()
+            if right.button('متابعة التعديل', key='keep_dialog_'+scope):
+                st.session_state.pop('_edit_window_discard',None); st.rerun(scope='fragment')
+    window()
 
 LOGO_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "school-logo.jpg")
 
@@ -78,6 +169,7 @@ def navigate(page, **state):
 def open_record_editor(table, ident, label='تعديل كامل / حذف السجل'):
     """Open the same selected record in the complete, audited editor."""
     if st.button(label,key=f'record_manage_{table}_{ident}'):
+        st.session_state['records_auto_edit']=True
         st.session_state['records_target']=table
         st.session_state['records_pick_'+table]=ident
         st.session_state.pop('records_open',None)
@@ -153,7 +245,11 @@ def edit_snapshot(conn, table, ident, *, scope, widget_prefix):
     from psycopg2 import sql
     import record_history as H
     key='edit_snapshot_'+scope
-    if st.button('تحديث بيانات النموذج',key='refresh_'+key):
+    if st.session_state.get('_edit_window') and '_edit_window_baseline' not in st.session_state:
+        st.session_state.pop(key,None)
+        for name in list(st.session_state):
+            if name.startswith(widget_prefix): del st.session_state[name]
+    if not st.session_state.get('_edit_window') and st.button('تحديث بيانات النموذج',key='refresh_'+key):
         st.session_state.pop(key,None)
         for name in list(st.session_state):
             if name.startswith(widget_prefix): del st.session_state[name]

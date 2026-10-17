@@ -119,6 +119,7 @@ async def run():
             await owner.screenshot(path=str(OUT/f'activity-{width}.png'),full_page=True)
             await owner.get_by_role('tab',name='👥 الحسابات والصلاحيات',exact=True).click()
             await select(owner,'admin_selected_user',name)
+            await owner.get_by_role('button',name='تعديل الحساب والصلاحيات',exact=True).click()
             await owner.locator('.st-key-admin_edit_active label').last.click()
             await owner.locator('.st-key-admin_edit_confirm label').last.click()
             await owner.get_by_role('button',name='حفظ الحساب والصلاحيات',exact=True).click()

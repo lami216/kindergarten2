@@ -193,8 +193,10 @@ async def run():
                 await capture(page,page.get_by_role("button",name="تأكيد تهيئة حساب الطفل"),
                               f"finance_existing_setup_{suffix}",manifest)
                 await page.get_by_role("tab",name=re.compile("إعدادات الرسوم")).click()
+                await page.get_by_role("button",name="تعديل أسعار الرسوم",exact=True).click()
                 await capture(page,page.get_by_role("button",name="حفظ الأسعار"),
                               f"finance_tariffs_{suffix}",manifest)
+                await page.get_by_role("button",name="إغلاق دون حفظ",exact=True).click()
                 await page.get_by_role("tab",name=re.compile("تقرير النقدية")).click()
                 await capture(page,page.get_by_text("الباقي من المداخيل",exact=False).first,
                               f"finance_cash_report_{suffix}",manifest)

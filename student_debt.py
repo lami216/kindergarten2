@@ -31,7 +31,8 @@ def _debt(c, student, when):
              WHERE a.period_id=p.period_id AND a.active AND r.state='active'),0) AS paid,
            COALESCE((SELECT SUM(w.amount) FROM monthly_waivers w
              WHERE w.period_id=p.period_id),0) AS waived
-           FROM monthly_periods p WHERE p.student_id=%s AND p.starts<=%s
+           FROM monthly_periods p JOIN monthly_accounts m USING(student_id)
+           WHERE p.student_id=%s AND (CASE WHEN m.due_at_period_end THEN p.ends ELSE p.starts END)<=%s
            ORDER BY p.period_no""",(student,when))
     periods=[dict(x) for x in c.fetchall()]
     return [dict(x,remaining=int(x["price"])-int(x["paid"])-int(x["waived"]))

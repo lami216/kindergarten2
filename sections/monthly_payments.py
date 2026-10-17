@@ -293,24 +293,28 @@ def render_accounts(conn,*,allow_payment=True):
 def render_settings(conn):
     st.caption("أسعار الأوقية القديمة تُضبط هنا فقط. لا تغير الفواتير السابقة.")
     current=F.prices(conn)
-    with st.form("monthly_price_settings"):
-        a,b,c=st.columns(3)
-        reg=a.number_input("رسوم التسجيل",min_value=0,max_value=F.MAX_AMOUNT,
-            step=1,value=int(current["registration"]) if current else 0)
-        gilet=b.number_input("الجيليه",min_value=0,max_value=F.MAX_AMOUNT,
-            step=1,value=int(current["gilet"]) if current else 0)
-        month=c.number_input("رسوم الشهر",min_value=1,max_value=F.MAX_AMOUNT,
-            step=1,value=int(current["tuition"]) if current else 1)
-        save=st.form_submit_button("حفظ الأسعار",type="primary")
-    if save:
-        try:
-            F.update_tariffs(int(reg),int(gilet),int(month),actor())
-            st.success("حُفظت الأسعار؛ لن تتغير رسوم الشهور الصادرة أو الدفعات القديمة.")
-            st.rerun()
-        except ValueError as exc:
-            st.error(str(exc))
-        except Exception:
-            st.error("تعذّر حفظ الأسعار.")
+    def edit_prices(form):
+        with st.container():
+            a,b,c=form.columns(3)
+            reg=a.number_input("رسوم التسجيل",min_value=0,max_value=F.MAX_AMOUNT,
+                step=1,value=int(current["registration"]) if current else 0)
+            gilet=b.number_input("الجيليه",min_value=0,max_value=F.MAX_AMOUNT,
+                step=1,value=int(current["gilet"]) if current else 0)
+            month=c.number_input("رسوم الشهر",min_value=1,max_value=F.MAX_AMOUNT,
+                step=1,value=int(current["tuition"]) if current else 1)
+            save=form.form_submit_button("حفظ الأسعار",type="primary")
+        if save:
+            try:
+                F.update_tariffs(int(reg),int(gilet),int(month),actor(),expected=__import__("records").revision(current) if current else None)
+                st.success("حُفظت الأسعار؛ لن تتغير رسوم الشهور الصادرة أو الدفعات القديمة.")
+                ui.finish_edit()
+                st.rerun()
+            except ValueError as exc:
+                st.error(str(exc))
+            except Exception:
+                st.error("تعذّر حفظ الأسعار.")
+
+    ui.edit_window("تعديل أسعار الرسوم","monthly_price_settings",edit_prices,conn=conn)
 
 
 def render_receipts(conn):

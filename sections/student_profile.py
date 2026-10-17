@@ -28,6 +28,12 @@ def styles():
     .student-file-badges{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
     .student-file-badges span{background:var(--bg);border:1px solid var(--card-border);border-radius:9px;
         padding:5px 10px;color:var(--text-main);font-size:13px}
+    .student-file-badges .boy{background:#e1efff;border-color:#90bce7;color:#154c83}
+    .student-file-badges .girl{background:#ffe8f1;border-color:#e8a3bf;color:#8b2c52}
+    [class*="st-key-student_hero_"]{position:relative}
+    [class*="st-key-student_hero_"] .student-file-hero{border:0;margin:0;padding:12px 4px 38px}
+    [class*="st-key-student_hero_"] [data-testid="stButton"]{display:flex;justify-content:flex-end;margin-top:-42px;position:relative}
+    [class*="st-key-student_hero_"] [data-testid="stButton"] button{min-height:34px;padding:4px 10px;font-size:13px}
     .student-file-details{display:grid;grid-template-columns:1fr 1fr;gap:18px;padding:4px 0}
     .student-file-details small{display:block;color:var(--text-muted);margin-bottom:4px}
     .student-file-details p{margin:0;color:var(--text-main);white-space:pre-wrap;overflow-wrap:anywhere}
@@ -48,9 +54,14 @@ def header(conn, row):
     archived = bool(text(row.get('archived_at')))
     badges = [text(row.get('department_name')) or 'بدون قسم', 'مؤرشف' if archived else 'ملف نشط']
     age = H.calculate_age(row.get('birth_date')) if text(row.get('birth_date')) else 'غير مسجل'
-    st.markdown(f'''<div class="student-file-hero">{portrait}<div><p>ملف الطالب</p>
-        <h2>{escape(name)}</h2><p>{escape(text(row.get('gender')) or 'الجنس غير مسجل')} · العمر: {escape(str(age))}</p>
-        <div class="student-file-badges">{''.join('<span>'+escape(b)+'</span>' for b in badges)}</div></div></div>''',unsafe_allow_html=True)
+    gender = text(row.get('gender')) or 'الجنس غير مسجل'
+    color = 'boy' if gender == 'ذكر' else 'girl' if gender == 'أنثى' else ''
+    with st.container(border=True,key='student_hero_'+row['student_id']):
+        st.markdown(f'''<div class="student-file-hero">{portrait}<div><p>ملف الطالب</p>
+            <h2>{escape(name)}</h2><div class="student-file-badges">
+            <span class="{color}">{escape(gender)}</span><span>العمر: {escape(str(age))}</span>
+            {''.join('<span>'+escape(b)+'</span>' for b in badges)}</div></div></div>''',unsafe_allow_html=True)
+        photo_editor(conn,row,photo)
     # Keep the keyed editor at one delta path when feedback appears/disappears.
     # Moving it between slots can leave an old tracked expander in the browser.
     with st.container(key='student_file_feedback_'+row['student_id']):
@@ -65,7 +76,7 @@ def fields(values):
 
 
 def details(row):
-    child, family = st.columns(2)
+    child, family = form.columns(2)
     with child, st.container(border=True):
         st.markdown('##### 🎒 بيانات الطفل')
         fields([('تاريخ الميلاد',row.get('birth_date')),('مكان الميلاد',row.get('birth_place')),
@@ -93,14 +104,14 @@ def photo_editor(conn, row, fresh):
     if not A.can('students.edit'): return
     sid = row['student_id']
     base = 'student_photo_'+sid
-    with st.expander('📷 صورة الطالب',key=base+'_editor',on_change='rerun'):
+    def edit_photo(form):
         st.caption('صورة اختيارية: JPG أو PNG أو WebP، حتى 5 ميغابايت. تُحفظ بحجم مصغّر دون بيانات الموقع أو الكاميرا.')
+        if '_edit_window_baseline' not in st.session_state:
+            st.session_state[base+'_snapshot']=fresh['revision']
         st.session_state.setdefault(base+'_snapshot',fresh['revision'])
         expected = st.session_state[base+'_snapshot']
         if expected != fresh['revision']: st.warning('تغيّرت الصورة من مكان آخر. حدّث الصورة قبل الحفظ.')
-        if st.button('تحديث الصورة',key=base+'_refresh'):
-            st.session_state.pop(base+'_snapshot',None); st.rerun()
-        upload = st.file_uploader('اختر صورة الطالب',type=['jpg','jpeg','png','webp'],
+        upload = form.file_uploader('اختر صورة الطالب',type=['jpg','jpeg','png','webp'],
             max_upload_size=5,key=base+'_upload_'+str(expected))
         preview=st.empty()
         problem=st.empty()
@@ -113,20 +124,23 @@ def photo_editor(conn, row, fresh):
                     'style="border-radius:16px" alt="معاينة الصورة الجديدة">'
                     '<p>الصورة الجديدة قبل الحفظ</p></div>',unsafe_allow_html=True)
             except ValueError as error: problem.error(str(error))
-        with st.form(base+'_form_'+str(expected)):
-            reason=st.text_input('سبب تغيير الصورة *',max_chars=2000,key=base+'_reason_'+str(expected))
-            a,b=st.columns(2)
+        with st.container():
+            reason=form.text_input('سبب تغيير الصورة *',max_chars=2000,key=base+'_reason_'+str(expected))
+            a,b=form.columns(2)
             save=a.form_submit_button('حفظ الصورة',type='primary',disabled=bool(text(row.get('archived_at'))),key=base+'_save_'+str(expected))
             confirmed=False; remove=False
             if fresh['image_data'] is not None:
-                confirmed=st.checkbox('أؤكد حذف صورة الطالب فقط، مع بقاء ملفه',key=base+'_confirm_'+str(expected))
+                confirmed=form.checkbox('أؤكد حذف صورة الطالب فقط، مع بقاء ملفه',key=base+'_confirm_'+str(expected))
                 remove=b.form_submit_button('حذف الصورة',key=base+'_remove_'+str(expected))
         if save or remove:
             try:
                 if remove and not confirmed: raise ValueError('أكد حذف الصورة أولًا.')
                 P.save(sid,upload.getvalue() if upload else None,expected=expected,remove=remove,reason=reason)
                 st.session_state.pop(base+'_snapshot',None)
+                ui.finish_edit()
                 st.session_state['student_photo_notice_'+sid]='حُذفت الصورة؛ بقي ملف الطالب محفوظًا.' if remove else 'حُفظت صورة الطالب.'
                 st.rerun()
             except ValueError as error: st.error(str(error))
             except Exception: st.error('تعذّر حفظ الصورة؛ لم يتغير ملف الطالب. حاول مجددًا.')
+
+    ui.edit_window('صورة الطالب',base,edit_photo,label='📷 '+('تغيير / حذف' if fresh['image_data'] is not None else 'إضافة'),conn=conn)

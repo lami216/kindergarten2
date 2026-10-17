@@ -160,14 +160,14 @@ def render(conn):
                 ui.open_record_editor('teacher_payments',int(p_id),'تعديل مبلغ الراتب أو إلغاء الإدخال')
                 salary_snapshot,salary_snapshot_key=ui.edit_snapshot(conn,'teacher_payments',int(p_id),scope='salary_'+str(p_id),widget_prefix='salary_meta_')
                 # Document-only review keeps cash; monetary corrections use the full editor.
-                with st.expander(f"✏️ تصحيح بيانات / إلغاء القسيمة #{p_id}", expanded=False):
-                    with st.form("edit_salary_form"):
-                        ec1, ec2, ec3 = st.columns(3)
+                def review_salary(form):
+                    with st.container():
+                        ec1, ec2, ec3 = form.columns(3)
                         e_month = ec1.text_input("عن شهر", value=sal_row['عن شهر'])
                         e_base = ec2.number_input("الراتب الأساسي", min_value=0.0, value=float(sal_row['الأساسي']), step=50.0, disabled=True)
                         e_bonus = ec3.number_input("المكافأة", min_value=0.0, value=float(sal_row['المكافأة']), step=50.0, disabled=True)
 
-                        ec4, ec5 = st.columns(2)
+                        ec4, ec5 = form.columns(2)
                         e_deductions = ec4.number_input("الخصومات", min_value=0.0, value=float(sal_row['الخصم']), step=50.0, disabled=True)
                         e_notes = ec5.text_input("ملاحظات", value=sal_row['ملاحظات'] or "")
 
@@ -175,9 +175,9 @@ def render(conn):
                         st.caption(f"💡 صافي الراتب الجديد بعد التعديل: **{H.format_money(e_net)} أوقية قديمة**")
 
                         st.caption("التصحيح هنا للبيانات فقط؛ النقد المصروف أصلاً لا يتغير ولا تُعتبر الإزالة استردادًا.")
-                        reason = st.text_input("سبب التصحيح أو الإلغاء *",key=f"payroll_reason_{p_id}")
-                        confirm_document=st.checkbox('أفهم أن إلغاء القسيمة يبقي مبلغ الصرف في الحسابات',key=f'salary_meta_confirm_{p_id}')
-                        btn1, btn2 = st.columns(2)
+                        reason = form.text_input("سبب التصحيح أو الإلغاء *",key=f"payroll_reason_{p_id}")
+                        confirm_document=form.checkbox('أفهم أن إلغاء القسيمة يبقي مبلغ الصرف في الحسابات',key=f'salary_meta_confirm_{p_id}')
+                        btn1, btn2 = form.columns(2)
                         save_edit = btn1.form_submit_button("حفظ التصحيح", type="primary")
                         delete_sal = btn2.form_submit_button("إلغاء القسيمة مع الاحتفاظ بالصرف")
                         if save_edit or delete_sal:
@@ -188,11 +188,14 @@ def render(conn):
                                         reason=reason, cancel=delete_sal, month=e_month, notes=e_notes,expected=R.revision(salary_snapshot))
                                 st.session_state.pop(salary_snapshot_key,None)
                                 st.session_state["salary_saved_notice"] = "تم حفظ قرار التدقيق دون تغيير مبلغ النقد المصروف."
+                                ui.finish_edit()
                                 st.rerun()
                             except ValueError as error:
                                 st.error(str(error))
                             except Exception:
                                 st.error("تعذّر حفظ التصحيح أو الإلغاء.")
+
+                ui.edit_window("تصحيح بيانات القسيمة",f"salary_document_{p_id}",review_salary,conn=conn)
 
     # An advance is a cash event when paid. Later deductions in a salary slip
     # affect its NET salary amount; no second expense is generated for the advance.
@@ -247,13 +250,13 @@ def render(conn):
                 ui.open_record_editor('teacher_advances',int(aid),'تعديل مبلغ السلفة أو إلغاء الإدخال')
                 advance_snapshot,advance_snapshot_key=ui.edit_snapshot(conn,'teacher_advances',int(aid),scope='advance_'+str(aid),widget_prefix='advance_meta_')
                 st.caption("إلغاء المستند يبقي مبلغ الصرف في التقرير. إلغاء إدخال مالي خاطئ من المحرر يزيل أثره من الصرف.")
-                with st.form(f"advance_audit_{aid}"):
-                    corrected_month=st.text_input("شهر الخصم الصحيح",value=entry["شهر الخصم"])
-                    corrected_notes=st.text_input("ملاحظات",value=entry["ملاحظات"] or "")
-                    audit_reason=st.text_input("السبب *")
-                    a,b=st.columns(2)
+                def review_advance(form):
+                    corrected_month=form.text_input("شهر الخصم الصحيح",value=entry["شهر الخصم"])
+                    corrected_notes=form.text_input("ملاحظات",value=entry["ملاحظات"] or "")
+                    audit_reason=form.text_input("السبب *")
+                    a,b=form.columns(2)
                     edit=a.form_submit_button("تصحيح بيانات السلفة")
-                    confirm_advance=st.checkbox('أفهم أن إلغاء مستند السلفة يبقي النقد المصروف',key=f'advance_meta_confirm_{aid}')
+                    confirm_advance=form.checkbox('أفهم أن إلغاء مستند السلفة يبقي النقد المصروف',key=f'advance_meta_confirm_{aid}')
                     void=b.form_submit_button("إلغاء مستند السلفة")
                     if edit or void:
                         try:
@@ -263,8 +266,11 @@ def render(conn):
                                     reason=audit_reason,cancel=void,month=corrected_month,notes=corrected_notes,expected=R.revision(advance_snapshot))
                             st.session_state.pop(advance_snapshot_key,None)
                             st.success("حُفظ التدقيق؛ النقد المصروف محفوظ.")
+                            ui.finish_edit()
                             st.rerun()
                         except ValueError as error:
                             st.error(str(error))
                         except Exception:
                             st.error("تعذّر حفظ تدقيق السلفة.")
+
+                ui.edit_window("تصحيح بيانات السلفة",f"advance_document_{aid}",review_advance,conn=conn)

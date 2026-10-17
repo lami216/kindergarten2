@@ -6,6 +6,7 @@ import records as R
 
 ACTIONS={'created':'إضافة','updated':'تعديل','cancelled':'إلغاء / حذف','deleted':'حذف'}
 FIELD_NAMES={
+    "due_at_period_end":"استحقاق الشهرية عند اكتمال الشهر",
     'image_sha256':'بصمة الصورة','width':'عرض الصورة','height':'ارتفاع الصورة',
     'byte_size':'حجم الصورة بالبايت','mime_type':'نوع الصورة',
     'name':'اسم القسم','full_name':'الاسم','birth_date':'تاريخ الميلاد','gender':'الجنس',

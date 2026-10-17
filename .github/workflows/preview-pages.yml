@@ -32,6 +32,7 @@ jobs:
           node --check docs/preview.js
           node --check docs/access-preview.js
           node --check docs/student-profile.js
+          node --check docs/edit-windows.js
       - name: Build static preview
         run: |
           python - <<'PY'
@@ -43,7 +44,7 @@ jobs:
           output = Path('dist')
           output.mkdir(exist_ok=True)
           files = (
-              'index.html', 'preview.css', 'preview.js', 'access-preview.js', 'student-profile.js', 'school-logo.jpg',
+              'index.html', 'preview.css', 'preview.js', 'access-preview.js', 'student-profile.js', 'edit-windows.js', 'school-logo.jpg',
               'IBMPlexSansArabic-Regular.ttf', 'IBM_Plex_Sans_Arabic_OFL.txt',
               '.nojekyll',
           )
@@ -60,6 +61,7 @@ jobs:
           html = html.replace('src="preview.js"', f'src="preview.js?v={version}"')
           html = html.replace('src="access-preview.js"', f'src="access-preview.js?v={version}"')
           html = html.replace('src="student-profile.js"', f'src="student-profile.js?v={version}"')
+          html = html.replace('src="edit-windows.js"', f'src="edit-windows.js?v={version}"')
           index.write_text(html, encoding='utf-8')
           print(f'Built {len(files)} preview assets in dist/')
           PY

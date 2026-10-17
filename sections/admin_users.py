@@ -6,15 +6,15 @@ import records as R
 import ui
 
 
-def permission_fields(prefix,selected=()):
+def permission_fields(prefix,selected=(),widgets=st):
     values=[]
     for resource,(label,actions) in A.RESOURCES.items():
         with st.container(key=f'{prefix}_{resource}_group'):
             with st.expander(label,expanded=any(resource+'.'+a in selected for a in actions)):
-                columns=st.columns(2)
+                columns=widgets.columns(2)
                 for index,action in enumerate(actions):
                     with columns[index%2]:
-                        if st.checkbox(A.ACTIONS[action],value=resource+'.'+action in selected,
+                        if widgets.checkbox(A.ACTIONS[action],value=resource+'.'+action in selected,
                             key=f'{prefix}_{resource}_{action}'):
                             values.append(resource+'.'+action)
     st.caption('التعديل والإلغاء يضيفان حق العرض تلقائيًا. تسجيل الدفعات أو الرواتب يتطلب عرض حساباتها. التقارير إذن مستقل يكشف المجاميع المالية.')
@@ -64,25 +64,28 @@ def render(conn):
             if fresh['auth_version']!=original['auth_version']: st.warning('تغير هذا الحساب. حدّث بياناته قبل الحفظ.')
             if st.button('تحديث بيانات الحساب',key='admin_refresh'):
                 st.session_state.pop('admin_snapshot_id',None); st.rerun()
-            with st.form('admin_edit_user'):
-                employee=st.text_input('اسم العامل',value=original['employee_name'],key='admin_edit_name')
-                st.caption('اسم المستخدم ثابت: '+original['username'])
-                active=st.checkbox('الحساب مفعل',value=original['active'],key='admin_edit_active')
-                manager=st.checkbox('مدير بجميع الصلاحيات',value=original['is_admin'],key='admin_edit_manager')
-                password=st.text_input('كلمة مرور جديدة (اتركها فارغة للإبقاء على الحالية)',type='password',key='admin_edit_password')
-                perms=permission_fields('admin_edit_grants',original['permissions'])
-                st.caption('حفظ أي تغيير ينهي جلسات هذا الحساب؛ يدخل مجددًا بصلاحياته الجديدة. تعطيل الحساب يحفظ أعماله وهويته السابقة.')
-                confirm=st.checkbox('أؤكد تغيير صلاحيات هذا الحساب',key='admin_edit_confirm')
-                save=st.form_submit_button('حفظ الحساب والصلاحيات',type='primary')
-            if save:
-                try:
-                    if not confirm: raise ValueError('أكد تغيير صلاحيات الحساب.')
-                    A.save_user(user_id=chosen,employee_name=employee,password=password or None,is_admin=manager,
-                        permissions=perms,active=active,expected_version=original['auth_version'])
-                    st.session_state.pop('admin_snapshot_id',None)
-                    st.session_state['admin_notice']='حُفظ الحساب وأُبطلت جلساته القديمة.'
-                    st.rerun()
-                except ValueError as error: st.error(str(error))
+            def edit_account(form):
+                with st.container():
+                    employee=form.text_input('اسم العامل',value=original['employee_name'],key='admin_edit_name')
+                    st.caption('اسم المستخدم ثابت: '+original['username'])
+                    active=form.checkbox('الحساب مفعل',value=original['active'],key='admin_edit_active')
+                    manager=form.checkbox('مدير بجميع الصلاحيات',value=original['is_admin'],key='admin_edit_manager')
+                    password=form.text_input('كلمة مرور جديدة (اتركها فارغة للإبقاء على الحالية)',type='password',key='admin_edit_password')
+                    perms=permission_fields('admin_edit_grants',original['permissions'],form)
+                    st.caption('حفظ أي تغيير ينهي جلسات هذا الحساب؛ يدخل مجددًا بصلاحياته الجديدة. تعطيل الحساب يحفظ أعماله وهويته السابقة.')
+                    confirm=form.checkbox('أؤكد تغيير صلاحيات هذا الحساب',key='admin_edit_confirm')
+                    save=form.form_submit_button('حفظ الحساب والصلاحيات',type='primary')
+                if save:
+                    try:
+                        if not confirm: raise ValueError('أكد تغيير صلاحيات الحساب.')
+                        A.save_user(user_id=chosen,employee_name=employee,password=password or None,is_admin=manager,
+                            permissions=perms,active=active,expected_version=original['auth_version'])
+                        st.session_state.pop('admin_snapshot_id',None)
+                        st.session_state['admin_notice']='حُفظ الحساب وأُبطلت جلساته القديمة.'
+                        ui.finish_edit()
+                        st.rerun()
+                    except ValueError as error: st.error(str(error))
+            ui.edit_window("تعديل الحساب والصلاحيات","admin_user_"+chosen,edit_account,conn=conn)
     with usage:
         who=st.selectbox('العامل',list(labels),format_func=labels.get,key='admin_activity_user')
         user=next(u for u in users if str(u['user_id'])==who)

@@ -125,6 +125,7 @@ def test_expense_lower_total_preserves_paid_and_recovers_in_same_form(ledger):
     conn,marker=ledger;ident=expense(conn,marker);before=row(conn,'expenses',ident)
     app=app_for('expenses')
     widget(app,'selectbox','اختر المصروف لتعديله، تسديد الدين، أو الحذف:').set_value(ident).run(timeout=30)
+    widget(app,'button','تصحيح المصروف').click().run(timeout=30)
     assert widget(app,'text_input','المورد').value==''
     assert widget(app,'text_area','ملاحظات').value==''
     counts=[scalar(conn,f'SELECT COUNT(*) FROM {table} WHERE expense_id=%s',(ident,))

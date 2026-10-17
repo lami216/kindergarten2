@@ -250,6 +250,7 @@ conn.close()
     app=AppTest.from_string(script).run(timeout=40)
     app.selectbox(key='records_type').set_value('school_departments').run(timeout=40)
     app.selectbox(key='records_pick_school_departments').set_value(dept).run(timeout=40)
+    next(b for b in app.button if b.label=='تعديل / إلغاء السجل').click().run(timeout=40)
     assert not app.exception
     label=next(t for t in app.text_input if t.label=='اسم القسم')
     label.set_value(marker+' UI edited')
@@ -259,8 +260,10 @@ conn.close()
     assert row(conn,'school_departments',dept)['name']==marker+' UI edited'
     app.selectbox(key='records_type').set_value('students').run(timeout=40)
     app.selectbox(key='records_pick_students').set_value(sid).run(timeout=40)
+    next(b for b in app.button if b.label=='تعديل / إلغاء السجل').click().run(timeout=40)
     assert not app.exception
     assert any(t.label=='الاسم' for t in app.text_input)
+    next(b for b in app.button if b.label=='إغلاق دون حفظ').click().run(timeout=40)
     for table in ('assets','expenses','teachers','classes','academic_years','registrations','monthly_receipts','payments','teacher_payments','teacher_advances','monthly_accounts','monthly_waivers','monthly_tariffs'):
         app.selectbox(key='records_type').set_value(table).run(timeout=40)
         assert not app.exception,table

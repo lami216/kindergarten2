@@ -65,7 +65,7 @@ async def open_student(page,name,*,include_archived=False):
     if include_archived:
         await expect(page.get_by_text("الطالب مؤرشف",exact=False).first).to_be_visible(timeout=20000)
     else:
-        await page.get_by_text("⚙️ تعديل بيانات:",exact=False).click()
+        await page.get_by_role("button",name="تعديل بيانات الطالب",exact=True).click()
         await expect(page.get_by_role("button",name="🗑️ حذف الطالب")).to_be_visible(timeout=15000)
 
 

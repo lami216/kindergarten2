@@ -150,45 +150,48 @@ def render(conn):
 
                 col_edit, col_del = st.columns([2, 1])
                 with col_edit:
-                    st.markdown("##### ✏️ تعديل البيانات وحالة السداد")
-                    with st.form(f"edit_exp_{selected_id}"):
-                        try:
-                            curr_date = datetime.strptime(str(exp_data["expense_date"]), "%Y-%m-%d").date()
-                        except Exception:
-                            curr_date = business_today()
-
-                        e_date = st.date_input("التاريخ", value=curr_date)
-                        e_cat = st.text_input("اسم المصروف *", value=exp_data["category"] or "", max_chars=100).strip()
-                        e_amt = st.number_input("إجمالي الفاتورة", value=float(exp_data["amount"]), step=10.0, format="%.2f")
-
-                        curr_status_idx = PAYMENT_STATUSES.index(exp_data["payment_status"]) if exp_data["payment_status"] in PAYMENT_STATUSES else 0
-                        e_status = st.selectbox("حالة الدفع", PAYMENT_STATUSES, index=curr_status_idx)
-
-                        # Keep recorded cash editable even when the total is
-                        # temporarily lower; validate the relation on submission.
-                        e_paid = st.number_input("المبلغ المدفوع فعلياً", value=float(exp_data["amount_paid"]), min_value=0.0, step=10.0, format="%.2f")
-
-                        e_payee = st.text_input("المورد", value=exp_data["payee"] or "")
-                        e_notes = st.text_area("ملاحظات", value=exp_data["notes"] or "", height=70)
-
-                        st.caption("هذا تصحيح لقيد محفوظ، وليس تسوية أو استرداد نقد جديد.")
-                        correction_reason=st.text_input("سبب تصحيح القيد *")
-                        if st.form_submit_button("حفظ تصحيح القيد", type="primary", use_container_width=True):
+                    def correct_expense(form):
+                        with st.container():
                             try:
-                                key=f"expense_correct_token_{selected_id}"
-                                st.session_state.setdefault(key,str(uuid.uuid4()))
-                                E.correct(selected_id,amount_total=e_amt,amount_paid=e_paid,
-                                    category=e_cat,expense_date=e_date,payee=e_payee,
-                                    notes=e_notes,reason=correction_reason,
-                                    actor=st.session_state.get("auth_user","مديرة الروضة"),
-                                    token=st.session_state[key])
-                                st.session_state[key]=str(uuid.uuid4())
-                                st.success("حُفظ التصحيح وسجل التدقيق دون اختلاق حركة نقدية اليوم.")
-                                st.rerun()
-                            except ValueError as error:
-                                st.error(str(error))
+                                curr_date = datetime.strptime(str(exp_data["expense_date"]), "%Y-%m-%d").date()
                             except Exception:
-                                st.error("تعذّر تصحيح المصروف؛ لم تتغير الأدلة.")
+                                curr_date = business_today()
+
+                            e_date = form.date_input("التاريخ", value=curr_date)
+                            e_cat = form.text_input("اسم المصروف *", value=exp_data["category"] or "", max_chars=100).strip()
+                            e_amt = form.number_input("إجمالي الفاتورة", value=float(exp_data["amount"]), step=10.0, format="%.2f")
+
+                            curr_status_idx = PAYMENT_STATUSES.index(exp_data["payment_status"]) if exp_data["payment_status"] in PAYMENT_STATUSES else 0
+                            e_status = form.selectbox("حالة الدفع", PAYMENT_STATUSES, index=curr_status_idx)
+
+                            # Keep recorded cash editable even when the total is
+                            # temporarily lower; validate the relation on submission.
+                            e_paid = form.number_input("المبلغ المدفوع فعلياً", value=float(exp_data["amount_paid"]), min_value=0.0, step=10.0, format="%.2f")
+
+                            e_payee = form.text_input("المورد", value=exp_data["payee"] or "")
+                            e_notes = form.text_area("ملاحظات", value=exp_data["notes"] or "", height=70)
+
+                            st.caption("هذا تصحيح لقيد محفوظ، وليس تسوية أو استرداد نقد جديد.")
+                            correction_reason=form.text_input("سبب تصحيح القيد *")
+                            if form.form_submit_button("حفظ تصحيح القيد", type="primary", use_container_width=True):
+                                try:
+                                    key=f"expense_correct_token_{selected_id}"
+                                    st.session_state.setdefault(key,str(uuid.uuid4()))
+                                    E.correct(selected_id,amount_total=e_amt,amount_paid=e_paid,
+                                        category=e_cat,expense_date=e_date,payee=e_payee,
+                                        notes=e_notes,reason=correction_reason,
+                                        actor=st.session_state.get("auth_user","مديرة الروضة"),
+                                        token=st.session_state[key])
+                                    st.session_state[key]=str(uuid.uuid4())
+                                    st.success("حُفظ التصحيح وسجل التدقيق دون اختلاق حركة نقدية اليوم.")
+                                    ui.finish_edit()
+                                    st.rerun()
+                                except ValueError as error:
+                                    st.error(str(error))
+                                except Exception:
+                                    st.error("تعذّر تصحيح المصروف؛ لم تتغير الأدلة.")
+
+                    ui.edit_window("تصحيح المصروف",f"expense_{selected_id}",correct_expense,conn=conn)
 
                 with col_del:
                     st.markdown("##### 🚨 إجراءات الديون والحذف")

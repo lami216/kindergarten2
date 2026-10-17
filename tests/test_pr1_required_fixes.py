@@ -109,6 +109,7 @@ class RequiredFixesPostgresTest(unittest.TestCase):
             selected = next(x for x in app.selectbox if x.key == "student_select_edit")
             # Native tuple value=(student_id, display name).
             selected.set_value((sid, "طفل بيانات قديمة")).run(timeout=20)
+            app.button(key="open_dialog_student_"+sid).click().run(timeout=20)
             self.assertEqual(len(app.exception), 0)
             self.assertEqual(app.text_area(key=f"edit_{sid}_health").value, "")
             self.assertEqual(app.text_input(key=f"edit_{sid}_place").value, "")
@@ -142,12 +143,14 @@ class RequiredFixesPostgresTest(unittest.TestCase):
         with patch.object(db, "new_transaction_connection", side_effect=_connect):
             app = AppTest.from_string(SCRIPT).run(timeout=20)
             app.selectbox(key="student_select_edit").set_value((sid, "طفل صحي")).run(timeout=20)
+            app.button(key="open_dialog_student_"+sid).click().run(timeout=20)
             app.text_area(key=f"edit_{sid}_health").set_value("تنبيه صحّي")
             next(b for b in app.button if b.label == "💾 حفظ التعديلات").click().run(timeout=20)
             self.assertEqual(len(app.exception), 0)
             with self.conn.cursor() as cur:
                 cur.execute("SELECT has_medical_condition FROM students WHERE student_id=%s",(sid,))
                 self.assertEqual(cur.fetchone()["has_medical_condition"],1)
+            app.button(key="open_dialog_student_"+sid).click().run(timeout=20)
             app.text_area(key=f"edit_{sid}_health").set_value("")
             next(b for b in app.button if b.label == "💾 حفظ التعديلات").click().run(timeout=20)
             self.assertEqual(len(app.exception), 0)
@@ -212,10 +215,13 @@ class RequiredFixesPostgresTest(unittest.TestCase):
         app = AppTest.from_string(SCRIPT).run(timeout=20)
         app.selectbox(key="student_select_edit").set_value(
             (first_id, "طفل ممتلئ")).run(timeout=20)
+        app.button(key="open_dialog_student_"+first_id).click().run(timeout=20)
         self.assertEqual(app.text_area(key=f"edit_{first_id}_health").value, "نص صحي")
+        app.button(key='close_dialog_student_'+first_id).click().run(timeout=20)
         app.button(key='student_file_back').click().run(timeout=20)
         app.selectbox(key="student_select_edit").set_value(
             (second_id, "طفل فارغ")).run(timeout=20)
+        app.button(key="open_dialog_student_"+second_id).click().run(timeout=20)
         for key in ("health", "allergy", "notes"):
             self.assertEqual(app.text_area(key=f"edit_{second_id}_{key}").value, "")
         app.text_input(key=f"edit_{second_id}_name").set_value("طفل فارغ معدل")

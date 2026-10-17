@@ -75,74 +75,78 @@ def render(conn,*,allowed_tables=None):
         st.info('هذا الإدخال ملغى أو محذوف. أصله محفوظ في سجل التغييرات.')
         ui.dataframe([{'الحقل':FIELD_NAMES[k],'القيمة':str(v if v is not None else '—')} for k,v in row.items() if k in FIELD_NAMES],hide_index=True,use_container_width=True)
         return
-    version=st.session_state['records_form_version']
-    if A.can(A.table_permission(table,'edit')):
-        fields=R.FIELDS.get(table,FINANCE.get(table,()))
+    def edit_record(form):
         version=st.session_state['records_form_version']
-        with conn.cursor() as c:
-            c.execute('SELECT column_name,data_type,character_maximum_length FROM information_schema.columns WHERE table_schema=current_schema() AND table_name=%s',(table,))
-            types={r['column_name']:r for r in c.fetchall()}
-        with st.form('records_edit_'+str(version)):
-            values={}
-            primary={
-                'students':('full_name','birth_date','gender','father_id','address'),
-                'parents':('father_name','father_mobile','mother_name','mother_mobile','contact_email'),
-                'teachers':('full_name','national_id','salary','mobile'),
-                'assets':('item_name','category','quantity','unit_cost','condition_status'),
-            }.get(table,fields)
-            def inputs(group):
-                cols=st.columns(2)
-                for i,field in enumerate(group):
-                    with cols[i%2]: values[field]=_input(conn,table,field,row.get(field),types[field],version)
-            inputs(primary)
-            extra=[field for field in fields if field not in primary]
-            if extra:
-                with st.expander('تفاصيل إضافية'+(' · الصحة والاستلام' if table=='students' else '')):
-                    inputs(extra)
-            if table=='students' and row.get('has_medical_condition') and not row.get('medical_details'):
-                values['_clear_legacy_medical']=st.checkbox('إزالة علامة الحالة الصحية القديمة',key=f'clear_health_{version}')
-            reason=st.text_input('سبب التعديل *',max_chars=2000)
-            confirmed=True
-            if table in FINANCE:
-                confirmed=st.checkbox('أؤكد تعديل الاشتراك / الإعفاء دون تسجيل قبض' if table in ('monthly_accounts','monthly_waivers')
-                    else 'أؤكد أن هذا تصحيح لبيانات أدخلت خطأ، وأن المبلغ المصحح هو المبلغ الفعلي')
-            save=st.form_submit_button('حفظ التعديل',type='primary')
-        if save:
-            try:
-                if not confirmed: raise ValueError('أكد صحة المبلغ المصحح.')
-                _edit(table,chosen,values,row,reason)
-                _done('تم حفظ التعديل وتحديث الحسابات المرتبطة.')
-            except (ValueError,PermissionError) as error: st.error(str(error))
-            except Exception: st.error('تعذر الحفظ؛ لم يُطبّق التعديل جزئيًا.')
-    if A.can(A.table_permission(table,'delete')):
-        with st.expander('حذف / إلغاء السجل'):
-            st.caption('يزول من القوائم الحالية. بياناته السابقة وقرار الحذف يبقيان في سجل التغييرات.')
-            if table in ('teacher_payments','teacher_advances','expenses','payments'):
-                value=row.get('cash_amount') if row.get('cash_amount') is not None else row.get('amount_paid',row.get('amount',0))
-                st.warning(f'هذا إلغاء لإدخال مالي خاطئ: سيُزال أثره من النقد المسجل ({value:,} أوقية قديمة). لا يعني استرجاع نقد فعلي.')
-                if table in ('teacher_payments','teacher_advances'):
-                    st.caption('إذا كان المطلوب إلغاء المستند مع بقاء النقد المصروف، استخدم مراجعة القسيمة في صفحة الرواتب.')
-            destination=None
-            waiver=False
-            if table=='school_departments':
-                with conn.cursor() as c:
-                    c.execute('SELECT department_id,name FROM school_departments WHERE archived_at IS NULL AND department_id<>%s ORDER BY name',(chosen,))
-                    destinations={r['department_id']:r['name'] for r in c.fetchall()}
-                destination=st.selectbox('الأطفال الموجودون في القسم',[None]+list(destinations),
-                    format_func=lambda x:'تركهم بدون قسم' if x is None else 'نقلهم إلى '+destinations[x])
-            if table=='students':
-                waiver=st.checkbox('إسقاط أي مبلغ متبقٍ على الطالب عند إلغاء الملف (لا يُسجل كقبض)') if A.can('accounts.delete') else False
-                st.caption('الدفعات المقبوضة تبقى؛ لإلغاء دفعة خاطئة افتح الوصل نفسه.')
-            if table=='parents': st.caption('يبقى ارتباط الأطفال بهذا السجل محفوظًا؛ يمكن اختيار ولي أمر آخر من تعديل الطالب.')
-            if table=='registrations': st.caption('يلغى أثر الوصولات السنوية التابعة لهذا التسجيل كذلك.')
-            why=st.text_input('سبب الحذف أو الإلغاء *',max_chars=2000,key='records_delete_reason_'+str(version))
-            agree=st.checkbox('أؤكد إلغاء الإدخال المالي وإزالة أثره من النقد' if table in ('teacher_payments','teacher_advances','expenses','payments') else 'أؤكد إلغاء هذا الإدخال',key='records_delete_agree_'+str(version))
-            if st.button('تأكيد الحذف / الإلغاء',disabled=not agree,key='records_delete_'+str(version)):
+        if A.can(A.table_permission(table,'edit')):
+            fields=R.FIELDS.get(table,FINANCE.get(table,()))
+            version=st.session_state['records_form_version']
+            with conn.cursor() as c:
+                c.execute('SELECT column_name,data_type,character_maximum_length FROM information_schema.columns WHERE table_schema=current_schema() AND table_name=%s',(table,))
+                types={r['column_name']:r for r in c.fetchall()}
+            with st.container():
+                values={}
+                primary={
+                    'students':('full_name','birth_date','gender','father_id','address'),
+                    'parents':('father_name','father_mobile','mother_name','mother_mobile','contact_email'),
+                    'teachers':('full_name','national_id','salary','mobile'),
+                    'assets':('item_name','category','quantity','unit_cost','condition_status'),
+                }.get(table,fields)
+                def inputs(group):
+                    cols=form.columns(2)
+                    for i,field in enumerate(group):
+                        with cols[i%2]: values[field]=_input(conn,table,field,row.get(field),types[field],version,form)
+                inputs(primary)
+                extra=[field for field in fields if field not in primary]
+                if extra:
+                    with st.expander('تفاصيل إضافية'+(' · الصحة والاستلام' if table=='students' else '')):
+                        inputs(extra)
+                if table=='students' and row.get('has_medical_condition') and not row.get('medical_details'):
+                    values['_clear_legacy_medical']=form.checkbox('إزالة علامة الحالة الصحية القديمة',key=f'clear_health_{version}')
+                reason=form.text_input('سبب التعديل *',max_chars=2000)
+                confirmed=True
+                if table in FINANCE:
+                    confirmed=form.checkbox('أؤكد تعديل الاشتراك / الإعفاء دون تسجيل قبض' if table in ('monthly_accounts','monthly_waivers')
+                        else 'أؤكد أن هذا تصحيح لبيانات أدخلت خطأ، وأن المبلغ المصحح هو المبلغ الفعلي')
+                save=form.form_submit_button('حفظ التعديل',type='primary')
+            if save:
                 try:
-                    _cancel(table,chosen,row,why,destination,waiver)
-                    _done('تم الإلغاء؛ العملية محفوظة في سجل التغييرات.')
+                    if not confirmed: raise ValueError('أكد صحة المبلغ المصحح.')
+                    _edit(table,chosen,values,row,reason)
+                    _done('تم حفظ التعديل وتحديث الحسابات المرتبطة.')
                 except (ValueError,PermissionError) as error: st.error(str(error))
-                except Exception: st.error('تعذر الإلغاء؛ لم يتغير السجل جزئيًا.')
+                except Exception: st.error('تعذر الحفظ؛ لم يُطبّق التعديل جزئيًا.')
+        if A.can(A.table_permission(table,'delete')):
+            with st.expander('حذف / إلغاء السجل'):
+                st.caption('يزول من القوائم الحالية. بياناته السابقة وقرار الحذف يبقيان في سجل التغييرات.')
+                if table in ('teacher_payments','teacher_advances','expenses','payments'):
+                    value=row.get('cash_amount') if row.get('cash_amount') is not None else row.get('amount_paid',row.get('amount',0))
+                    st.warning(f'هذا إلغاء لإدخال مالي خاطئ: سيُزال أثره من النقد المسجل ({value:,} أوقية قديمة). لا يعني استرجاع نقد فعلي.')
+                    if table in ('teacher_payments','teacher_advances'):
+                        st.caption('إذا كان المطلوب إلغاء المستند مع بقاء النقد المصروف، استخدم مراجعة القسيمة في صفحة الرواتب.')
+                destination=None
+                waiver=False
+                if table=='school_departments':
+                    with conn.cursor() as c:
+                        c.execute('SELECT department_id,name FROM school_departments WHERE archived_at IS NULL AND department_id<>%s ORDER BY name',(chosen,))
+                        destinations={r['department_id']:r['name'] for r in c.fetchall()}
+                    destination=form.selectbox('الأطفال الموجودون في القسم',[None]+list(destinations),
+                        format_func=lambda x:'تركهم بدون قسم' if x is None else 'نقلهم إلى '+destinations[x])
+                if table=='students':
+                    waiver=form.checkbox('إسقاط أي مبلغ متبقٍ على الطالب عند إلغاء الملف (لا يُسجل كقبض)') if A.can('accounts.delete') else False
+                    st.caption('الدفعات المقبوضة تبقى؛ لإلغاء دفعة خاطئة افتح الوصل نفسه.')
+                if table=='parents': st.caption('يبقى ارتباط الأطفال بهذا السجل محفوظًا؛ يمكن اختيار ولي أمر آخر من تعديل الطالب.')
+                if table=='registrations': st.caption('يلغى أثر الوصولات السنوية التابعة لهذا التسجيل كذلك.')
+                why=form.text_input('سبب الحذف أو الإلغاء *',max_chars=2000,key='records_delete_reason_'+str(version))
+                agree=form.checkbox('أؤكد إلغاء الإدخال المالي وإزالة أثره من النقد' if table in ('teacher_payments','teacher_advances','expenses','payments') else 'أؤكد إلغاء هذا الإدخال',key='records_delete_agree_'+str(version))
+                if st.button('تأكيد الحذف / الإلغاء',disabled=not agree,key='records_delete_'+str(version)):
+                    try:
+                        _cancel(table,chosen,row,why,destination,waiver)
+                        _done('تم الإلغاء؛ العملية محفوظة في سجل التغييرات.')
+                    except (ValueError,PermissionError) as error: st.error(str(error))
+                    except Exception: st.error('تعذر الإلغاء؛ لم يتغير السجل جزئيًا.')
+
+    if A.can(A.table_permission(table,"edit")) or A.can(A.table_permission(table,"delete")):
+        ui.edit_window("تعديل / إلغاء السجل",scope,edit_record,opened=st.session_state.pop("records_auto_edit",False),conn=conn)
     if A.can('history.view') and st.button('عرض سجل تغييرات هذا السجل'):
         st.session_state['history_target']=(table,str(chosen))
         st.session_state['current_page']='history'; st.rerun()
@@ -168,7 +172,7 @@ def _title(row,table):
     return f'{name}{suffix}'+(' · ملغى' if _cancelled(row,table) else '')
 
 
-def _input(conn,table,field,value,meta,version):
+def _input(conn,table,field,value,meta,version,widgets=st):
     label=FIELD_NAMES.get(field,{'payer_name':'الدافع','payment_for':'نوع الدفعة','payment_for_other':'تفاصيل الدفعة'}.get(field,field))
     key=f'record_field_{version}_{field}'
     display={'teachers':('national_id','display_national_id'),'academic_years':('year_id','display_year_id')}.get(table)
@@ -184,24 +188,24 @@ def _input(conn,table,field,value,meta,version):
             c.execute(sql.SQL('SELECT {} AS key,{} AS name FROM {} WHERE archived_at IS NULL OR {}=%s').format(sql.Identifier(pk),sql.SQL(description),sql.Identifier(target),sql.Identifier(pk)),(value,))
             options={r['key']:r['name'] for r in c.fetchall()}
         items=[None]+list(options)
-        return st.selectbox(label,items,index=items.index(value) if value in items else 0,
+        return widgets.selectbox(label,items,index=items.index(value) if value in items else 0,
                             format_func=lambda x:'بدون' if x is None else str(options[x])+(f' · {x}' if list(options.values()).count(options[x])>1 else ''),key=key)
     kind=meta['data_type']
     if table=='monthly_accounts' and field=='status':
-        return st.selectbox(label,['regular','exempt'],index=0 if value=='regular' else 1,
+        return widgets.selectbox(label,['regular','exempt'],index=0 if value=='regular' else 1,
                             format_func=lambda x:'عادي' if x=='regular' else 'معفي',key=key)
     if kind=='date':
-        return st.date_input(label,value=value or None,min_value=date(1900,1,1),max_value=date(2100,12,31),key=key)
+        return widgets.date_input(label,value=value or None,min_value=date(1900,1,1),max_value=date(2100,12,31),key=key)
     if kind in ('integer','bigint','numeric'):
-        if kind=='numeric': return st.number_input(label,value=float(value or 0),step=1.0,format='%.2f',key=key)
-        return st.number_input(label,value=int(value or 0),step=1,key=key)
+        if kind=='numeric': return widgets.number_input(label,value=float(value or 0),step=1.0,format='%.2f',key=key)
+        return widgets.number_input(label,value=int(value or 0),step=1,key=key)
     if field=='authorized_pickups':
         import pandas as pd
         data=pd.DataFrame(value or [],columns=['name','phone'])
-        edited=st.data_editor(data,num_rows='dynamic',hide_index=True,
+        edited=widgets.data_editor(data,num_rows='dynamic',hide_index=True,
             column_config={'name':st.column_config.TextColumn('الاسم'),'phone':st.column_config.TextColumn('الهاتف')},key=key)
         return edited.fillna('').to_dict('records')
-    return st.text_input(label,value=str(value or ''),max_chars=meta['character_maximum_length'] or 4000,key=key)
+    return widgets.text_input(label,value=str(value or ''),max_chars=meta['character_maximum_length'] or 4000,key=key)
 
 
 def _edit(table,ident,values,row,reason):
@@ -254,6 +258,7 @@ def _cancel(table,ident,row,reason,destination,waiver):
 
 
 def _done(message):
+    ui.finish_edit()
     st.session_state['records_notice']=message
     st.session_state.pop('records_open',None)
     st.rerun()
@@ -274,13 +279,15 @@ def _tariffs(conn):
     if dict(fresh)!=settings: st.warning('تغيّرت الرسوم بعد فتح النموذج؛ حدّث البيانات قبل الحفظ.')
     if st.button('تحديث بيانات الرسوم'):
         st.session_state.pop('records_open',None); st.rerun()
-    with st.form('record_tariffs_'+str(version)):
-        vals={key:st.number_input(FIELD_NAMES[key],min_value=0 if key!='tuition' else 1,value=int(settings.get(key,1 if key=='tuition' else 0)),step=1,key=f'record_tariff_{version}_{key}') for key in ('registration','gilet','tuition')}
-        reason=st.text_input('سبب تعديل الرسوم *')
-        if st.form_submit_button('حفظ الرسوم',type='primary'):
+    def edit_tariffs(form):
+        vals={key:form.number_input(FIELD_NAMES[key],min_value=0 if key!='tuition' else 1,value=int(settings.get(key,1 if key=='tuition' else 0)),step=1,key=f'record_tariff_{version}_{key}') for key in ('registration','gilet','tuition')}
+        reason=form.text_input('سبب تعديل الرسوم *')
+        if form.form_submit_button('حفظ الرسوم',type='primary'):
             try:
                 if not reason.strip(): raise ValueError('أدخل سبب التعديل.')
                 F.update_tariffs(**vals,actor=_actor(),reason=reason,expected=R.revision(settings))
                 _done('تم حفظ الرسوم الجديدة؛ أسعار الفواتير السابقة محفوظة.')
             except ValueError as error: st.error(str(error))
     st.caption('الرسوم إعداد دائم. يمكنك استعادة الأسعار السابقة من سجل التغييرات وإدخالها هنا، أو جعل رسوم التسجيل والجيليه صفرًا.')
+
+    ui.edit_window("تعديل الرسوم", "record_tariffs",edit_tariffs,conn=conn)

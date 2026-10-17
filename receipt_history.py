@@ -143,7 +143,7 @@ def receipt_impact(conn, receipt_id, *, new_amount=None,
         raise ValueError("اسم الدافع غير صالح.")
     student=row["student_id"]
     with conn.cursor() as c:
-        c.execute("""SELECT status,start_date,departure_on FROM monthly_accounts
+        c.execute("""SELECT status,start_date,departure_on,due_at_period_end FROM monthly_accounts
                      WHERE student_id=%s""",(student,))
         account=c.fetchone()
         if not account or account["status"]!="regular":
@@ -200,7 +200,7 @@ def receipt_impact(conn, receipt_id, *, new_amount=None,
         allocated=min(cash_left,owed)
         if allocated:
             label=f"الشهر {index+1}: {p['starts']} — {p['ends']}"
-            prospective.append({"kind":"month","label":label,"start":p["starts"],
+            prospective.append({"kind":"month","label":label,"start":p["starts"],"end":p["ends"],
                 "price":int(p["price"]),"previously_paid":int(p["paid"]),
                 "waived":int(p["waived"]),"amount":allocated})
             cash_left-=allocated
@@ -211,9 +211,9 @@ def receipt_impact(conn, receipt_id, *, new_amount=None,
     cutoff=min(today(),account["departure_on"]) if account["departure_on"] else today()
     # The original receipt was valid and recognized before replacement.
     original_due_coverage=sum(int(x["amount"]) for x in data["items"]
-        if x["fee_kind"] or (x["starts"] and x["starts"]<=cutoff))
+        if x["fee_kind"] or ((x["ends"] if account.get("due_at_period_end") else x["starts"]) and (x["ends"] if account.get("due_at_period_end") else x["starts"])<=cutoff))
     corrected_due_coverage=sum(x["amount"] for x in prospective
-        if x["kind"]!="month" or x["start"]<=cutoff)
+        if x["kind"]!="month" or (x["end"] if account.get("due_at_period_end") else x["start"])<=cutoff)
     projected_due=(int(current["due_now"])+original_due_coverage-
                    corrected_due_coverage) if current else None
     return {"revision":receipt_revision(conn,student),"receipt":data,

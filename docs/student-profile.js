@@ -47,8 +47,8 @@ bind=function(){
   const sid=profileId;let prepared=null,preparing=false,selection=0;
   $('#profile-photo-file').onchange=async e=>{
    const current=++selection;preparing=true;prepared=null;$('#profile-photo-preview').textContent='';$('#profile-photo-error').textContent='';
-   try{const p=await normalizePortrait(e.target.files[0]);if(current!==selection)return;prepared=p;$('#profile-photo-preview').innerHTML=`<img class="file-preview" src="${p.data}" alt="معاينة صورة الطالب قبل الحفظ">`;}
-   catch(error){if(current===selection)$('#profile-photo-error').textContent=error.message;}
+   try{const p=await normalizePortrait(e.target.files[0]);if(current!==selection||!f.isConnected)return;prepared=p;$('#profile-photo-preview').innerHTML=`<img class="file-preview" src="${p.data}" alt="معاينة صورة الطالب قبل الحفظ">`;}
+   catch(error){if(current===selection&&f.isConnected)$('#profile-photo-error').textContent=error.message;}
    finally{if(current===selection)preparing=false;}
   };
   f.onsubmit=e=>{
@@ -85,7 +85,7 @@ bindStudentForm=function(){
  profileBindStudentForm();const f=$('#student-form'),submit=f.onsubmit;let prepared=null,invalid=false,busy=false,selection=0;
  f.querySelector('[name="photo"]').onchange=async e=>{
   const current=++selection;prepared=null;invalid=false;busy=true;
-  try{if(!e.target.files.length){$('#intake-photo-preview').textContent='';return;}const p=await normalizePortrait(e.target.files[0]);if(current!==selection)return;prepared=p;$('#intake-photo-preview').innerHTML=`<img class="file-preview" src="${p.data}" alt="معاينة صورة الطفل">`;$('#student-error').textContent='';}
+  try{if(!e.target.files.length){$('#intake-photo-preview').textContent='';return;}const p=await normalizePortrait(e.target.files[0]);if(current!==selection||!f.isConnected)return;prepared=p;$('#intake-photo-preview').innerHTML=`<img class="file-preview" src="${p.data}" alt="معاينة صورة الطفل">`;$('#student-error').textContent='';}
   catch(error){if(current===selection){invalid=true;$('#intake-photo-preview').textContent='';$('#student-error').textContent=error.message;}}
   finally{if(current===selection)busy=false;}
  };

@@ -96,3 +96,11 @@ aside { overflow-y:auto; }
 .file-photo-editor{padding:0;border:0}
 .file-intake-photo{margin:20px 0}.file-info .panel{min-width:0}.file-photo-editor form{max-width:680px}
 @media(max-width:600px){.file-hero{gap:16px;padding:20px}.file-portrait{width:82px;height:82px;flex-basis:82px;border-radius:18px}.file-identity h2{font-size:22px}.file-details{gap:16px}}
+
+/* Compact identity badges and protected edit windows. */
+.file-hero{position:relative;padding-bottom:66px}.file-tags{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+.status.boy{background:#e1efff;color:#154c83;border:1px solid #90bce7}.status.girl{background:#ffe8f1;color:#8b2c52;border:1px solid #e8a3bf}
+.photo-corner{position:absolute;bottom:16px;left:18px;display:flex;align-items:center;gap:8px;padding:3px 10px 3px 3px;min-height:34px;font-size:13px}.camera-square{display:grid;place-items:center;width:32px;height:32px;background:var(--soft);border-radius:8px}
+.profile-official-edit{width:100%;margin:0 0 24px;min-height:58px}
+dialog{max-height:90dvh;overflow:auto}.discard-box{position:sticky;bottom:0;background:var(--surface);border:2px solid #d49748;padding:16px;border-radius:14px;margin-top:20px;box-shadow:0 -8px 20px #0002}
+.fee-mode-buttons{display:flex;gap:12px;margin:16px 0}.fee-mode-buttons button{flex:1;min-height:54px}
