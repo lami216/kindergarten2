@@ -14,6 +14,7 @@ OUT=Path('visual-evidence/main-cleanup')
 
 async def navigate(page,section):
     button=page.locator('.st-key-nav_'+section+' button')
+    await button.wait_for(state='attached',timeout=30000)
     if not await button.is_visible():
         await page.locator('[data-testid="stExpandSidebarButton"]').first.click()
     await button.click()

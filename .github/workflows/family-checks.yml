@@ -80,6 +80,8 @@ jobs:
             done
             if [ "$ready" != 1 ]; then cat /tmp/qa-after.log /tmp/qa-before.log; exit 1; fi
           done
+      - name: Current dashboard and department reports on mobile and desktop
+        run: PYTHONPATH=. python tests/browser_main_cleanup.py
       - name: Real login, manager accounts, scoped worker activity and revocation
         run: PYTHONPATH=. python tests/browser_admin_access.py
       - name: Real student portraits, file organization and scoped viewer
@@ -96,8 +98,6 @@ jobs:
         run: PYTHONPATH=. python tests/browser_payroll_review.py
       - name: Chromium student debt refusal and waiver on mobile
         run: PYTHONPATH=. python tests/browser_student_debt.py
-      - name: Current dashboard and department reports on mobile and desktop
-        run: PYTHONPATH=. python tests/browser_main_cleanup.py
       - name: Chromium single-currency operator and scrolled finance acceptance
         run: PYTHONPATH=. python tests/browser_single_currency.py
       - name: Chromium regression and same-data screenshots
