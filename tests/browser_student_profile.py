@@ -55,8 +55,10 @@ async def run():
                 await page.locator('.st-key-kid_mother_phone input').press('Tab')
                 await page.get_by_text('📷 صورة الطالب (اختياري)',exact=True).click()
                 await page.locator('.st-key-kid_photo input[type="file"]').set_input_files(first)
+                await expect(page.locator('.st-key-kid_photo').get_by_text(first.name,exact=True)).to_be_visible(timeout=30000)
                 await page.get_by_text('تفاصيل اختيارية',exact=True).click()
                 await page.locator('.st-key-kid_health textarea').fill('تحتاج مراجعة الأسرة قبل تقديم الحليب <b>معلومة</b>')
+                await page.locator('.st-key-kid_health textarea').press('Tab')
                 await page.get_by_role('button',name='💾 حفظ بيانات الطفل والأهل',exact=True).click()
                 await expect(page.get_by_text('تم حفظ الطفل والأهل بنجاح.',exact=False)).to_be_visible(timeout=30000)
                 sid=query('SELECT student_id FROM students WHERE full_name=%s',(name,))[0]['student_id']

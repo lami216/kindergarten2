@@ -298,12 +298,13 @@ c.close()
     data=app.dataframe[0].value
     assert int(data[data['النوع']==marker]['عدد الطلاب (السنة الحالية)'].iloc[0])==0
     report=AppTest.from_string(script.replace('SECTION','reports')).run(timeout=60)
-    report.radio[0].set_value('📋 قائمة التسجيلات').run(timeout=60)
+    report.checkbox(key='reports_legacy').check().run(timeout=60)
+    report.selectbox(key='report_type').set_value('📋 قائمة التسجيلات').run(timeout=60)
     assert not report.exception
     for frame in report.dataframe:
         if 'اسم الطالب' in frame.value:
             assert 'طفل اختبار '+marker not in frame.value['اسم الطالب'].tolist()
-    report.radio[0].set_value('🏛️ تقرير الأصول والموجودات الثابتة').run(timeout=60)
+    report.selectbox(key='report_type').set_value('🏛️ تقرير الأصول والموجودات الثابتة').run(timeout=60)
     assert not report.exception
     for frame in report.dataframe:
         if 'اسم الصنف' in frame.value: assert marker not in frame.value['اسم الصنف'].tolist()

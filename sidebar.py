@@ -13,7 +13,7 @@ NAV_ITEMS = [
     ("students", "🎒", "الطلاب"),
     ("registration", "🏷️", "الأقسام"),
     ("payments", "💵", "الدفعات المالية"),
-    ("expenses", "📦", "المصروفات والأصول"), 
+    ("expenses", "📦", "المصروفات"),
     ("reports", "📈", "التقارير"),
     ("salaries", "💸", "رواتب المعلمات"),
     ("parents", "👨‍👩‍👧", "أولياء الأمور"),
@@ -110,8 +110,12 @@ def render(conn):
         st.caption("المالية والتقارير")
         for item in NAV_ITEMS[5:7]:
             nav_button(*item)
-        with st.expander("ملفات الروضة", expanded=st.session_state.current_page in {x[0] for x in NAV_ITEMS[7:11]}):
-            for item in NAV_ITEMS[7:11]:
+        with st.expander("ملفات الروضة", expanded=st.session_state.current_page in {"parents", "teachers"}):
+            for item in NAV_ITEMS[7:9]:
+                nav_button(*item)
+        with st.expander("سجلات سابقة", expanded=st.session_state.current_page in {"classes", "years"}):
+            st.caption("صفوف وسنوات النظام السابق؛ توزيع الأطفال الحالي من الأقسام.")
+            for item in NAV_ITEMS[9:11]:
                 nav_button(*item)
         st.caption('المراجعة والتعديل')
         for item in NAV_ITEMS[11:]:
