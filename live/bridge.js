@@ -181,7 +181,7 @@ async function liveSubmit(form){
     if(form.id==='student-form')return liveSaved('students.create',{
         name:get('name'),birth:get('birth'),gender:get('gender'),place:get('place'),address:get('address'),
         health:get('health'),father:get('father'),fatherPhone:get('fatherPhone'),mother:get('mother'),
-        motherPhone:get('motherPhone'),mode:get('mode'),registration:d.has('registration'),gilet:d.has('gilet'),
+        motherPhone:get('motherPhone'),existing_parent_id:get('existing_parent_id'),mode:get('mode'),registration:d.has('registration'),gilet:d.has('gilet'),
         amount:get('amount')||'0',photo:await liveFile(form.querySelector('[name="photo"]')?.files[0])},form);
     if(form.id==='profile-edit-child'||form.id==='edit-child'){
         const s=students.find(s=>s.id===profileId);
@@ -259,6 +259,33 @@ document.addEventListener('click',async event=>{
 },true);
 const liveEditUser=demoEditUser;
 demoEditUser=function(id){liveEditUser(id);$('#demo-account-edit').dataset.liveUser=id;};
+// Choosing an existing family links siblings without overwriting its contacts.
+// The option is only supplied to identities with students.view on the server.
+const liveStudentForm=studentForm;
+studentForm=function(){
+    const template=document.createElement('template');template.innerHTML=liveStudentForm();
+    if(liveData?.families?.length){
+        const options=liveData.families.map(f=>{
+            const label=[f.father||f.mother,f.fatherPhone||f.motherPhone,f.id].filter(Boolean).join(' · ');
+            return '<option value="'+esc(f.id)+'">'+esc(label)+'</option>';
+        }).join('');
+        template.content.querySelectorAll('.student-section-title')[1].insertAdjacentHTML('afterend',
+            '<label class="body-space">الأسرة<select name="existing_parent_id"><option value="">أسرة جديدة</option>'+options+'</select></label>');
+    }
+    return template.innerHTML;
+};
+const liveBindStudentForm=bindStudentForm;
+bindStudentForm=function(){
+    liveBindStudentForm();
+    const form=$('#student-form'),picker=form.querySelector('[name="existing_parent_id"]');
+    if(!picker)return;
+    const keys=['father','fatherPhone','mother','motherPhone'];let draft={};
+    picker.onchange=()=>{
+        const family=liveData.families.find(f=>f.id===picker.value);
+        if(family&&!keys.some(k=>form.elements[k].disabled))draft=Object.fromEntries(keys.map(k=>[k,form.elements[k].value]));
+        for(const key of keys){form.elements[key].disabled=!!family;form.elements[key].value=family?family[key]:(draft[key]||'');}
+    };
+};
 $('#demo-logout').onclick=async()=>{try{await liveCall('logout',{});liveLoginScreen();}catch(e){toast(e.message);}};
 // Retain the original card/logo/typography. Replace ONLY the demo entry with real credentials.
 $('#demo-worker-login')?.closest('details')?.remove();

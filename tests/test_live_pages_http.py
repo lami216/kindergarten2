@@ -29,9 +29,11 @@ def post(client,session,operation,data):
 
 
 def intake(**changes):
-    return dict(name='طفل فعلي للاختبار',birth='2022-01-01',gender='ذكر',father='',fatherPhone='',
+    result=dict(name='طفل فعلي للاختبار',birth='2022-01-01',gender='ذكر',father='',fatherPhone='',
         mother='أم الطفل',motherPhone='22334455',mode='none',amount='0',registration=False,gilet=False,
-        request_token=str(uuid.uuid4()),**changes)
+        request_token=str(uuid.uuid4()))
+    result.update(changes)
+    return result
 
 
 def test_valid_cookie_session_opens_supplementary_tools_without_second_login(access,monkeypatch):
@@ -121,12 +123,15 @@ def test_http_payment_preview_save_correct_cancel_pdf_and_expenses(browser):
         'reason':'تصحيح المبلغ الفعلي','confirmed':True,'revision':r['revision'],
         'values':{'amount':'2000','date':r['date']},'request_token':str(uuid.uuid4())})
     assert correction.status_code==200,correction.text
+    corrected=correction.json()
+    assert type(corrected['id']) is int and corrected['created'] is True
     data=client.get('/api/snapshot').json()
     active=next(r for r in data['receipts'] if r['student']==sid and not r['cancelled'])
     cancelled=post(client,session,'records.change',{'type':'receipts','id':active['id'],'mode':'cancel',
         'reason':'إلغاء إدخال خاطئ','confirmed':True,'revision':active['revision'],
         'request_token':str(uuid.uuid4())})
     assert cancelled.status_code==200,cancelled.text
+    assert cancelled.json()=={'id':active['id'],'cancelled':True}
     payload={'category':'مصروف فعلي','amount':'100','paid':'40','payee':'مورد','notes':'ملاحظة تبقى',
         'date':data['today'],'request_token':str(uuid.uuid4())}
     expense=post(client,session,'expenses.create',payload)
@@ -182,3 +187,47 @@ def test_http_worker_visibility_server_rejection_revocation_and_logout(browser):
     owner=login(client)
     assert post(client,owner,'logout',{}).status_code==200
     assert client.get('/api/session').status_code==401
+
+
+def test_siblings_link_existing_family_without_overwriting_it_and_retry_once(browser):
+    client,conn=browser;session=login(client)
+    first=post(client,session,'students.create',intake()).json()['id']
+    data=client.get('/api/snapshot').json()
+    family=data['families'][0]
+    payload=intake(name='أخت الطفل',existing_parent_id=family['id'],mother='اسم لن يستبدل الأم',
+                   motherPhone='99999999',mode='pay',registration=True,amount='1000')
+    saved=post(client,session,'students.create',payload)
+    assert saved.status_code==200,saved.text
+    duplicate=post(client,session,'students.create',payload)
+    assert duplicate.status_code==200 and duplicate.json()=={'id':saved.json()['id'],'created':False}
+    data=client.get('/api/snapshot').json()
+    assert len(data['families'])==1
+    assert {s['parent_id'] for s in data['students']}=={family['id']}
+    assert {s['motherName'] for s in data['students']}=={'أم الطفل'}
+    assert data['overview']['total_cash']==1000
+    with conn.cursor() as c:
+        c.execute('SELECT payer FROM monthly_receipts WHERE student_id=%s',(saved.json()['id'],))
+        assert c.fetchone()['payer']=='أم الطفل'
+    # A create-only worker cannot discover or forge links to existing families.
+    A.save_user(employee_name='مسجل فقط',name='intake_only',password=PASSWORD,permissions=['students.create'])
+    worker=login(client,'intake_only')
+    assert client.get('/api/snapshot').json()['families']==[]
+    denied=post(client,worker,'students.create',intake(existing_parent_id=family['id']))
+    assert denied.status_code==403
+    owner=login(client)
+    unknown=post(client,owner,'students.create',intake(existing_parent_id='P-missing'))
+    assert unknown.status_code==422
+    with conn.cursor() as c:
+        c.execute('SELECT COUNT(*) AS n FROM students')
+        assert c.fetchone()['n']==2
+
+
+def test_fee_receipt_contract_and_retry_return_scalar_identity(browser):
+    client,_=browser;session=login(client)
+    sid=post(client,session,'students.create',intake(mode='pay',registration=True)).json()['id']
+    payload=dict(student=sid,kind='registration',due=1000,confirmed=True,request_token=str(uuid.uuid4()))
+    saved=post(client,session,'fees.collect',payload)
+    assert saved.status_code==200,saved.text
+    assert type(saved.json()['id']) is int and saved.json()['created'] is True
+    retry=post(client,session,'fees.collect',payload)
+    assert retry.status_code==200 and retry.json()=={'id':saved.json()['id'],'created':False}

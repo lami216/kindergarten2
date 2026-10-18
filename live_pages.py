@@ -10,6 +10,7 @@ from datetime import date, datetime
 from decimal import Decimal
 import hashlib
 import hmac
+import ipaddress
 import json
 import logging
 import re
@@ -48,7 +49,7 @@ CONTENT_TYPES = {'.css':'text/css','.js':'text/javascript','.jpg':'image/jpeg','
 
 
 def index_html():
-    html = (DESIGN_ROOT/'index.html').read_text()
+    html = (DESIGN_ROOT/'index.html').read_text(encoding='utf-8')
     html = html.replace('<script src="preview.js">','<script src="/live/runtime.js"></script>\n<script src="preview.js">')
     return html.replace('</body>','<script src="/live/bridge.js"></script>\n</body>')
 
@@ -101,7 +102,21 @@ def snapshot(conn, profile):
     """Only return fields this identity is allowed to see; never return hashes/tokens."""
     result={'students':[], 'receipts':[], 'expenses':[], 'departments':[], 'changes':[],
             'users':[], 'account_events':[], 'metrics':{}, 'overview':None,
-            'prices':None, 'today':F.today()}
+            'prices':None, 'families':[], 'today':F.today()}
+    can_students = A.can('students.view')
+    can_payments = A.can('payments.view')
+    if can_payments or A.can('reports.view'):
+        F._ensure_all_started(result['today'])
+    accounts = F.projections(conn,result['today'],materialize=False) if can_payments else {}
+    parents = {}
+    photos = {}
+    if can_students:
+        parents = {p['father_id']:p for p in rows(conn,'SELECT * FROM parents')}
+        photos = {p['student_id']:p for p in rows(conn,
+            'SELECT student_id,revision,image_data IS NOT NULL AS present FROM student_photos')}
+        result['families'] = [dict(id=p['father_id'],father=p['father_name'] or '',
+            fatherPhone=p['father_mobile'] or '',mother=p['mother_name'] or '',
+            motherPhone=p['mother_mobile'] or '') for p in parents.values() if not p['archived_at']]
     visible = A.can('students.view') or A.can('payments.view') or A.can('departments.view')
     if visible:
         children=rows(conn,'''SELECT s.*,p.father_name,p.father_mobile,p.mother_name,p.mother_mobile,
@@ -122,13 +137,13 @@ def snapshot(conn, profile):
                 child.update(birth=s['birth_date'],gender=s['gender'],place=s['birth_place'] or '',
                     address=s['address'] or '',health=s['medical_details'] or '',
                     allergy=s['allergies'] or '',notes=s['general_notes'] or '',revision=R.revision(raw))
-                parent=rows(conn,'SELECT * FROM parents WHERE father_id=%s',(s['father_id'],))
-                child['parent_revision']=R.revision(parent[0]) if parent else None
+                parent=parents.get(s['father_id'])
+                child['parent_revision']=R.revision(parent) if parent else None
                 child['parent_id']=s['father_id']
-                photo=student_photos.get(conn,s['student_id'])
-                child['photo']={'revision':photo['revision'],'data':('/api/photo/'+quote(s['student_id'],safe='')+'?v='+str(photo['revision'])) if photo.get('image_data') else None}
+                photo=photos.get(s['student_id'],{'revision':0,'present':False})
+                child['photo']={'revision':photo['revision'],'data':('/api/photo/'+quote(s['student_id'],safe='')+'?v='+str(photo['revision'])) if photo['present'] else None}
             if A.can('payments.view'):
-                p=F.projection(conn,s['student_id'])
+                p=accounts.get(s['student_id'])
                 if p:
                     child.update(exempt=p['exempt'],registration=p['fees'].get('registration',{}).get('price',0),
                         gilet=p['fees'].get('gilet',{}).get('price',0),start=p['account']['start_date'])
@@ -145,7 +160,9 @@ def snapshot(conn, profile):
              COALESCE(SUM(a.amount) FILTER(WHERE a.period_id IS NOT NULL),0) AS monthly
              FROM monthly_receipts r LEFT JOIN monthly_allocations a USING(receipt_id)
              LEFT JOIN monthly_fees f USING(fee_id) GROUP BY r.receipt_id ORDER BY r.receipt_id''')
-        for r in result['receipts']: r['revision']=F.receipt_revision(conn,r['student'])
+        revisions={r['student_id']:int(r['revision']) for r in rows(conn,
+            'SELECT student_id,MAX(audit_id) AS revision FROM monthly_audit GROUP BY student_id')}
+        for r in result['receipts']: r['revision']=revisions.get(r['student'],0)
     if A.can('expenses.view'):
         for e in rows(conn,'SELECT * FROM expenses WHERE teacher_payment_id IS NULL AND teacher_advance_id IS NULL ORDER BY expense_id'):
             result['expenses'].append({'id':e['expense_id'],'category':e['category'],'amount':e['amount'],
@@ -158,7 +175,7 @@ def snapshot(conn, profile):
     if A.can('payments.create') or A.can('students.create') or A.can('fees.view'):
         result['prices']=F.prices(conn)
     if A.can('reports.view'):
-        result['overview']=F.financial_overview(conn)
+        result['overview']=F.financial_overview(conn,materialize=False)
         result['overview']['students_count']=rows(conn,'SELECT COUNT(*) AS n FROM students WHERE archived_at IS NULL')[0]['n']
     if A.can('history.view'):
         result['changes']=rows(conn,'''SELECT change_id AS id,table_name AS type,record_key AS key,action,
@@ -235,7 +252,14 @@ def mutate(conn, operation, data, profile):
             gilet=bool(data.get('gilet')) if mode=='pay' else False,cash=cash,
             payer=family['father_name'] or family['mother_name'])
         photo=decode_photo(data['photo']) if data.get('photo') else None
-        ident,created=db.save_child_with_family(child,family,None,request_token(data),finance=finance,actor=actor,photo=photo)
+        existing_parent=text(data,'existing_parent_id',20) or None
+        if existing_parent:
+            require(conn,'students.view')
+            existing=rows(conn,'''SELECT father_name,mother_name FROM parents
+                WHERE father_id=%s AND archived_at IS NULL''',(existing_parent,))
+            if not existing: raise ValueError('الأسرة المحددة غير متاحة؛ حدّث النموذج.')
+            finance['payer']=existing[0]['father_name'] or existing[0]['mother_name'] or ''
+        ident,created=db.save_child_with_family(child,family,existing_parent,request_token(data),finance=finance,actor=actor,photo=photo)
         return {'id':ident,'created':created}
     if operation=='students.edit': return edit_student(conn,data,actor)
     if operation=='departments.create': return {'id':departments.create(text(data,'name',100,True))}
@@ -255,8 +279,9 @@ def mutate(conn, operation, data, profile):
     if operation=='fees.collect':
         import student_debt as D
         if data.get('confirmed') is not True: raise ValueError('أكد قبض الرسم فعليًا.')
-        return {'id':D.pay_unpaid_fee(text(data,'student',20,True),text(data,'kind',20,True),actor=actor,
-            token=request_token(data),expected_due=data.get('due'))}
+        ident,created=D.pay_unpaid_fee(text(data,'student',20,True),text(data,'kind',20,True),actor=actor,
+            token=request_token(data),expected_due=data.get('due'))
+        return {'id':ident,'created':created}
     if operation=='expenses.create':
         ident,created=E.create(category=text(data,'category',100,True),amount_total=data.get('amount'),
             amount_paid=data.get('paid'),expense_date=date.fromisoformat(text(data,'date',10,True)),
@@ -271,9 +296,12 @@ def mutate(conn, operation, data, profile):
         if kind=='receipts':
             revision=data.get('revision')
             if type(revision) is not int: raise ValueError('أعد فتح الوصل.')
-            if cancel: return {'id':F.cancel_receipt(ident,reason,actor=actor,token=request_token(data),expected_revision=revision)}
-            return {'id':F.correct_receipt(ident,whole_amount(values.get('amount')),reason,actor=actor,token=request_token(data),
-                received_on=date.fromisoformat(text(values,'date',10,True)),expected_revision=revision)}
+            if cancel:
+                changed=F.cancel_receipt(ident,reason,actor=actor,token=request_token(data),expected_revision=revision)
+                return {'id':int(ident),'cancelled':changed}
+            new_id,created=F.correct_receipt(ident,whole_amount(values.get('amount')),reason,actor=actor,token=request_token(data),
+                received_on=date.fromisoformat(text(values,'date',10,True)),expected_revision=revision)
+            return {'id':new_id,'created':created}
         if kind=='expenses':
             revision=text(data,'revision',64,True)
             if cancel: return {'id':E.cancel(ident,actor=actor,reason=reason,token=request_token(data),expected=revision)}
@@ -320,13 +348,43 @@ def decode_photo(value):
     except (ValueError,TypeError): raise ValueError('ملف الصورة غير صالح.') from None
 
 
-def make_app(dsn, public_origin, *, management=False):
+class LoginAttempts:
+    """Bound expensive login attempts per verified peer, not per proxy header.
+
+    Success releases its reservation; failures stay in the five-minute window.
+    The persistent account-specific limiter remains authoritative across workers.
+    """
+    def __init__(self):
+        self.attempts = {}
+        self.lock = threading.Lock()
+
+    def reserve(self, peer):
+        with self.lock:
+            now = time.monotonic()
+            if len(self.attempts)>4096:
+                self.attempts = {k:v for k,v in self.attempts.items() if now-v[0]<=300}
+            started,count = self.attempts.get(peer,(now,0))
+            if now-started>300: started,count = now,0
+            if count>=20: return None
+            self.attempts[peer] = (started,count+1)
+            return started
+
+    def success(self, peer, started):
+        with self.lock:
+            current,count = self.attempts.get(peer,(None,0))
+            if current==started:
+                self.attempts[peer] = (current,max(0,count-1))
+
+
+def make_app(dsn, public_origin, *, management=False, trusted_proxies=()):
     parsed=urlsplit(public_origin)
     if parsed.scheme!='https' or not parsed.hostname or parsed.path not in ('','/') or parsed.query or parsed.fragment or parsed.username:
         raise ValueError('Public origin must be an exact HTTPS origin.')
     origin=public_origin.rstrip('/')
     csrf_key=secrets.token_bytes(32)
-    attempts={};attempt_lock=threading.Lock()
+    # Explicit IPs only: never trust '*' or an arbitrary forwarded header.
+    proxies=[str(ipaddress.ip_address(ip)) for ip in trusted_proxies]
+    attempts=LoginAttempts()
     def csrf(token): return hmac.new(csrf_key,token.encode(),hashlib.sha256).hexdigest()
     def execute(token, operation, data=None):
         with W.request_context(dsn,{'auth_session':token} if token else {}):
@@ -371,17 +429,11 @@ def make_app(dsn, public_origin, *, management=False):
                 if not isinstance(data.get('username'),str) or not isinstance(data.get('password'),str) or not 1<=len(data['password'])<=128 or len(data['username'])>128:
                     return JSONResponse({'error':'تعذّر الدخول بهذه البيانات.'},401)
                 peer=request.client.host if request.client else 'unknown'
-                with attempt_lock:
-                    now=time.monotonic()
-                    if len(attempts)>4096:
-                        for key in list(attempts):
-                            if now-attempts[key][0]>300: attempts.pop(key,None)
-                    started,count=attempts.get(peer,(now,0))
-                    if now-started>300: started,count=now,0
-                    attempts[peer]=(started,count+1)
-                    if count>=20: return JSONResponse({'error':'محاولات كثيرة؛ انتظر قليلًا.'},429)
+                reservation=attempts.reserve(peer)
+                if reservation is None: return JSONResponse({'error':'محاولات كثيرة؛ انتظر قليلًا.'},429)
                 new_token=await run_in_threadpool(execute,None,'login',data)
                 if not new_token: return JSONResponse({'error':'تعذّر الدخول بهذه البيانات.'},401)
+                attempts.success(peer,reservation)
                 response=JSONResponse({'ok':True})
                 response.set_cookie(COOKIE,new_token,secure=True,httponly=True,samesite='strict',path='/')
                 return response
@@ -435,6 +487,9 @@ def make_app(dsn, public_origin, *, management=False):
             'Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"})
         return response
     app.add_middleware(BaseHTTPMiddleware,dispatch=headers)
+    if proxies:
+        from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
+        app.add_middleware(ProxyHeadersMiddleware,trusted_hosts=proxies)
     return app
 
 
@@ -445,10 +500,12 @@ def main():
     parser.add_argument('--host',default='127.0.0.1',choices=('127.0.0.1','::1'))
     parser.add_argument('--port',type=int,default=8520)
     parser.add_argument('--management',action='store_true')
+    parser.add_argument('--trusted-proxy',action='append',default=[],
+                        help='Explicit reverse-proxy IP; repeat for additional trusted proxies.')
     args=parser.parse_args()
-    config=tomllib.loads(Path(args.config).read_text())
+    config=tomllib.loads(Path(args.config).read_text(encoding='utf-8'))
     import uvicorn
-    uvicorn.run(make_app(config['postgres']['url'],args.origin,management=args.management),
+    uvicorn.run(make_app(config['postgres']['url'],args.origin,management=args.management,trusted_proxies=args.trusted_proxy),
         host=args.host,port=args.port,proxy_headers=False,access_log=False)
 
 

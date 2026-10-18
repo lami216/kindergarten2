@@ -53,6 +53,7 @@ async def main():
             expected_due=1000-400
             fee=page.locator('[data-collect-fee="registration"]')
             await expect(fee).to_contain_text(str(expected_due))
+            await expect(page.locator('#payment-body details p').first).to_have_text('التسجيل: متبقي 600 · الجيليه: لا مبلغ مستحق')
             await fee.click();await expect(page.locator('#fee-collect-form strong')).to_contain_text(str(expected_due))
             await page.locator('#fee-collect-form [name="agree"]').check()
             async with page.expect_request('**/api/fees.collect') as request_event:
@@ -62,7 +63,7 @@ async def main():
             await expect(page.locator('#record-dialog')).not_to_be_visible(timeout=20000)
             data=await snapshot();paid=next(r for r in data['receipts'] if r['student']==sid and not r['cancelled'])
             assert paid['amount']==expected_due and data['overview']['total_cash']==cash_before+expected_due
-            await expect(page.locator('#payment-body details')).not_to_contain_text('باقي 400')
+            await expect(page.locator('#payment-body details p').first).to_have_text('التسجيل: لا مبلغ مستحق · الجيليه: لا مبلغ مستحق')
             record('partially_waived_fee_button_confirmation_request_receipt_and_cash_agree')
             await page.locator('#demo-logout').click();await expect(page.locator('#live-login')).to_be_visible(timeout=20000)
             await login('qa_reporter');data=await snapshot()

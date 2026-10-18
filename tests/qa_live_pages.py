@@ -71,12 +71,14 @@ http {
       proxy_set_header Upgrade $http_upgrade;
       proxy_set_header Connection $connection_upgrade;
       proxy_set_header X-Forwarded-Proto https;
+      proxy_set_header X-Forwarded-For $remote_addr;
       proxy_read_timeout 120s;
     }
     location / {
       proxy_pass http://127.0.0.1:8522;
       proxy_set_header Host $http_host;
       proxy_set_header X-Forwarded-Proto https;
+      proxy_set_header X-Forwarded-For $remote_addr;
     }
   }
 }
@@ -105,8 +107,9 @@ def main():
     state=json.loads((root/'state.json').read_text());guard(state['dsn'])
     from live_pages import make_app
     import uvicorn
-    uvicorn.run(make_app(state['dsn'],state['origin'],management=args.proxy_backend),
-        host='127.0.0.1',port=8522 if args.proxy_backend else 8520,access_log=False,
+    uvicorn.run(make_app(state['dsn'],state['origin'],management=args.proxy_backend,
+        trusted_proxies=['127.0.0.1'] if args.proxy_backend else []),
+        host='127.0.0.1',port=8522 if args.proxy_backend else 8520,access_log=False,proxy_headers=False,
         ssl_keyfile=None if args.proxy_backend else str(root/'tls.key'),
         ssl_certfile=None if args.proxy_backend else str(root/'tls.crt'))
 

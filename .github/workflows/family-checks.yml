@@ -64,7 +64,11 @@ jobs:
         shell: bash
         run: |
           python -m tests.qa_live_pages setup --directory /tmp/kg-original-pages-qa
-          (python -m tests.qa_live_pages serve --directory /tmp/kg-original-pages-qa > /tmp/kg-original-pages-api.log 2>&1) &
+          sudo apt-get update -qq
+          sudo apt-get install -y nginx
+          (python -m tests.qa_live_pages serve --directory /tmp/kg-original-pages-qa --proxy-backend > /tmp/kg-original-pages-api.log 2>&1) &
+          (cd /tmp/kg-original-pages-qa && PYTHONPATH="$GITHUB_WORKSPACE" python -m streamlit run "$GITHUB_WORKSPACE/app.py" --server.headless true --server.address 127.0.0.1 --server.port 8521 --server.baseUrlPath management --browser.gatherUsageStats false > /tmp/kg-original-pages-management.log 2>&1) &
+          nginx -e /tmp/kg-original-pages-qa/nginx-error.log -p /tmp/kg-original-pages-qa/ -c /tmp/kg-original-pages-qa/nginx.conf
           ready=0
           for n in $(seq 1 60); do
             if curl -fsS --cacert /tmp/kg-original-pages-qa/tls.crt https://127.0.0.1:8520/api/health >/dev/null; then ready=1; break; fi
@@ -73,10 +77,12 @@ jobs:
           if [ "$ready" != 1 ]; then python -c "from pathlib import Path; print(Path('/tmp/kg-original-pages-api.log').read_text())"; exit 1; fi
       - name: Original Pages real login, persisted CRUD, cash, PDF and mobile
         env:
+          KG_LIVE_MANAGEMENT: "1"
           KG_LIVE_QA_DIR: /tmp/kg-original-pages-qa
           KG_LIVE_QA_OUT: visual-evidence/original-pages-live
         run: |
           python -m tests.browser_live_pages
+          KG_LIVE_QA_OUT="$KG_LIVE_QA_OUT/family" python -m tests.browser_live_family
           KG_LIVE_QA_OUT="$KG_LIVE_QA_OUT/edge-cases" python -m tests.browser_live_edge_cases
       - name: Start isolated QA previews
         shell: bash

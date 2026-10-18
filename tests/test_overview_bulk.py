@@ -67,6 +67,24 @@ def test_500_children_one_connection_and_same_debt_across_account_states(monkeyp
         expected=sum(F.projection(conn,f'perf{i}',fixed,materialize=False)['due_now'] for i in range(500))
         assert result['due_now']==expected
         assert result['new_cash']==12000
+        statements.clear();connections.clear()
+        bulk=F.projections(conn,fixed,materialize=False)
+        assert len(bulk)==500 and len(statements)==4 and not connections
+        for i in range(500):
+            assert bulk[f'perf{i}']==F.projection(conn,f'perf{i}',fixed,materialize=False)
+        # Exercise the actual authenticated snapshot, including roster, photos,
+        # parents, receipt revisions, overview and activity, not only a helper.
+        import live_pages as L
+        statements.clear();connections.clear()
+        snapshot_started=perf_counter()
+        live=L.snapshot(conn,{'is_admin':False,'user_id':'00000000-0000-0000-0000-000000000001'})
+        snapshot_seconds=perf_counter()-snapshot_started
+        assert len(live['students'])==500
+        assert len(connections)==1, len(connections)
+        assert len(statements)<=40, len(statements)
+        assert sum(s['account']['due'] for s in live['students'])==result['due_now']
+        assert live['overview']['total_cash']==result['total_cash']
+        snapshot_evidence=dict(children=500,connections=len(connections),statements=len(statements),seconds=snapshot_seconds)
         with conn.cursor() as c:
             c.execute("SELECT starts FROM monthly_periods WHERE student_id='perf0' ORDER BY period_no")
             assert [x['starts'] for x in c.fetchall()]==[date(2024,1,31),date(2024,2,29),date(2024,3,31)]
@@ -76,7 +94,7 @@ def test_500_children_one_connection_and_same_debt_across_account_states(monkeyp
             expected=sum(F.projection(conn,f'perf{i}',end,materialize=False)['due_now'] for i in range(500))
             assert actual['due_now']==expected
         evidence={'children':500,'seconds':timings,'median_seconds':median(timings),'counts':counts,
-                  'due_matches_500_individual_projections':True}
+                  'due_matches_500_individual_projections':True,'live_snapshot':snapshot_evidence}
         Path('visual-evidence').mkdir(exist_ok=True)
         Path('visual-evidence/overview-500.json').write_text(json.dumps(evidence,indent=2))
         print(json.dumps(evidence))
