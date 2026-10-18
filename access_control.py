@@ -8,6 +8,7 @@ import uuid
 from datetime import datetime, timezone
 
 import streamlit as st
+import web_runtime
 import db
 
 RESOURCES={
@@ -189,7 +190,7 @@ def validate_permissions(values):
 
 
 def current(cursor=None,*,lock=False):
-    token=st.session_state.get('auth_session')
+    token=web_runtime.state().get('auth_session')
     if not token: raise AccessDenied('انتهت جلسة الدخول؛ أعد تسجيل الدخول.')
     connection=None
     try:
@@ -213,7 +214,7 @@ def allowed(profile,permission):
 
 
 def can(permission):
-    return allowed(st.session_state.get('_access_profile'),permission)
+    return allowed(web_runtime.state().get('_access_profile'),permission)
 
 
 def require(cursor,permission,*,lock=True):
@@ -221,7 +222,7 @@ def require(cursor,permission,*,lock=True):
     if not allowed(profile,permission): raise AccessDenied('ليس لديك صلاحية لتنفيذ هذا الإجراء.')
     cursor.execute("SELECT set_config('app.audit_user_id',%s,true),set_config('app.audit_actor',%s,true),set_config('app.write_permission',%s,true),set_config('app.session_hash',%s,true)",
                    (str(profile['user_id']),profile['username'],permission,
-                    hashlib.sha256(st.session_state['auth_session'].encode()).hexdigest()))
+                    hashlib.sha256(web_runtime.state()['auth_session'].encode()).hexdigest()))
     return profile
 
 
@@ -238,7 +239,7 @@ def actor(cursor,permission,legacy_actor=None):
 def bind(conn,profile):
     with conn.cursor() as c:
         c.execute("SELECT set_config('app.audit_user_id',%s,false),set_config('app.audit_actor',%s,false),set_config('app.session_hash',%s,false)",
-                  (str(profile['user_id']),profile['username'],hashlib.sha256(st.session_state['auth_session'].encode()).hexdigest()))
+                  (str(profile['user_id']),profile['username'],hashlib.sha256(web_runtime.state()['auth_session'].encode()).hexdigest()))
 
 
 def login(name,password):
@@ -275,13 +276,13 @@ def refresh(conn):
     with conn.cursor() as c:
         profile=current(c)
         c.execute('UPDATE app_sessions SET last_seen=now() WHERE token_hash=%s',
-                  (hashlib.sha256(st.session_state['auth_session'].encode()).hexdigest(),))
-    previous=st.session_state.get('_access_profile')
+                  (hashlib.sha256(web_runtime.state()['auth_session'].encode()).hexdigest(),))
+    previous=web_runtime.state().get('_access_profile')
     if previous and (previous['user_id'],previous['auth_version'])!=(profile['user_id'],profile['auth_version']):
         clear_state(keep_token=True)
-    st.session_state['_access_profile']=profile
-    st.session_state['auth_ok']=True
-    st.session_state['auth_user']=profile['username']
+    web_runtime.state()['_access_profile']=profile
+    web_runtime.state()['auth_ok']=True
+    web_runtime.state()['auth_user']=profile['username']
     bind(conn,profile)
     return profile
 
@@ -289,13 +290,13 @@ def refresh(conn):
 def clear_state(*,keep_token=False):
     # Reuse this tab's connection slot. Its revoked session hash stays fail-
     # closed until the next successful refresh binds the new identity.
-    keep={k:st.session_state[k] for k in ('night_mode','_db_session_key','auth_session') if k in st.session_state and (k!='auth_session' or keep_token)}
-    st.session_state.clear()
-    st.session_state.update(keep)
+    keep={k:web_runtime.state()[k] for k in ('night_mode','_db_session_key','auth_session') if k in web_runtime.state() and (k!='auth_session' or keep_token)}
+    web_runtime.state().clear()
+    web_runtime.state().update(keep)
 
 
 def revoke_current():
-    token=st.session_state.get('auth_session')
+    token=web_runtime.state().get('auth_session')
     try:
         if token:
             conn=db.new_transaction_connection()

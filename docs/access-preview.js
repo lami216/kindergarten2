@@ -1,5 +1,5 @@
 /* Synthetic, per-tab interaction model. Real authentication is in access_control.py. */
-const demoUsers=[{id:'owner',name:'صاحب الروضة',username:'owner',admin:true,active:true,permissions:[]}];
+const demoUsers=window.LIVE_APP?[]:[{id:'owner',name:'صاحب الروضة',username:'owner',admin:true,active:true,permissions:[]}];
 const demoAccountEvents=[];
 let demoActor=demoUsers[0];
 const demoAreas={students:'الطلاب',receipts:'الدفعات والوصولات',expenses:'المصروفات',departments:'الأقسام',dashboard:'الملخص المالي الشامل',history:'سجل التغييرات الكامل'};

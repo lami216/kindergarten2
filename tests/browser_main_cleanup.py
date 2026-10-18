@@ -28,9 +28,16 @@ async def navigate(page,section):
 async def choose_report(page,label):
     picker=page.locator('.st-key-report_type input[role="combobox"]')
     try:
+        # A download may leave a pending Streamlit rerun. Wait until the
+        # picker is enabled, clear its old selection, and select one exact option.
+        await expect(picker).to_be_enabled()
         await picker.click()
-        await picker.fill(label)
-        await page.get_by_role('option').filter(has_text=label).last.click()
+        await picker.press('ControlOrMeta+A')
+        await picker.press('Backspace')
+        await picker.press_sequentially(label,delay=25)
+        option=page.get_by_role('option',name=label,exact=True)
+        await expect(option).to_be_visible()
+        await option.click()
         # This heading comes from the server-rendered report, not the client picker.
         await expect(page.get_by_role('heading',name=label,exact=True)).to_be_visible()
     except Exception:

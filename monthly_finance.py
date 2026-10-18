@@ -957,6 +957,11 @@ def projection(conn, student, as_of=None, *, materialize=True):
         c.execute("""SELECT receipt_id,amount,received_on,payer,created_by,state
                 FROM monthly_receipts WHERE student_id=%s ORDER BY receipt_id DESC""",(student,))
         receipts=[dict(row) for row in c.fetchall()]
+    return _project_account(account, fees, periods, receipts, day)
+
+
+def _project_account(account, fees, periods, receipts, day):
+    """Shared pure calculation for individual and bulk account reads."""
     paid_count=sum(1 for x in periods if x["price"]>0 and x["paid"]==x["price"])
     contiguous=0
     for p in periods:
@@ -983,6 +988,63 @@ def projection(conn, student, as_of=None, *, materialize=True):
              "cash_paid":sum(int(r["amount"]) for r in receipts
                              if r["state"]=="active" and r["received_on"]<=day),
              "prepaid_paid":sum(p["paid"] for p in periods if p["start"]>day)}
+
+
+def projections(conn, as_of=None, *, materialize=True):
+    """Read all account projections in four queries, with the same pure rules.
+
+    Used by the authenticated roster snapshot. No per-child connection, query
+    or image fetch is hidden in this operation; callers still filter permissions.
+    """
+    day = as_of or today()
+    if isinstance(day, str):
+        day = date.fromisoformat(day)
+    if materialize:
+        _ensure_all_started(day)
+    with conn.cursor() as c:
+        c.execute('SELECT * FROM monthly_accounts ORDER BY student_id')
+        accounts = [dict(r) for r in c.fetchall()]
+        c.execute("""SELECT f.student_id,f.kind,f.price,
+            COALESCE(p.paid,0) AS paid,COALESCE(w.waived,0) AS waived
+            FROM monthly_fees f
+            LEFT JOIN (SELECT a.fee_id,SUM(a.amount) AS paid
+                FROM monthly_allocations a JOIN monthly_receipts r USING(receipt_id)
+                WHERE a.active AND r.state='active' AND r.received_on<=%s
+                GROUP BY a.fee_id) p USING(fee_id)
+            LEFT JOIN (SELECT fee_id,SUM(amount) AS waived FROM monthly_waivers
+                WHERE effective_on<=%s GROUP BY fee_id) w USING(fee_id)
+            ORDER BY f.student_id,f.kind""", (day,day))
+        fees = {}
+        for r in c.fetchall():
+            entry = {'price':int(r['price']), 'paid':int(r['paid'])}
+            if r['waived']: entry['waived'] = int(r['waived'])
+            fees.setdefault(r['student_id'], {})[r['kind']] = entry
+        c.execute("""SELECT t.student_id,t.period_no,t.starts,t.ends,t.price,
+            COALESCE(p.paid,0) AS paid,COALESCE(w.waived,0) AS waived
+            FROM monthly_periods t
+            LEFT JOIN (SELECT a.period_id,SUM(a.amount) AS paid
+                FROM monthly_allocations a JOIN monthly_receipts r USING(receipt_id)
+                WHERE a.active AND r.state='active' AND r.received_on<=%s
+                GROUP BY a.period_id) p USING(period_id)
+            LEFT JOIN (SELECT period_id,SUM(amount) AS waived FROM monthly_waivers
+                WHERE effective_on<=%s GROUP BY period_id) w USING(period_id)
+            ORDER BY t.student_id,t.period_no""", (day,day))
+        periods = {}
+        for r in c.fetchall():
+            entry = dict(no=r['period_no'],start=r['starts'],end=r['ends'],
+                         price=int(r['price']),paid=int(r['paid']))
+            if r['waived']: entry['waived'] = int(r['waived'])
+            periods.setdefault(r['student_id'], []).append(entry)
+        c.execute('''SELECT student_id,receipt_id,amount,received_on,payer,created_by,state
+                     FROM monthly_receipts ORDER BY student_id,receipt_id DESC''')
+        receipts = {}
+        for r in c.fetchall():
+            entry = dict(r)
+            student = entry.pop('student_id')
+            receipts.setdefault(student, []).append(entry)
+    return {a['student_id']:_project_account(a,fees.get(a['student_id'],{}),
+            periods.get(a['student_id'],[]),receipts.get(a['student_id'],[]),day)
+            for a in accounts}
 
 
 def _assert_date_range(start, end):
@@ -1125,7 +1187,7 @@ def _total_due(conn, day):
         return int(c.fetchone()['due'])
 
 
-def financial_report(conn, start, end):
+def financial_report(conn, start, end, *, materialize=True):
     """ONE old-ouguiya cash projection; allocations partition receipts, not extra cash.
 
     Expenses use actual cash events; teacher payments and advances represent
@@ -1134,7 +1196,8 @@ def financial_report(conn, start, end):
     Student debt is a stock at the selected end date, not a cash expense.
     """
     _assert_date_range(start,end)
-    _ensure_all_started(end)
+    if materialize:
+        _ensure_all_started(end)
     with conn.cursor() as c:
         c.execute("""SELECT COALESCE(SUM(amount),0) AS n FROM monthly_receipts
                      WHERE state='active' AND received_on BETWEEN %s AND %s""",(start,end))
@@ -1200,10 +1263,10 @@ def financial_report(conn, start, end):
             "expenses":outflow,"remaining_cash":cash-outflow,"due_now":outstanding}
 
 
-def financial_overview(conn):
+def financial_overview(conn, *, materialize=True):
     """All recorded cash through the current business day; debt is current stock.
 
     Reuse the report's receipt/cash-event projection, including cancellations,
     payroll and advances, without imposing a month or school-year filter.
     """
-    return financial_report(conn, date.min, today())
+    return financial_report(conn, date.min, today(), materialize=materialize)
