@@ -22,6 +22,12 @@ def _to_excel(df: pd.DataFrame) -> bytes:
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         df.to_excel(writer, index=False, sheet_name='التقرير')
+        # Reports contain values, never executable workbook formulas. Protect
+        # headers and every text cell while retaining numbers/dates as typed.
+        for row in writer.sheets['التقرير'].iter_rows():
+            for cell in row:
+                if isinstance(cell.value, str):
+                    cell.data_type = 's'
     return output.getvalue()
 
 
@@ -234,6 +240,21 @@ def _render_printable_report_pdf(
     
     height = 720 if len(df) > 10 else 520
     components.html(html_content, height=height, scrolling=True)
+
+
+def _teacher_labels(teachers):
+    labels = {}
+    for row in teachers.to_dict('records'):
+        label = f"{row['full_name']} — {row['display_national_id']}"
+        if pd.notna(row['archived_at']):
+            label += " (مؤرشفة)"
+        labels[row['national_id']] = label
+    # Displayed identities may be reused after archival. Disambiguate those
+    # historical rows too, while the SQL filter always uses the stable key.
+    from collections import Counter
+    repeated = Counter(labels.values())
+    return {ident: label if repeated[label]==1 else f"{label} · مرجع {ident}"
+            for ident,label in labels.items()}
 
 
 def _current_students(conn, department=-1, gender="الكل"):
@@ -528,14 +549,16 @@ def render(conn):
         c1, c2 = st.columns(2)
         month_filter = c1.text_input("تصفية حسب شهر الراتب (مثال: 2026-10)", value="")
         
-        teachers_df = ui.df(conn, "SELECT national_id, full_name FROM teachers ORDER BY full_name")
-        teacher_options = {"الكل": "الكل"}
-        if not teachers_df.empty:
-            teacher_options.update(dict(zip(teachers_df['full_name'], teachers_df['national_id'])))
-        selected_teacher_name = c2.selectbox("اختر المعلم/ة", list(teacher_options.keys()))
+        teachers_df = ui.df(conn, """SELECT national_id,COALESCE(display_national_id,national_id) AS display_national_id,
+            full_name,archived_at FROM teachers ORDER BY full_name,national_id""")
+        teacher_labels = _teacher_labels(teachers_df)
+        selected_teacher = c2.selectbox("اختر المعلم/ة", [None]+list(teacher_labels),
+            format_func=lambda ident: "الكل" if ident is None else teacher_labels[ident],
+            key="salary_report_teacher")
 
         query = """
             SELECT tp.payment_id AS "رقم القسيمة", t.full_name AS "اسم المعلم/ة",
+                   COALESCE(t.display_national_id,t.national_id) AS "هوية المعلم/ة",
                    tp.salary_month AS "شهر الراتب", tp.base_salary AS "الراتب الأساسي",
                    tp.bonus AS "المكافآت", tp.deductions AS "الخصومات", tp.amount AS "قيمة المستند",
                    COALESCE(tp.cash_amount,tp.amount) AS "النقد المصروف",
@@ -549,9 +572,9 @@ def render(conn):
         if month_filter.strip():
             query += " AND tp.salary_month = %s"
             params.append(month_filter.strip())
-        if selected_teacher_name != "الكل":
+        if selected_teacher is not None:
             query += " AND tp.national_id = %s"
-            params.append(teacher_options[selected_teacher_name])
+            params.append(selected_teacher)
 
         query += " ORDER BY tp.payment_date DESC"
         result = ui.df(conn, query, tuple(params))
@@ -559,7 +582,7 @@ def render(conn):
         if not result.empty:
             result.insert(0, "م", range(1, len(result) + 1))
             total_salaries = result['النقد المصروف'].sum()
-            meta_info = {"الشهر": month_filter or "الكل", "المعلم/ة": selected_teacher_name}
+            meta_info = {"الشهر": month_filter or "الكل", "المعلم/ة": teacher_labels.get(selected_teacher,"الكل")}
             report_title_str = "سجل رواتب المعلمين والمعلمات"
             summary_metrics = {
                 "إجمالي الرواتب المصروفة": H.format_money(total_salaries),

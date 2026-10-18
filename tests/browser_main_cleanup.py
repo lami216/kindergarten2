@@ -7,6 +7,7 @@ import uuid
 
 import psycopg2
 import pandas as pd
+from openpyxl import load_workbook
 from playwright.async_api import async_playwright, expect
 
 OUT=Path('visual-evidence/main-cleanup')
@@ -46,6 +47,14 @@ async def exported_report(page,path):
     return pd.read_excel(path)
 
 
+def assert_literal_workbook(path):
+    book=load_workbook(path,data_only=False)
+    cells=[cell for sheet in book for row in sheet for cell in row]
+    assert any(cell.value=='=1+1' and cell.data_type=='s' for cell in cells)
+    assert all(cell.data_type!='f' for cell in cells)
+    book.close()
+
+
 async def top(page):
     await page.evaluate("""() => {
         document.querySelectorAll('*').forEach(e=>{if(e.scrollTop)e.scrollTop=0});
@@ -66,6 +75,9 @@ async def run():
             c.execute('INSERT INTO students(student_id,full_name) VALUES(%s,%s)',(sid,child))
             c.execute('INSERT INTO student_departments(student_id,department_id) VALUES(%s,%s)',
                       (sid,department))
+            c.execute('INSERT INTO students(student_id,full_name) VALUES(%s,%s)',('form'+prefix,'=1+1'))
+            c.execute('INSERT INTO student_departments(student_id,department_id) VALUES(%s,%s)',
+                      ('form'+prefix,department))
     results=[]
     async with async_playwright() as pw:
         browser=await pw.chromium.launch()
@@ -94,11 +106,13 @@ async def run():
             await expect(page.locator('.st-key-reports_legacy input')).not_to_be_checked()
             await choose_report(page,'الطلاب وأولياء الأمور')
             exported=await exported_report(page,OUT/f'students-{width}.xlsx')
+            assert_literal_workbook(OUT/f'students-{width}.xlsx')
             row=exported[exported['اسم الطالب']==child]
             assert len(row)==1 and row.iloc[0]['القسم']=='قسم جديد '+prefix
             await expect(page.get_by_text('السنة الدراسية',exact=True)).to_have_count(0)
             await choose_report(page,'كشف الحضور حسب القسم')
             exported=await exported_report(page,OUT/f'attendance-{width}.xlsx')
+            assert_literal_workbook(OUT/f'attendance-{width}.xlsx')
             row=exported[exported['اسم الطالب']==child]
             assert len(row)==1 and row.iloc[0]['القسم']=='قسم جديد '+prefix
             assert 'الأحد' in exported.columns and 'الخميس' in exported.columns
@@ -107,7 +121,7 @@ async def run():
             assert await page.locator('[data-testid="stException"]').count()==0
             results.append({'width':width,'dashboard_no_charts_or_obligations':True,
                             'current_department_reports_without_legacy_registration':True,
-                            'receipt_shortcut':True})
+                            'receipt_shortcut':True,'excel_formula_text_literal':True})
             await context.close()
         await browser.close()
     (OUT/'results.json').write_text(json.dumps(results,indent=2),encoding='utf8')
