@@ -19,6 +19,13 @@ def check_authentication(conn):
     """Returns True if the manager is logged in. Renders the login screen
     and returns False otherwise (caller should st.stop())."""
 
+    # HttpOnly cookie is read server-side from the WebSocket handshake, never JS.
+    # It is the SAME opaque token as Pages, and refresh still validates it in PG.
+    if not st.session_state.get('auth_session'):
+        cookie=st.context.cookies.get('__Host-kg_session')
+        if isinstance(cookie,str) and 1<=len(cookie)<=256:
+            st.session_state['auth_session']=cookie
+
     if st.session_state.get('auth_session'):
         try:
             A.refresh(conn)

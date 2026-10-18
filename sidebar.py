@@ -71,6 +71,9 @@ def render(conn):
         st.session_state.current_page = NAV_ITEMS[0][0]
 
     with st.sidebar:
+        if st.get_option("server.baseUrlPath")=="management":
+            st.link_button("← العودة إلى صفحات الروضة", "/", use_container_width=True)
+            st.caption("الإدارة الإضافية — الأدوات والتقارير المحفوظة")
         ui.render_logo(width=80)
 
         st.markdown("""

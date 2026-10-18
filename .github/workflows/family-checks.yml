@@ -33,7 +33,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
-          pip install pytest playwright pypdf==6.1.3 pypdfium2==5.14.0
+          pip install pytest playwright pypdf==6.1.3 pypdfium2==5.14.0 httpx==0.28.1
           pip check
           mkdir -p visual-evidence
           pip freeze > visual-evidence/installed-versions.txt
@@ -60,6 +60,24 @@ jobs:
         run: python tests/browser_admin_preview.py
       - name: Synthetic student file and optional private portrait preview
         run: python tests/browser_student_profile_preview.py
+      - name: Start original Pages with real services on a private synthetic schema
+        shell: bash
+        run: |
+          python -m tests.qa_live_pages setup --directory /tmp/kg-original-pages-qa
+          (python -m tests.qa_live_pages serve --directory /tmp/kg-original-pages-qa > /tmp/kg-original-pages-api.log 2>&1) &
+          ready=0
+          for n in $(seq 1 60); do
+            if curl -fsS --cacert /tmp/kg-original-pages-qa/tls.crt https://127.0.0.1:8520/api/health >/dev/null; then ready=1; break; fi
+            sleep 1
+          done
+          if [ "$ready" != 1 ]; then python -c "from pathlib import Path; print(Path('/tmp/kg-original-pages-api.log').read_text())"; exit 1; fi
+      - name: Original Pages real login, persisted CRUD, cash, PDF and mobile
+        env:
+          KG_LIVE_QA_DIR: /tmp/kg-original-pages-qa
+          KG_LIVE_QA_OUT: visual-evidence/original-pages-live
+        run: |
+          python -m tests.browser_live_pages
+          KG_LIVE_QA_OUT="$KG_LIVE_QA_OUT/edge-cases" python -m tests.browser_live_edge_cases
       - name: Start isolated QA previews
         shell: bash
         run: |

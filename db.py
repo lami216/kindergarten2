@@ -68,7 +68,11 @@ def get_connection():
 
 def new_transaction_connection():
     """Independent transaction: never mutate the cached autocommit connection."""
-    if "postgres" in st.secrets:
+    import web_runtime
+    request = web_runtime.active()
+    if request is not None:
+        connection = psycopg2.connect(request["dsn"], cursor_factory=RealDictCursor)
+    elif "postgres" in st.secrets:
         connection = psycopg2.connect(st.secrets["postgres"]["url"], cursor_factory=RealDictCursor)
     else:
         connection = psycopg2.connect(
@@ -78,7 +82,7 @@ def new_transaction_connection():
     connection = _pin_business_timezone(connection, autocommit=False)
     import record_history
     with connection.cursor() as cursor:
-        record_history.context(cursor, st.session_state.get('auth_user') or 'النظام')
+        record_history.context(cursor, web_runtime.state().get('auth_user') or 'النظام')
     return connection
 
 
