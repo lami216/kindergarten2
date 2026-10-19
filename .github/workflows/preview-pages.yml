@@ -61,6 +61,8 @@ jobs:
           path: dist
 
   deploy:
+    # Publishing remains an explicit action subject to github-pages protection.
+    if: github.event_name == 'workflow_dispatch'
     needs: build
     runs-on: ubuntu-latest
     permissions:
