@@ -36,6 +36,33 @@ def intake(**changes):
     return result
 
 
+def test_http_worker_four_digit_create_reset_and_unchanged_code(browser):
+    client, conn = browser
+    owner = login(client)
+    payload = dict(name='عامل برمز قصير', username='numeric_worker',
+                   password='123', permissions=['students.create'], active=True)
+    rejected = post(client, owner, 'users.save', payload)
+    assert rejected.status_code == 422, rejected.text
+    assert '4' in rejected.text
+    created = post(client, owner, 'users.save', {**payload, 'password':'1234'})
+    assert created.status_code == 200, created.text
+    uid = created.json()['id']
+    login(client, 'numeric_worker', '1234')
+    owner = login(client)
+    change = dict(id=uid, version=1, name=payload['name'], password='0000',
+                  permissions=['students.create'], active=True)
+    assert post(client, owner, 'users.save', change).status_code == 200
+    wrong = client.post('/api/login', json={'username':'numeric_worker','password':'1234'}, headers={'Origin':ORIGIN})
+    assert wrong.status_code == 401, wrong.text
+    login(client, 'numeric_worker', '0000')
+    owner = login(client)
+    rejected = post(client, owner, 'users.save', {**change, 'version':2, 'password':'123'})
+    assert rejected.status_code == 422, rejected.text
+    unchanged = post(client, owner, 'users.save', {**change, 'version':2, 'password':''})
+    assert unchanged.status_code == 200, unchanged.text
+    login(client, 'numeric_worker', '0000')
+
+
 def test_valid_cookie_session_opens_supplementary_tools_without_second_login(access,monkeypatch):
     from streamlit.testing.v1 import AppTest
     from streamlit.runtime.context import ContextProxy

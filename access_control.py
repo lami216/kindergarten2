@@ -152,9 +152,9 @@ def username(value):
     return value
 
 
-def password_hash(password):
-    if not isinstance(password,str) or not 12<=len(password)<=128:
-        raise ValueError('كلمة المرور من 12 إلى 128 حرفًا. يمكن توليد كلمة قوية بدل اختيار رمز قصير.')
+def password_hash(password, *, minimum_length=12):
+    if not isinstance(password,str) or not minimum_length<=len(password)<=128:
+        raise ValueError(f'كلمة المرور من {minimum_length} إلى 128 خانة؛ لا يُشترط استعمال حروف أو رموز.')
     salt=secrets.token_hex(16)
     digest=hashlib.pbkdf2_hmac('sha256',password.encode('utf-8'),bytes.fromhex(salt),600000).hex()
     return f'pbkdf2_sha256$600000${salt}${digest}'
@@ -338,7 +338,7 @@ def save_user(*,employee_name,name=None,password=None,is_admin=False,permissions
     employee_name=employee_name.strip()
     if not employee_name or len(employee_name)>100: raise ValueError('اسم العامل مطلوب، حتى 100 حرف.')
     perms=validate_permissions(permissions)
-    hashed=password_hash(password) if password else None
+    hashed=password_hash(password,minimum_length=12 if is_admin else 4) if password else None
     conn=db.new_transaction_connection()
     try:
         with conn.cursor() as c:
