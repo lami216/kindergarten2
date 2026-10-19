@@ -2,6 +2,7 @@
 from psycopg2 import sql
 
 TABLES = {
+    'student_attendance':'attendance_id','teacher_attendance':'attendance_id',
     'students': 'student_id', 'student_photos': 'student_id', 'parents': 'father_id', 'teachers': 'national_id',
     'school_departments': 'department_id', 'student_departments': 'student_id',
     'department_transfers': 'transfer_id', 'classes': 'class_id',
@@ -55,6 +56,15 @@ def migrate(conn):
                     previous=previous-'image_data'; following=following-'image_data';
                     SELECT full_name INTO child_name FROM students
                         WHERE student_id=COALESCE(following->>'student_id',previous->>'student_id');
+                    IF previous IS NOT NULL THEN previous=previous||jsonb_build_object('full_name',child_name); END IF;
+                    IF following IS NOT NULL THEN following=following||jsonb_build_object('full_name',child_name); END IF;
+                END IF;
+                IF TG_TABLE_NAME IN ('student_attendance','teacher_attendance') THEN
+                    IF TG_TABLE_NAME='student_attendance' THEN
+                        SELECT full_name INTO child_name FROM students WHERE student_id=COALESCE(following->>'person_id',previous->>'person_id');
+                    ELSE
+                        SELECT full_name INTO child_name FROM teachers WHERE national_id=COALESCE(following->>'person_id',previous->>'person_id');
+                    END IF;
                     IF previous IS NOT NULL THEN previous=previous||jsonb_build_object('full_name',child_name); END IF;
                     IF following IS NOT NULL THEN following=following||jsonb_build_object('full_name',child_name); END IF;
                 END IF;

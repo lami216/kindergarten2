@@ -47,6 +47,7 @@ async def main():
             passed('real_password_login_and_secure_session_cookie')
             await nav('students');await page.locator('#add-student').click()
             await page.locator('#student-form [name="name"]').fill('طفل من صفحات Pages الأصلية')
+            await page.locator('#student-form [name="department_id"]').select_option(index=1)
             await page.locator('#student-form [name="father"]').fill('أب الطفل')
             await page.locator('#student-form [name="fatherPhone"]').fill('22334455')
             await page.locator('#student-form [name="amount"]').fill('6000')

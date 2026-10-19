@@ -177,6 +177,11 @@ def save_child_with_family(child, family, existing_parent_id, request_token,
                         "احتفظنا بمدخلاتك؛ ابدأ نموذجاً جديداً قبل تسجيل طفل آخر.")
                 connection.commit()
                 return already["student_id"], False
+            department_id=None
+            if child.get('_department_id') is not None:
+                from school_people import department
+                department_id=department(cur,child['_department_id'])
+                A.require(cur,'students.create')
             if existing_parent_id:
                 cur.execute("SELECT father_id FROM parents WHERE father_id=%s AND archived_at IS NULL FOR SHARE",
                             (existing_parent_id,))
@@ -209,6 +214,8 @@ def save_child_with_family(child, family, existing_parent_id, request_token,
                   child["allergies"].strip() or None, child["general_notes"].strip() or None,
                   json.dumps(child["authorized_pickups"], ensure_ascii=False),
                   parent_id, str(request_token), fingerprint))
+            if department_id is not None:
+                cur.execute('INSERT INTO student_departments(student_id,department_id) VALUES(%s,%s)',(student_id,department_id))
             if portrait is not None:
                 student_photos.insert_in_transaction(cur, student_id, portrait)
             if finance is not None:
@@ -443,6 +450,8 @@ def _apply_schema(conn):
     monthly_finance.migrate(conn)
     import school_departments
     school_departments.migrate(conn)
+    import attendance
+    attendance.migrate(conn)
     import records
     import student_photos
     student_photos.migrate(conn)

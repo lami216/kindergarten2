@@ -2,9 +2,12 @@ name: Build and publish interface preview
 
 on:
   push:
-    branches: [design/simpler-owner-workflow]
+    branches: [design/teachers-attendance]
     paths:
       - 'docs/**'
+      - 'live/**'
+      - 'preview/**'
+      - 'scripts/build_pages_preview.py'
       - '.github/workflows/preview-pages.yml'
   workflow_dispatch:
 
@@ -17,12 +20,10 @@ concurrency:
 
 jobs:
   build:
-    if: github.ref == 'refs/heads/design/simpler-owner-workflow'
+    if: github.ref == 'refs/heads/design/teachers-attendance'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: design/unified-daily-workflow
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -35,11 +36,16 @@ jobs:
           node --check preview/workspace-entry.js
           node --check live/bridge.js
           node --check live/workspace.js
+          node --check live/people.js
+          node --check live/attendance-session.js
+          node --check preview/people-runtime.js
       - name: Test standalone Pages build under its project prefix
         run: |
           pip install playwright
           python -m playwright install --with-deps chromium
           python -m tests.browser_unified_pages_preview
+          python -m tests.browser_people_preview
+          python -m tests.browser_attendance_session
       - name: Build selected interface with disposable synthetic data
         run: python scripts/build_pages_preview.py --output dist
       - name: Upload browser evidence
@@ -47,7 +53,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: unified-pages-preview-checks
-          path: visual-evidence/unified-pages-preview
+          path: visual-evidence
           retention-days: 14
       - name: Prepare Pages build
         uses: actions/upload-pages-artifact@v3
@@ -55,6 +61,8 @@ jobs:
           path: dist
 
   deploy:
+    # Publishing remains an explicit action subject to github-pages protection.
+    if: github.event_name == 'workflow_dispatch'
     needs: build
     runs-on: ubuntu-latest
     permissions:

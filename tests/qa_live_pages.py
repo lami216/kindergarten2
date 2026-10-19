@@ -35,7 +35,10 @@ def setup(root):
         conn=db.new_transaction_connection();conn.commit();M.upgrade(conn);conn.close()
         A.bootstrap('مدير اختبار مستقل','qa_owner',password)
         token=A.login('qa_owner',password)
-        with W.request_context(isolated,{'auth_session':token}):F.update_tariffs(1000,2000,3000,'qa_owner')
+        with W.request_context(isolated,{'auth_session':token}):
+            F.update_tariffs(1000,2000,3000,'qa_owner')
+            import school_departments as D
+            D.create('قسم الاختبار')
     state={'dsn':isolated,'username':'qa_owner','password':password,'origin':'https://127.0.0.1:8520','schema':schema}
     (root/'state.json').write_text(json.dumps(state));(root/'state.json').chmod(0o600)
     (root/'.streamlit').mkdir(exist_ok=True)
