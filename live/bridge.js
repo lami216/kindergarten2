@@ -134,13 +134,7 @@ render=function(){
         document.querySelectorAll('#payment-body .stat-hint').forEach(e=>{if(e.textContent.includes('الشهرية:'))e.textContent='الشهرية: '+money(price.tuition)+' أوقية';});
     }
     const stale=$('#content #live-extra');if(stale)stale.remove();
-    const nav=document.querySelector('nav');
     $('#live-extra-nav')?.remove();
-    if(liveSession.management){
-        const details=document.createElement('details');details.id='live-extra-nav';
-        details.innerHTML='<summary>الإدارة الإضافية</summary><a class="secondary" href="/management/">فتح أدوات الإدارة الإضافية</a>';
-        nav.append(details);
-    }
     if(page==='history'){
         Object.assign(recordNames,{parents:'أولياء الأمور',monthly_accounts:'حساب الطالب',monthly_waivers:'إلغاء الديون',
             monthly_tariffs:'الرسوم',student_departments:'توزيع الأطفال',department_transfers:'نقل الأطفال',

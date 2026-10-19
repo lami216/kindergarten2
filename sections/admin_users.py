@@ -36,7 +36,7 @@ def render(conn):
             with st.form('admin_create'):
                 name=st.text_input('اسم العامل *',max_chars=100,key='admin_new_name')
                 login=st.text_input('اسم المستخدم *',max_chars=64,key='admin_new_username')
-                password=st.text_input('كلمة المرور *',type='password',key='admin_new_password',help='12 حرفًا على الأقل؛ زر العين يعرض الكلمة لتسليمها للعامل.')
+                password=st.text_input('كلمة المرور *',type='password',key='admin_new_password',help='للعامل 4 خانات على الأقل، وتكفي الأرقام فقط؛ حساب المدير يحتاج 12 خانة.')
                 manager=st.checkbox('هذا الحساب مدير ويملك جميع الصلاحيات',key='admin_new_manager')
                 perms=permission_fields('admin_new_grants')
                 save=st.form_submit_button('إنشاء الحساب',type='primary')

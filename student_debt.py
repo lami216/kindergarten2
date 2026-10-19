@@ -55,7 +55,8 @@ def waiver_preview(conn, student, *, as_of=None):
     return result
 
 
-def waive_debt(student, reason, confirmed, *, actor, token=None, effective_on=None):
+def waive_debt(student, reason, confirmed, *, actor, token=None, effective_on=None,
+               expected_revision=None, expected_due=None):
     """Explicitly void the *outstanding* part of each already issued obligation.
 
     The original gross fee/period and cash-paid allocations remain untouched.
@@ -88,8 +89,12 @@ def waive_debt(student, reason, confirmed, *, actor, token=None, effective_on=No
                 return total,False
             if account["archived_at"]:
                 raise ValueError("الحساب مؤرشف؛ لا تلغِ ديناً جديداً دون مراجعة مالية.")
+            if expected_revision is not None:
+                F._assert_receipt_revision(c,student,expected_revision)
             rows=current_debt(c,student,account,as_of=day)
             total=sum(max(0,r["remaining"]) for r in rows)
+            if expected_due is not None and total!=expected_due:
+                raise ValueError('تغيّر الدين؛ حدّث الملف وراجع المبلغ قبل إسقاطه.')
             if not total:
                 raise ValueError("لا يوجد دين مستحق لإلغائه.")
             if any(r["remaining"]<0 for r in rows):
@@ -169,6 +174,42 @@ def pay_unpaid_fee(student, kind, *, actor, token=None, expected_due=None):
         conn.close()
 
 
+def restore_student(student, *, actor, reason, expected, expected_account=None):
+    """Reopen for review, keeping the departure cutoff; never bill absence.
+
+    A later actual return to attendance must explicitly establish subscription
+    terms. Restoration alone is not an authorization to create missed months.
+    """
+    import records as R
+    import record_history as H
+    if not str(reason or '').strip(): raise ValueError('اكتب سبب استرجاع الملف.')
+    conn=db.new_transaction_connection()
+    try:
+        with conn.cursor() as c:
+            import access_control as A
+            actor=A.actor(c,'students.edit',actor)
+            child=R._lock(c,'students',student,expected)
+            if not child['archived_at']: raise ValueError('الملف مسترجع بالفعل؛ حدّث القائمة.')
+            c.execute('SELECT * FROM monthly_accounts WHERE student_id=%s FOR UPDATE',(student,))
+            account=c.fetchone()
+            if account:
+                A.require(c,'accounts.edit')
+                if not expected_account or R.revision(account)!=expected_account:
+                    raise ValueError('تغيّر الحساب؛ أعد فتح نافذة الاسترجاع.')
+                H.context(c,actor,reason)
+                cutoff=account.get('departure_on') or child['archived_at'].date()
+                c.execute('''UPDATE monthly_accounts SET archived_at=NULL,archived_by=NULL,
+                    departure_on=%s WHERE student_id=%s''',(cutoff,student))
+                F._audit(c,student,None,'student_restored_for_review',actor,dict(account),
+                         {'departure_on':str(cutoff),'cash':0},reason)
+            A.require(c,'students.edit')
+            H.context(c,actor,reason)
+            c.execute('UPDATE students SET archived_at=NULL,archived_by=NULL WHERE student_id=%s',(student,))
+        conn.commit()
+    except Exception: conn.rollback(); raise
+    finally: conn.close()
+
+
 def archive_student(student, *, actor):
     """Never delete a child or its family/receipts. Lock and recheck cash debt."""
     actor=_actor(actor)
@@ -193,7 +234,7 @@ def archive_student(student, *, actor):
             if account:
                 c.execute("""UPDATE monthly_accounts SET archived_at=NOW(),
                              archived_by=%s,departure_on=%s WHERE student_id=%s""",
-                          (actor,F.today(),student))
+                          (actor,min(account.get('departure_on') or F.today(),F.today()),student))
                 F._audit(c,student,None,"student_archived",actor,{},
                          {"departed_on":str(F.today()),"cash":0})
         conn.commit()

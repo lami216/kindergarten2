@@ -1088,9 +1088,12 @@ def initialize_existing_account(student, start_date, mode, confirmed, *, actor="
             import access_control as A
             actor=A.actor(c,'accounts.edit',actor)
             # Serialize competing attempts per child and guard historical funds.
-            c.execute("SELECT student_id FROM students WHERE student_id=%s FOR UPDATE",(student,))
-            if not c.fetchone():
+            c.execute("SELECT student_id,archived_at FROM students WHERE student_id=%s FOR UPDATE",(student,))
+            child=c.fetchone()
+            if not child:
                 raise ValueError("الطفل غير موجود.")
+            if child["archived_at"]:
+                raise ValueError("استرجع ملف الطالب المؤرشف أولًا.")
             c.execute("SELECT status,start_date FROM monthly_accounts WHERE student_id=%s",(student,))
             previous=c.fetchone()
             if previous:

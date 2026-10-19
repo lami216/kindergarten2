@@ -208,7 +208,7 @@ def cancel(table, ident, *, actor, reason, expected=None, destination=None, waiv
                                 (ident,item['ident'],item['period_id'],item['remaining'],F.today(),token,'record-cancellation',actor,reason))
                         F._audit(c,ident,None,'debt_waived_non_cash',actor,{'gross_due':due},{'waived':due,'cash':0},reason)
                 if account:
-                    c.execute('UPDATE monthly_accounts SET archived_at=now(),archived_by=%s,departure_on=%s WHERE student_id=%s',(actor,F.today(),ident))
+                    c.execute('UPDATE monthly_accounts SET archived_at=now(),archived_by=%s,departure_on=%s WHERE student_id=%s',(actor,min(account.get('departure_on') or F.today(),F.today()),ident))
                     F._audit(c,ident,None,'student_archived',actor,dict(account),{'departed_on':str(F.today()),'cash':0},reason)
                 c.execute('DELETE FROM student_departments WHERE student_id=%s',(ident,))
             if table=='registrations':

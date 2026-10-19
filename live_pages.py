@@ -1,7 +1,7 @@
 """Serve the ORIGINAL GitHub Pages files, backed by the existing Python ledger.
 
-No new database, demo accounts, financial engine, client-side authority or migration.
-Run behind TLS/Nginx. The supplementary Streamlit application is kept separately.
+No new database, demo accounts, financial engine or client-side authority.
+Run behind TLS/Nginx. Administration uses the same live interface.
 """
 import argparse
 import base64
@@ -51,7 +51,8 @@ CONTENT_TYPES = {'.css':'text/css','.js':'text/javascript','.jpg':'image/jpeg','
 def index_html():
     html = (DESIGN_ROOT/'index.html').read_text(encoding='utf-8')
     html = html.replace('<script src="preview.js">','<script src="/live/runtime.js"></script>\n<script src="preview.js">')
-    return html.replace('</body>','<script src="/live/bridge.js"></script>\n</body>')
+    html=html.replace('</head>','<link rel="stylesheet" href="/live/workspace.css"></head>')
+    return html.replace('</body>','<script src="/live/bridge.js"></script>\n<script src="/live/workspace.js"></script>\n</body>')
 
 
 def json_ready(value):
@@ -136,7 +137,7 @@ def snapshot(conn, profile):
                 raw={k:v for k,v in s.items() if k not in ('father_name','father_mobile','mother_name','mother_mobile','department_name')}
                 child.update(birth=s['birth_date'],gender=s['gender'],place=s['birth_place'] or '',
                     address=s['address'] or '',health=s['medical_details'] or '',
-                    allergy=s['allergies'] or '',notes=s['general_notes'] or '',revision=R.revision(raw))
+                    allergy=s['allergies'] or '',notes=s['general_notes'] or '',pickups=s['authorized_pickups'] or [],revision=R.revision(raw))
                 parent=parents.get(s['father_id'])
                 child['parent_revision']=R.revision(parent) if parent else None
                 child['parent_id']=s['father_id']
@@ -145,7 +146,7 @@ def snapshot(conn, profile):
             if A.can('payments.view'):
                 p=accounts.get(s['student_id'])
                 if p:
-                    child.update(exempt=p['exempt'],registration=p['fees'].get('registration',{}).get('price',0),
+                    child.update(ledger_revision=0,account_revision=R.revision(p['account']),paused=bool(p['account'].get('departure_on')),exempt=p['exempt'],subscription_status=p['account']['status'],registration=p['fees'].get('registration',{}).get('price',0),
                         gilet=p['fees'].get('gilet',{}).get('price',0),start=p['account']['start_date'])
                     child['account']={'paid':p['cash_paid'],'due':p['due_now'],'full':p['paid_periods'],
                         'monthPaid':sum(x['paid'] for x in p['periods']),
@@ -163,6 +164,7 @@ def snapshot(conn, profile):
         revisions={r['student_id']:int(r['revision']) for r in rows(conn,
             'SELECT student_id,MAX(audit_id) AS revision FROM monthly_audit GROUP BY student_id')}
         for r in result['receipts']: r['revision']=revisions.get(r['student'],0)
+        for s in result['students']: s['ledger_revision']=revisions.get(s['id'],0)
     if A.can('expenses.view'):
         for e in rows(conn,'SELECT * FROM expenses WHERE teacher_payment_id IS NULL AND teacher_advance_id IS NULL ORDER BY expense_id'):
             result['expenses'].append({'id':e['expense_id'],'category':e['category'],'amount':e['amount'],
@@ -173,10 +175,13 @@ def snapshot(conn, profile):
         result['departments']=[{'id':d['department_id'],'name':d['name'],'cancelled':bool(d['archived_at']),
                                 'revision':R.revision(d)} for d in rows(conn,'SELECT * FROM school_departments ORDER BY department_id')]
     if A.can('payments.create') or A.can('students.create') or A.can('fees.view'):
-        result['prices']=F.prices(conn)
+        tariff=rows(conn,'SELECT registration,gilet,tuition FROM monthly_tariffs WHERE id=1')
+        result['prices']={k:int(v) for k,v in tariff[0].items()} if tariff else None
     if A.can('reports.view'):
         result['overview']=F.financial_overview(conn,materialize=False)
-        result['overview']['students_count']=rows(conn,'SELECT COUNT(*) AS n FROM students WHERE archived_at IS NULL')[0]['n']
+        counts=rows(conn,'SELECT COUNT(*) FILTER(WHERE archived_at IS NULL) AS active, COUNT(*) FILTER(WHERE archived_at IS NOT NULL) AS archived FROM students')[0]
+        result['overview']['students_count']=counts['active']
+        result['overview']['archived_students']=counts['archived']
     if A.can('history.view'):
         result['changes']=rows(conn,'''SELECT change_id AS id,table_name AS type,record_key AS key,action,
             before_state AS before,after_state AS after,reason,actor,actor_user_id AS "actorId",happened_at AS time
@@ -186,6 +191,22 @@ def snapshot(conn, profile):
         result['account_events']=A.access_history(conn)
         for u in result['users']: result['metrics'][str(u['user_id'])]=A.employee_metrics(conn,u['user_id'])
     else: result['metrics'][str(profile['user_id'])]=A.employee_metrics(conn,profile['user_id'])
+    import live_tools
+    result['tools']=live_tools.catalog()
+    result['field_labels']=live_tools.LABELS
+    result['resources']={key:dict(title=label,actions=list(actions)) for key,(label,actions) in A.RESOURCES.items()}
+    return result
+
+
+def pickup_values(value):
+    if not isinstance(value,list) or len(value)>12:raise ValueError('أضف حتى 12 شخصًا مخولًا بالاستلام.')
+    result=[]
+    for item in value:
+        if not isinstance(item,dict):raise ValueError('بيانات الاستلام غير صحيحة.')
+        name=text(item,'name',100);phone=text(item,'phone',30);relation=text(item,'relation',100)
+        if not (name or phone or relation):continue
+        if not name or not phone:raise ValueError('كل شخص مخول يحتاج اسمًا ورقم هاتف.')
+        result.append(dict(name=name,phone=phone,relation=relation))
     return result
 
 
@@ -208,10 +229,13 @@ def edit_student(conn, data, actor):
         if 'birth_date' in update:
             if not update['birth_date']: update['birth_date']=None
             else: update['birth_date']=date.fromisoformat(update['birth_date'])
+        if 'pickups' in values:
+            update['authorized_pickups']=pickup_values(values['pickups'])
         R._validate(c,'students',old,update)
         if update:
             c.execute(sql.SQL('UPDATE students SET {} WHERE student_id=%s').format(
-                sql.SQL(',').join(sql.SQL('{}=%s').format(sql.Identifier(k)) for k in update)),[*update.values(),ident])
+                sql.SQL(',').join(sql.SQL('{}=%s').format(sql.Identifier(k)) for k in update)),
+                [json.dumps(v,ensure_ascii=False) if k=='authorized_pickups' else v for k,v in update.items()]+[ident])
         parent_fields={'fatherName':'father_name','fatherPhone':'father_mobile','motherName':'mother_name','motherPhone':'mother_mobile'}
         if any(k in values for k in parent_fields):
             A.require(c,'parents.edit')
@@ -232,6 +256,47 @@ def edit_student(conn, data, actor):
 
 def mutate(conn, operation, data, profile):
     actor=profile['username']
+    if operation=='tools.list':
+        import live_tools
+        return live_tools.list_rows(conn,data)
+    if operation=='tools.change':
+        import live_tools
+        return live_tools.change(conn,data,profile)
+    if operation in ('reports.read','reports.export'):
+        import live_tools
+        value=live_tools.reports(conn,data)
+        if operation=='reports.read':return value
+        import pandas as pd
+        from sections.reports import _to_excel
+        items=value['items'] or [{'البند':key,'القيمة':val} for key,val in value['summary'].items()]
+        return _to_excel(pd.DataFrame(items))
+    if operation=='fees.save':
+        if data.get('confirmed') is not True:raise ValueError('أكد تحديث الرسوم.')
+        F.update_tariffs(whole_amount(data.get('registration'),zero=True),whole_amount(data.get('gilet'),zero=True),
+            whole_amount(data.get('tuition')),actor,reason=text(data,'reason',2000,True),expected=text(data,'revision',64,True))
+        return {'ok':True}
+    if operation=='accounts.setup':
+        F.initialize_existing_account(text(data,'student',20,True),text(data,'start',10,True),
+            text(data,'status',12,True),data.get('confirmed') is True,actor=actor)
+        return {'ok':True}
+    if operation=='expenses.settle':
+        if data.get('confirmed') is not True:raise ValueError('أكد صرف المبلغ الفعلي.')
+        E.settle(data.get('id'),data.get('amount'),on_date=text(data,'date',10,True),actor=actor,
+            reason=text(data,'reason',2000,True),token=request_token(data),expected=text(data,'revision',64,True))
+        return {'ok':True}
+    if operation=='payroll.save':
+        import payroll_finance as P
+        payment_day=date.fromisoformat(text(data,'date',10,True))
+        if not date(1990,1,1)<=payment_day<=F.today():raise ValueError('تاريخ الصرف غير صالح أو مستقبلي.')
+        if data.get('confirmed') is not True:raise ValueError('أكد الصرف النقدي الفعلي.')
+        if data.get('kind')=='advance':
+            ident,created=P.save_advance(text(data,'teacher',20,True),text(data,'month',7,True),data.get('amount'),
+                notes=text(data,'notes'),actor=actor,token=request_token(data),on_date=date.fromisoformat(text(data,'date',10,True)))
+        else:
+            ident,created=P.save_salary(text(data,'teacher',20,True),text(data,'month',7,True),data.get('base'),
+                data.get('bonus',0),data.get('deductions',0),notes=text(data,'notes'),actor=actor,
+                token=request_token(data),on_date=date.fromisoformat(text(data,'date',10,True)))
+        return {'id':ident,'created':created}
     if operation=='students.create':
         name=text(data,'name',100,True)
         birthday=date.fromisoformat(text(data,'birth',10,True))
@@ -261,6 +326,20 @@ def mutate(conn, operation, data, profile):
             finance['payer']=existing[0]['father_name'] or existing[0]['mother_name'] or ''
         ident,created=db.save_child_with_family(child,family,existing_parent,request_token(data),finance=finance,actor=actor,photo=photo)
         return {'id':ident,'created':created}
+    if operation=='students.restore':
+        import student_debt as D
+        if data.get('confirmed') is not True: raise ValueError('أكد استرجاع الملف للمراجعة.')
+        D.restore_student(text(data,'student',20,True),actor=actor,reason=text(data,'reason',2000,True),
+            expected=text(data,'revision',64,True),expected_account=data.get('account_revision'))
+        return {'ok':True}
+    if operation=='students.waive':
+        import student_debt as D
+        if data.get('confirmed') is not True or type(data.get('revision')) is not int:
+            raise ValueError('راجع الدين وأكد إسقاطه دون قبض.')
+        due=whole_amount(data.get('due'))
+        value,created=D.waive_debt(text(data,'student',20,True),text(data,'reason',2000,True),True,
+            actor=actor,token=request_token(data),expected_revision=data['revision'],expected_due=due)
+        return {'waived':value,'created':created}
     if operation=='students.edit': return edit_student(conn,data,actor)
     if operation=='departments.create': return {'id':departments.create(text(data,'name',100,True))}
     if operation=='departments.transfer':
@@ -391,7 +470,8 @@ def make_app(dsn, public_origin, *, management=False, trusted_proxies=()):
             if operation=='login': return A.login(data.get('username'),data.get('password'))
             with connection() as conn:
                 profile=A.refresh(conn);conn.commit();conn.autocommit=True
-                if operation=='session': return {'user':profile,'csrf':csrf(token),'management':management}
+                db.assert_schema_ready(conn)
+                if operation=='session': return {'user':profile,'csrf':csrf(token),'management':False}
                 if operation=='snapshot': return snapshot(conn,profile)
                 if operation=='logout': A.revoke_current();return {'ok':True}
                 if operation=='pdf':
@@ -401,11 +481,25 @@ def make_app(dsn, public_origin, *, management=False, trusted_proxies=()):
                 if operation=='photo':
                     p=student_photos.get(conn,data['id'])
                     return bytes(p['image_data']) if p.get('image_data') else None
+                if operation=='backup':
+                    require(conn,'admin.export')
+                    import data_export
+                    return data_export.build_export()[0]
+                if operation=='fees.read':
+                    require(conn,'fees.view')
+                    row=rows(conn,'SELECT * FROM monthly_tariffs WHERE id=1')
+                    return {'values':{k:int(row[0][k]) if row else 0 for k in ('registration','gilet','tuition')},
+                        'revision':R.revision({k:row[0][k] for k in ('registration','gilet','tuition')} if row else {})}
+                if operation=='teachers.options':
+                    require(conn,'salaries.view')
+                    return rows(conn,'''SELECT national_id AS id,full_name AS name,
+                        COALESCE(display_national_id,national_id) AS identity,salary,archived_at IS NOT NULL AS archived
+                        FROM teachers ORDER BY full_name,national_id''')
                 conn.autocommit=False
                 return mutate(conn,operation,data,profile)
     async def api(request: Request):
         operation=request.path_params['operation']
-        expected_method='GET' if operation in ('session','snapshot') else 'POST'
+        expected_method='GET' if operation in ('session','snapshot','fees.read','teachers.options') else 'POST'
         if request.method!=expected_method: return JSONResponse({'error':'طريقة غير مسموحة.'},405)
         token=request.cookies.get(COOKIE,'')
         if len(token)>256: return JSONResponse({'error':'جلسة غير صالحة.'},401)
@@ -439,11 +533,20 @@ def make_app(dsn, public_origin, *, management=False, trusted_proxies=()):
                 return response
             if not token: return JSONResponse({'error':'سجّل الدخول أولًا.'},401)
             result=await run_in_threadpool(execute,token,operation,data)
+            if operation=='reports.export':
+                return Response(result,media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    headers={'Content-Disposition':'attachment; filename="report.xlsx"'})
             response=JSONResponse(json_ready(result))
             if operation=='logout': response.delete_cookie(COOKIE,path='/',secure=True,httponly=True,samesite='strict')
             return response
+        except __import__('schema_migrations').SchemaNotReady:
+            return JSONResponse({'error':'التطبيق قيد التحديث؛ أكمل ترحيل قاعدة البيانات أولًا.'},503)
         except A.AccessDenied:
             return JSONResponse({'error':'انتهت الجلسة أو ليس لديك صلاحية لهذا الإجراء.'},403 if token else 401)
+        except __import__('psycopg2').errors.StringDataRightTruncation:
+            return JSONResponse({'error':'أحد الحقول أطول من المسموح؛ قصّر القيمة وأعد الحفظ.'},422)
+        except __import__('psycopg2').errors.UniqueViolation:
+            return JSONResponse({'error':'توجد بيانات بالهوية نفسها؛ راجع السجل قبل الإضافة.'},422)
         except (ValueError,TypeError,KeyError) as exc:
             return JSONResponse({'error':str(exc) if isinstance(exc,ValueError) else 'قيمة غير صحيحة في الطلب.'},422)
         except Exception:
@@ -453,13 +556,15 @@ def make_app(dsn, public_origin, *, management=False, trusted_proxies=()):
         token=request.cookies.get(COOKIE,'')
         if not token or len(token)>256: return JSONResponse({'error':'سجّل الدخول أولًا.'},401)
         kind=request.path_params['kind'];ident=request.path_params['ident']
-        if kind not in ('photo','receipt'): return Response(status_code=404)
+        if kind not in ('photo','receipt','download'): return Response(status_code=404)
         if len(ident)>20: return Response(status_code=404)
         try:
-            value=await run_in_threadpool(execute,token,'photo' if kind=='photo' else 'pdf',{'id':ident})
+            if kind=='download' and ident!='backup':return Response(status_code=404)
+            value=await run_in_threadpool(execute,token,'backup' if kind=='download' else 'photo' if kind=='photo' else 'pdf',{'id':ident})
             if value is None: return Response(status_code=404)
-            headers={'Content-Disposition':f'attachment; filename="receipt-{int(ident)}.pdf"'} if kind=='receipt' else {}
-            return Response(value,media_type='image/jpeg' if kind=='photo' else 'application/pdf',headers=headers)
+            headers={'Content-Disposition':'attachment; filename="kindergarten-data.zip"'} if kind=='download' else {'Content-Disposition':f'attachment; filename="receipt-{int(ident)}.pdf"'} if kind=='receipt' else {}
+            return Response(value,media_type='application/zip' if kind=='download' else 'image/jpeg' if kind=='photo' else 'application/pdf',headers=headers)
+        except __import__('schema_migrations').SchemaNotReady: return Response(status_code=503)
         except A.AccessDenied: return Response(status_code=403)
         except (ValueError,TypeError): return Response(status_code=404)
     async def health(request):
@@ -474,11 +579,15 @@ def make_app(dsn, public_origin, *, management=False, trusted_proxies=()):
     async def runtime(request):
         return Response('window.LIVE_APP=true;window.LIVE_TODAY='+json.dumps(str(F.today()))+';',media_type='text/javascript')
     async def bridge(request): return Response((LIVE_ROOT/'bridge.js').read_bytes(),media_type='text/javascript')
+    async def workspace_asset(request):
+        name=request.path_params['name']
+        if name not in ('workspace.js','workspace.css'):return Response(status_code=404)
+        return Response((LIVE_ROOT/name).read_bytes(),media_type='text/javascript' if name.endswith('.js') else 'text/css')
     async def index(request): return Response(index_html(),media_type='text/html')
     app=Starlette(routes=[Route('/',index),Route('/api/health',health),
         Route('/api/{kind}/{ident}',private_file),
         Route('/api/{operation}',api,methods=['GET','POST']),
-        Route('/live/runtime.js',runtime),Route('/live/bridge.js',bridge),Route('/{filename}',asset)])
+        Route('/live/runtime.js',runtime),Route('/live/bridge.js',bridge),Route('/live/{name}',workspace_asset),Route('/{filename}',asset)])
     async def headers(request,call_next):
         if request.headers.get('host')!=parsed.netloc: return Response(status_code=400)
         response=await call_next(request)

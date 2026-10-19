@@ -448,4 +448,8 @@ def _apply_schema(conn):
     student_photos.migrate(conn)
     records.migrate(conn)
     import access_control
+    with conn.cursor() as c:
+        c.execute("""CREATE TABLE IF NOT EXISTS app_tool_requests (
+            request_token UUID PRIMARY KEY,request_hash TEXT NOT NULL,
+            record_id TEXT NOT NULL,created_at TIMESTAMPTZ NOT NULL DEFAULT now())""")
     access_control.migrate(conn)
