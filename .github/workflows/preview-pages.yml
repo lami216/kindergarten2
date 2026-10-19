@@ -21,56 +21,33 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: e64cdcb24d5f66176f904eccc0fdeb9072033199
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Check JavaScript
+      - name: Check preview and shared interface JavaScript
         run: |
-          node --check docs/preview.js
-          node --check docs/access-preview.js
-          node --check docs/student-profile.js
-          node --check docs/edit-windows.js
-      - name: Build static preview
+          node --check preview/workspace-runtime.js
+          node --check preview/workspace-entry.js
+          node --check live/bridge.js
+          node --check live/workspace.js
+      - name: Test standalone Pages build under its project prefix
         run: |
-          python - <<'PY'
-          from pathlib import Path
-          import os
-          import shutil
-
-          source = Path('docs')
-          output = Path('dist')
-          output.mkdir(exist_ok=True)
-          files = (
-              'index.html', 'preview.css', 'preview.js', 'access-preview.js', 'student-profile.js', 'edit-windows.js', 'school-logo.jpg',
-              'IBMPlexSansArabic-Regular.ttf', 'IBM_Plex_Sans_Arabic_OFL.txt',
-              '.nojekyll',
-          )
-          for name in files:
-              asset = source / name
-              if not asset.is_file():
-                  raise SystemExit(f'Missing preview asset: {name}')
-              shutil.copy2(asset, output / name)
-          # Each deployment gets fresh CSS/JS even in an already-open browser.
-          index = output / 'index.html'
-          version = os.environ['GITHUB_SHA'][:12]
-          html = index.read_text(encoding='utf-8')
-          html = html.replace('href="preview.css"', f'href="preview.css?v={version}"')
-          html = html.replace('src="preview.js"', f'src="preview.js?v={version}"')
-          html = html.replace('src="access-preview.js"', f'src="access-preview.js?v={version}"')
-          html = html.replace('src="student-profile.js"', f'src="student-profile.js?v={version}"')
-          html = html.replace('src="edit-windows.js"', f'src="edit-windows.js?v={version}"')
-          index.write_text(html, encoding='utf-8')
-          print(f'Built {len(files)} preview assets in dist/')
-          PY
-      - name: Downloadable preview build
+          pip install playwright
+          python -m playwright install --with-deps chromium
+          python -m tests.browser_unified_pages_preview
+      - name: Build selected interface with disposable synthetic data
+        run: python scripts/build_pages_preview.py --output dist
+      - name: Upload browser evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: interface-preview-build
-          path: dist
-          include-hidden-files: true
+          name: unified-pages-preview-checks
+          path: visual-evidence/unified-pages-preview
           retention-days: 14
       - name: Prepare Pages build
         uses: actions/upload-pages-artifact@v3
@@ -87,6 +64,6 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Publish synthetic preview
+      - name: Publish selected interface preview
         id: deployment
         uses: actions/deploy-pages@v4
