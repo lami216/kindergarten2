@@ -1,5 +1,5 @@
 """Synthetic Pages file/photo journey and responsive screenshots."""
-import asyncio
+import asyncio,sys
 from functools import partial
 from http.server import SimpleHTTPRequestHandler,ThreadingHTTPServer
 from pathlib import Path
@@ -19,7 +19,7 @@ async def run():
     threading.Thread(target=server.serve_forever,daemon=True).start()
     try:
         async with async_playwright() as pw:
-            browser=await pw.chromium.launch(headless=True)
+            browser=await pw.chromium.launch(headless=True,channel='chrome' if sys.platform=='win32' else None)
             for width in (390,1280):
                 page=await browser.new_page(viewport={'width':width,'height':1000})
                 errors=[];page.on('pageerror',lambda error:errors.append(str(error)))

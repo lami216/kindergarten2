@@ -17,13 +17,13 @@ function liveGrants(values,user){
     return [...new Set(selected.concat((user?.serverPermissions||[]).filter(p=>!visible.has(p))))];
 }
 async function liveCall(operation, data){
-    const init={credentials:'same-origin',headers:{}};
-    if(data!==undefined){init.method='POST';init.headers={'Content-Type':'application/json','X-CSRF-Token':liveSession?.csrf||''};init.body=JSON.stringify(data);}
+    const init={credentials:'same-origin',headers:{'X-App-Language':I18N.lang}};
+    if(data!==undefined){init.method='POST';init.headers={'X-App-Language':I18N.lang,'Content-Type':'application/json','X-CSRF-Token':liveSession?.csrf||''};init.body=JSON.stringify(data);}
     const response=await fetch('/api/'+operation,init);
-    let value;try{value=await response.json();}catch{throw Error('تعذّر قراءة رد الخادم. لم نعرض نجاحًا غير مؤكد.');}
+    let value;try{value=await response.json();}catch{throw Error(`${I18N.tr("ui.5578f8d51f5b")}`);}
     if(!response.ok){
         if(response.status===401||(response.status===403&&operation==='session'))liveLoginScreen();
-        throw Error(value.error||'تعذّر إكمال العملية.');
+        throw Error((value.language===I18N.lang?value.error:I18N.message(value.error))||`${I18N.tr("ui.f926c7fdd7e3")}`);
     }
     return value;
 }
@@ -63,8 +63,8 @@ paymentBody=function(s){
     const template=document.createElement('template');template.innerHTML=livePaymentBody(s);
     const fees=template.content.querySelector('details p');
     if(fees&&s.account){
-        const label=(kind)=>s.account[kind+'_due']?'متبقي '+money(s.account[kind+'_due']):'لا مبلغ مستحق';
-        fees.textContent='التسجيل: '+label('registration')+' · الجيليه: '+label('gilet');
+        const label=(kind)=>s.account[kind+'_due']?`${I18N.tr("ui.d483582d2871",{p0:money(s.account[kind+'_due'])})}`:`${I18N.tr("ui.7d222428bc79")}`;
+        fees.textContent=`${I18N.tr("ui.946a9f4b4fa8",{p0:label('registration'),p1:label('gilet')})}`;
     }
     return template.innerHTML;
 };
@@ -102,9 +102,9 @@ const liveReceipt=openReceipt;
 openReceipt=function(id){
     liveReceipt(id);
     const box=$('#receipt-content');
-    const a=document.createElement('a');a.className='secondary body-space';a.textContent='تصدير الوصل PDF';a.href='/api/receipt/'+encodeURIComponent(id);a.target='_blank';a.rel='noopener';box.append(a);
+    const a=document.createElement('a');a.className='secondary body-space';a.textContent=`${I18N.tr("ui.9f595bc90670")}`;a.href='/api/receipt/'+encodeURIComponent(id);a.target='_blank';a.rel='noopener';box.append(a);
 };
-logChange=()=>{throw Error('لا تُحفظ العمليات داخل المتصفح؛ يجب انتظار تأكيد الخادم.');};
+logChange=()=>{throw Error(`${I18N.tr("ui.9976d21def26")}`);};
 demoMetrics=user=>{
     const m=liveData?.metrics[user.id];
     const activity=m?.activity||[];
@@ -127,32 +127,32 @@ render=function(){
     if(liveData.prices){
         const price=liveData.prices;
         const pay=$('#initial-payment');
-        if(pay)for(const [key,label] of [['registration','رسوم التسجيل'],['gilet','الجيليه']]){
+        if(pay)for(const [key,label] of [['registration',`${I18N.tr("ui.6a8d48082bb7")}`],['gilet',`${I18N.tr("ui.c0a240e22598")}`]]){
             const input=pay.querySelector('[name="'+key+'"]');
-            if(input){[...input.parentNode.childNodes].filter(n=>n.nodeType===Node.TEXT_NODE).forEach(n=>n.remove());input.after(' '+label+' — '+money(price[key])+' أوقية قديمة');}
+            if(input){[...input.parentNode.childNodes].filter(n=>n.nodeType===Node.TEXT_NODE).forEach(n=>n.remove());input.after(` ${I18N.tr("ui.534c6752577e",{p0:label,p1:money(price[key])})}`);}
         }
-        document.querySelectorAll('#payment-body .stat-hint').forEach(e=>{if(e.textContent.includes('الشهرية:'))e.textContent='الشهرية: '+money(price.tuition)+' أوقية';});
+        document.querySelectorAll('#payment-body .stat-hint').forEach(e=>{if(e.textContent.includes(`${I18N.tr("ui.8f2ef0ac6c3f")}`))e.textContent=`${I18N.tr("ui.7c49443cb433",{p0:money(price.tuition)})}`;});
     }
     const stale=$('#content #live-extra');if(stale)stale.remove();
     $('#live-extra-nav')?.remove();
     if(page==='history'){
-        Object.assign(recordNames,{parents:'أولياء الأمور',monthly_accounts:'حساب الطالب',monthly_waivers:'إلغاء الديون',
-            monthly_tariffs:'الرسوم',student_departments:'توزيع الأطفال',department_transfers:'نقل الأطفال',
-            teacher_payments:'الرواتب',teacher_advances:'السلف',teachers:'المعلمين',assets:'الأصول والمعدات',
-            academic_years:'السنوات الدراسية',classes:'الصفوف السابقة',registrations:'التسجيلات السابقة',payments:'الدفعات السابقة'});
-        actionNames.deleted='حذف';actionNames.archived='أرشفة';
-        if(changes.length===500){const p=document.createElement('p');p.className='muted';p.textContent='تُعرض أحدث 500 عملية. السجل الأقدم محفوظ في قاعدة البيانات.';$('#content').append(p);}
+        Object.assign(recordNames,{parents:`${I18N.tr("ui.c1cbf676c66a")}`,monthly_accounts:`${I18N.tr("ui.a622c6cc7dd4")}`,monthly_waivers:`${I18N.tr("ui.fad4906e939c")}`,
+            monthly_tariffs:`${I18N.tr("ui.8bf5e54fbd8b")}`,student_departments:`${I18N.tr("ui.4da224329746")}`,department_transfers:`${I18N.tr("ui.e115b12155c8")}`,
+            teacher_payments:`${I18N.tr("ui.8da58f1c866a")}`,teacher_advances:`${I18N.tr("ui.e20934947b9a")}`,teachers:`${I18N.tr("ui.4be8b769b898")}`,assets:`${I18N.tr("ui.a33f063e2607")}`,
+            academic_years:`${I18N.tr("ui.c158104e0084")}`,classes:`${I18N.tr("ui.7a85fcf1e4f7")}`,registrations:`${I18N.tr("ui.6e17b9f7d430")}`,payments:`${I18N.tr("ui.9931c7e45a82")}`});
+        actionNames.deleted=`${I18N.tr("ui.59ca629220a6")}`;actionNames.archived=`${I18N.tr("ui.fd59618fd6aa")}`;
+        if(changes.length===500){const p=document.createElement('p');p.className='muted';p.textContent=`${I18N.tr("ui.31e2cf04d846")}`;$('#content').append(p);}
         showHistory();
     }
 };
 function liveError(form,error){
     let box=form.querySelector('.error');
     if(!box){box=document.createElement('p');box.className='error';box.setAttribute('role','alert');form.append(box);}
-    box.textContent=error.message||'تعذّر الحفظ.';
+    box.textContent=error.message||`${I18N.tr("ui.46f641bc5808")}`;
 }
 async function liveFile(file){
     if(!file||!file.size)return null;
-    if(file.size>5*1024*1024)throw Error('حجم الصورة أكبر من 5 ميغابايت.');
+    if(file.size>5*1024*1024)throw Error(`${I18N.tr("ui.697fdd4ae2fd")}`);
     const bytes=new Uint8Array(await file.arrayBuffer());let result='';
     for(let n=0;n<bytes.length;n+=32768)result+=String.fromCharCode(...bytes.subarray(n,n+32768));
     return btoa(result);
@@ -160,10 +160,10 @@ async function liveFile(file){
 async function liveSaved(operation,data,form){
     data.request_token=form.dataset.requestToken||(form.dataset.requestToken=crypto.randomUUID());
     const result=await liveCall(operation,data);
-    try{await liveLoad();}catch{throw Error('تم حفظ العملية على الخادم، لكن تعذّر تحديث العرض. حدّث الصفحة قبل إدخال عملية أخرى.');}
+    try{await liveLoad();}catch{throw Error(`${I18N.tr("ui.ac8069d8f7fc")}`);}
     document.querySelectorAll('dialog[open]').forEach(d=>d.close());
     if(operation==='students.create'){studentMode='list';page='students';profileId=null;}
-    render();toast('تم الحفظ في السجل الحقيقي.');return result;
+    render();toast(`${I18N.tr("ui.8f603dcbc07f")}`);return result;
 }
 async function liveSubmit(form){
     const d=new FormData(form),get=k=>String(d.get(k)||'');
@@ -171,7 +171,7 @@ async function liveSubmit(form){
         await liveCall('login',{username:get('username'),password:get('password')});form.reset();
         page='dashboard';profileId=null;studentMode='list';financeTab='payment';receiptChild=null;await liveEnter();return;
     }
-    if(!liveSession)throw Error('سجّل الدخول أولًا.');
+    if(!liveSession)throw Error(`${I18N.tr("ui.1d385745f642")}`);
     if(form.id==='student-form')return liveSaved('students.create',{
         name:get('name'),birth:get('birth'),gender:get('gender'),place:get('place'),address:get('address'),
         health:get('health'),father:get('father'),fatherPhone:get('fatherPhone'),mother:get('mother'),
@@ -181,22 +181,22 @@ async function liveSubmit(form){
         const s=students.find(s=>s.id===profileId);
         return liveSaved('students.edit',{id:s.id,revision:s.revision,parent_revision:s.parent_revision,
             values:Object.fromEntries([...d].filter(([k,v])=>typeof v==='string')),
-            reason:'تعديل بيانات الطالب من ملفه'},form);
+            reason:`${I18N.tr("ui.4141b5d2b7ab")}`},form);
     }
     if(form.id==='department-form')return liveSaved('departments.create',{name:get('name')},form);
     if(form.id==='transfer-form'){
         const department=liveData.departments.find(d=>!d.cancelled&&d.name===$('#department-destination').value);
-        if(!department)throw Error('اختر القسم الجديد.');
+        if(!department)throw Error(`${I18N.tr("ui.cedf78a7dd1a")}`);
         return liveSaved('departments.transfer',{ids:d.getAll('student').map(String),department_id:department.id},form);
     }
     if(form.id==='payment-form'){
         const amount=$('#pay-amount').value;
-        if(!livePreview||livePreview.student!==receiptChild||Number(amount)!==Number(livePreview.amount)||!$('#pay-agree')?.checked)throw Error('راجع المعاينة وأكد قبض المبلغ أولًا.');
+        if(!livePreview||livePreview.student!==receiptChild||Number(amount)!==Number(livePreview.amount)||!$('#pay-agree')?.checked)throw Error(`${I18N.tr("ui.bdbd3c3fdc57")}`);
         return liveSaved('payments.create',{student:receiptChild,amount,confirmed:true,
             revision:livePreview.revision,tariff:livePreview.tariff},form);
     }
     if(form.id==='fee-collect-form'){
-        if(!liveFee||!d.has('agree'))throw Error('أكد قبض الرسم.');
+        if(!liveFee||!d.has('agree'))throw Error(`${I18N.tr("ui.d673efea91ae")}`);
         return liveSaved('fees.collect',{...liveFee,confirmed:true},form);
     }
     if(form.id==='expense-form'){
@@ -205,7 +205,7 @@ async function liveSubmit(form){
             date:get('date'),payee:get('payee'),notes:get('notes')},form);
     }
     if(form.id==='record-edit-form'){
-        if(!liveRecord?.source||!d.has('agree'))throw Error('أعد فتح السجل وأكد التغيير.');
+        if(!liveRecord?.source||!d.has('agree'))throw Error(`${I18N.tr("ui.60357ba9aa94")}`);
         const s=liveRecord.source;
         const destination=liveData.departments.find(x=>!x.cancelled&&x.name===get('destination'));
         return liveSaved('records.change',{type:liveRecord.type,id:s.id,mode:liveRecord.mode,reason:get('reason'),
@@ -219,11 +219,11 @@ async function liveSubmit(form){
         password:get('password'),permissions:liveGrants(d.getAll('grant')),active:true},form);
     if(form.id==='demo-account-edit'){
         const u=demoUsers.find(u=>u.id===form.dataset.liveUser);
-        if(!u)throw Error('أعد فتح الحساب.');
+        if(!u)throw Error(`${I18N.tr("ui.f25e6c8a1788")}`);
         return liveSaved('users.save',{id:u.id,version:u.version,name:get('name'),password:get('password'),
             active:d.has('active'),permissions:liveGrants(d.getAll('grant'),u)},form);
     }
-    throw Error('هذا النموذج غير موصول بالخادم؛ لم يتم تسجيل أي عملية وهمية.');
+    throw Error(`${I18N.tr("ui.ea065aa114a5")}`);
 }
 document.addEventListener('submit',async event=>{
     const form=event.target;
@@ -246,8 +246,7 @@ document.addEventListener('click',async event=>{
         const result=await liveCall('payments.preview',{student,amount});
         if(student!==receiptChild||amount!==$('#pay-amount').value)return;
         livePreview={...result,student};
-        $('#pay-preview').innerHTML='<div class="payment-preview"><strong>معاينة توزيع '+esc(money(result.amount))+' أوقية قديمة</strong>'+result.months.map(m=>'<p>'+esc(m.start)+' ← '+esc(m.end)+' · '+esc(money(m.allocating))+' أوقية</p>').join('')+
-            '<label class="check-row"><input id="pay-agree" type="checkbox"> أؤكد قبض المبلغ وتوزيعه كما عُرض</label><button class="primary" id="pay-save" disabled>تسجيل الدفعة</button></div>';
+        $('#pay-preview').innerHTML=`<div class="payment-preview"><strong>${I18N.tr("ui.cfc87a02b937",{p0:esc(money(result.amount))})}</strong>${result.months.map(m=>`<p>${I18N.tr("ui.cbeb9ac49eea",{p0:esc(m.start),p1:esc(m.end),p2:esc(money(m.allocating))})}</p>`).join('')}<label class="check-row"><input id="pay-agree" type="checkbox"> ${I18N.tr("ui.bc3401d3860f")}</label><button class="primary" id="pay-save" disabled>${I18N.tr("ui.ee20bfe88097")}</button></div>`;
         $('#pay-agree').onchange=e=>$('#pay-save').disabled=!e.target.checked;
     }catch(error){toast(error.message);}finally{preview.disabled=false;}
 },true);
@@ -264,7 +263,7 @@ studentForm=function(){
             return '<option value="'+esc(f.id)+'">'+esc(label)+'</option>';
         }).join('');
         template.content.querySelectorAll('.student-section-title')[1].insertAdjacentHTML('afterend',
-            '<label class="body-space">الأسرة<select name="existing_parent_id"><option value="">أسرة جديدة</option>'+options+'</select></label>');
+            `<label class="body-space">${I18N.tr("ui.eaf8cb4c49c7")}<select name="existing_parent_id"><option value="">${I18N.tr("ui.4561314eec16")}</option>${options}</select></label>`);
     }
     return template.innerHTML;
 };
@@ -284,11 +283,11 @@ $('#demo-logout').onclick=async()=>{try{await liveCall('logout',{});liveLoginScr
 // Retain the original card/logo/typography. Replace ONLY the demo entry with real credentials.
 $('#demo-worker-login')?.closest('details')?.remove();
 document.querySelectorAll('.demo-scope-note').forEach(e=>e.remove());
-const enter=$('#preview-enter');enter.onclick=null;enter.textContent='تسجيل الدخول';enter.type='submit';
+const enter=$('#preview-enter');enter.onclick=null;enter.textContent=`${I18N.tr("ui.beb869eecc12")}`;enter.type='submit';
 const login=document.createElement('form');login.id='live-login';
-const userLabel=document.createElement('label');userLabel.textContent='اسم المستخدم';
+const userLabel=document.createElement('label');userLabel.textContent=`${I18N.tr("ui.06668ac85e3d")}`;
 const user=document.createElement('input');user.name='username';user.autocomplete='username';user.required=true;user.dir='ltr';userLabel.append(user);
-const passLabel=document.createElement('label');passLabel.textContent='كلمة المرور';
+const passLabel=document.createElement('label');passLabel.textContent=`${I18N.tr("ui.b05d306b5591")}`;
 const pass=document.createElement('input');pass.name='password';pass.type='password';pass.autocomplete='current-password';pass.required=true;pass.maxLength=128;passLabel.append(pass);
 enter.replaceWith(login);login.append(userLabel,passLabel,enter);
 liveLoginScreen();

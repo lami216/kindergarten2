@@ -37,6 +37,8 @@ jobs:
           pip check
           mkdir -p visual-evidence
           pip freeze > visual-evidence/installed-versions.txt
+      - name: Validate Arabic and French translation catalog
+        run: python scripts/check_translations.py
       - name: Python syntax
         run: python -m compileall -q app.py db.py ui.py style.py sections tests monthly_finance.py receipt_history.py receipt_pdf.py
       - name: Explicit atomic schema upgrade outside user sessions
@@ -50,6 +52,8 @@ jobs:
           cat visual-evidence/overview-500.json
       - name: Install Chromium for browser tests
         run: python -m playwright install --with-deps chromium
+      - name: French interface, LTR mobile and login language selection
+        run: python -m tests.browser_french
       - name: Synthetic Pages preview journeys and mobile screenshots
         run: python tests/browser_operator_preview.py
       - name: Record editing, cancellation, audit and mobile totals in Chromium
@@ -86,6 +90,7 @@ jobs:
           KG_LIVE_QA_OUT="$KG_LIVE_QA_OUT/edge-cases" python -m tests.browser_live_edge_cases
           KG_LIVE_QA_OUT="$KG_LIVE_QA_OUT/unified-workspace" python -m tests.browser_unified_workspace
           python -m tests.browser_people_live
+          python -m tests.browser_french_live
       - name: Start isolated QA previews
         shell: bash
         run: |
