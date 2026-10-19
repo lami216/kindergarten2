@@ -47,7 +47,7 @@ def catalog():
         if not A.can(resource+'.view'):continue
         fields=[]
         for key in keys:
-            choices=['regular','exempt'] if key=='status' else []
+            choices=['regular','exempt'] if table=='monthly_accounts' and key=='status' else []
             fields.append(dict(key=key,label=LABELS.get(key,key),type='select' if choices else
                 'date' if key in DATES else 'number' if key in NUMBERS else 'month' if key=='salary_month' else 'text',
                 required=key in REQUIRED.get(table,set()),choices=choices))

@@ -6,3 +6,5 @@
 #toast{z-index:1000;max-width:min(520px,calc(100vw - 36px));font-size:15px;box-shadow:0 8px 28px #0004;bottom:22px;left:22px}#toast[data-kind=error]{background:#9f2936}.tool-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.report-values{max-width:700px}.tools-pending{padding:24px;text-align:center;color:var(--muted)}
 @media(max-width:600px){.tool-grid{grid-template-columns:1fr}.list-card{align-items:flex-start;flex-direction:column;gap:10px}.list-card .actions{width:100%}.workspace-nav{gap:6px}.workspace-nav button{padding:8px 10px;font-size:12px}.page-receipt .receipt-total{font-size:26px}.list-controls{align-items:stretch;flex-direction:column}.pager{gap:12px}#toast{left:18px;bottom:18px}}
 @media print{aside,.topbar,footer,.page-receipt>.actions,.workspace-nav,button,#toast{display:none!important}main{margin:0!important;padding:0!important}.panel{border:0!important;box-shadow:none!important}.page-receipt{max-width:none}}
+
+.page-receipt .badge{color:var(--green);background:var(--soft);font-size:13px}.history-diff span{overflow-wrap:anywhere}
