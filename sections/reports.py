@@ -17,14 +17,14 @@ import ui
 import helpers as H
 
 
-def _to_excel(df: pd.DataFrame) -> bytes:
+def _to_excel(df: pd.DataFrame, *, sheet_name='التقرير') -> bytes:
     """Helper to convert DataFrame to Excel binary stream."""
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df.to_excel(writer, index=False, sheet_name='التقرير')
+        df.to_excel(writer, index=False, sheet_name=sheet_name)
         # Reports contain values, never executable workbook formulas. Protect
         # headers and every text cell while retaining numbers/dates as typed.
-        for row in writer.sheets['التقرير'].iter_rows():
+        for row in writer.sheets[sheet_name].iter_rows():
             for cell in row:
                 if isinstance(cell.value, str):
                     cell.data_type = 's'

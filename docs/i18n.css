@@ -1,0 +1,28 @@
+.language-picker{display:flex;justify-content:center;gap:7px;margin:0 0 22px;direction:ltr}
+.language-picker button{min-width:90px;cursor:pointer}
+.language-picker button[aria-pressed=true]{background:var(--soft);color:var(--green);border-color:var(--green)}
+html[lang=fr] body{font-family:Arial,sans-serif;line-height:1.5}
+html[lang=fr] .login-french{display:none}
+html[dir=ltr] aside{inset:0 auto 0 0;overflow-y:auto}
+html[dir=ltr] main{margin-right:0;margin-left:250px}
+html[dir=ltr] nav button,html[dir=ltr] table,html[dir=ltr] .demo-worker-login,html[dir=ltr] .roll-review-absent{text-align:left}
+html[dir=ltr] #toast{left:auto;right:30px}
+html[dir=ltr] .photo-corner{left:auto;right:18px;padding:3px 3px 3px 10px}
+html[lang=fr] .brand strong{font-size:19px}
+html[lang=fr] .brand small{font-size:11px}
+html[lang=fr] .stat-label{line-height:1.45}
+html[lang=fr] .page-heading .actions{flex-wrap:wrap}
+html[lang=fr] .primary,html[lang=fr] .secondary{white-space:normal}
+html[lang=fr] .roll-rows{grid-template-columns:repeat(2,minmax(0,1fr))}
+html[lang=fr] .roll-person-label{flex-basis:100%}
+html[lang=fr] .roll-person{gap:8px;padding:10px}
+html[lang=fr] .roll-person-main{flex-wrap:wrap}
+html[lang=fr] .roll-person-main .roll-person-name{flex-basis:calc(100% - 48px)}
+html[lang=fr] .roll-options{margin-inline-start:auto;flex-wrap:wrap}
+html[lang=fr] .roll-header h2{font-size:24px}
+html[lang=fr] .roll-header p{line-height:1.5}
+html[lang=fr] .history-diff{overflow-wrap:anywhere}
+input[type=tel],input[name*=Phone],input[name*=phone],input[name=mobile],input[name=national_id],input[name=username]{direction:ltr;text-align:start}
+@media(min-width:769px) and (max-width:1150px){html[dir=ltr] main{margin-left:210px}}
+@media(max-width:768px){html[dir=ltr] main{margin-left:0}html[dir=ltr] aside{transform:translateX(-100%)}html[dir=ltr] aside.open{transform:translateX(0);box-shadow:10px 0 70px #02291d66}html[lang=fr] .stat-value{font-size:22px}html[lang=fr] .page-heading .actions{gap:8px}html[lang=fr] .roll-header h2{font-size:20px}}
+@media(max-width:599px){html[lang=fr] .roll-rows{grid-template-columns:1fr}html[lang=fr] .roll-footer{flex-wrap:wrap}html[lang=fr] .roll-footer>div:first-child{max-width:none}html[lang=fr] .roll-footer .actions{flex-basis:100%}html[lang=fr] .roll-toolbar{flex-wrap:wrap}html[lang=fr] .roll-filters{flex-wrap:wrap}html[lang=fr] .roll-search{min-width:100%}}

@@ -38,12 +38,13 @@ import records as R
 import school_departments as departments
 import student_photos
 import web_runtime as W
+import localization as L
 
 DESIGN_ROOT = Path(__file__).resolve().parent / 'docs'
 LIVE_ROOT = Path(__file__).resolve().parent / 'live'
 COOKIE = '__Host-kg_session'
 MAX_BODY = 8 * 1024 * 1024
-ASSETS = {'preview.css','preview.js','access-preview.js','student-profile.js','edit-windows.js',
+ASSETS = {'i18n.js','i18n.css','preview.css','preview.js','access-preview.js','student-profile.js','edit-windows.js',
           'school-logo.jpg','IBMPlexSansArabic-Regular.ttf','IBM_Plex_Sans_Arabic_OFL.txt'}
 CONTENT_TYPES = {'.css':'text/css','.js':'text/javascript','.jpg':'image/jpeg','.ttf':'font/ttf','.txt':'text/plain'}
 
@@ -278,7 +279,10 @@ def mutate(conn, operation, data, profile):
         import pandas as pd
         from sections.reports import _to_excel
         items=value['items'] or [{'البند':key,'القيمة':val} for key,val in value['summary'].items()]
-        return _to_excel(pd.DataFrame(items))
+        items=L.report_rows(items)
+        if L.language()=='fr' and not value['items']:
+            items=[{'Rubrique':L.REPORT_LABELS.get(key,key),'Valeur':val} for key,val in value['summary'].items()]
+        return _to_excel(pd.DataFrame(items),sheet_name='Rapport' if L.language()=='fr' else 'التقرير')
     if operation=='fees.save':
         if data.get('confirmed') is not True:raise ValueError('أكد تحديث الرسوم.')
         F.update_tariffs(whole_amount(data.get('registration'),zero=True),whole_amount(data.get('gilet'),zero=True),
@@ -480,8 +484,8 @@ def make_app(dsn, public_origin, *, management=False, trusted_proxies=()):
     proxies=[str(ipaddress.ip_address(ip)) for ip in trusted_proxies]
     attempts=LoginAttempts()
     def csrf(token): return hmac.new(csrf_key,token.encode(),hashlib.sha256).hexdigest()
-    def execute(token, operation, data=None):
-        with W.request_context(dsn,{'auth_session':token} if token else {}):
+    def execute(token, operation, data=None, locale='ar'):
+        with L.using_language(locale), W.request_context(dsn,{'auth_session':token} if token else {}):
             if operation=='login': return A.login(data.get('username'),data.get('password'))
             with connection() as conn:
                 profile=A.refresh(conn);conn.commit();conn.autocommit=True
@@ -492,7 +496,7 @@ def make_app(dsn, public_origin, *, management=False, trusted_proxies=()):
                 if operation=='pdf':
                     require(conn,'payments.view')
                     import receipt_pdf
-                    return receipt_pdf.render_receipt_pdf(conn,int(data['id']))
+                    return receipt_pdf.render_receipt_pdf(conn,int(data['id']),locale=L.language())
                 if operation=='attendance.photo':
                     import attendance
                     return attendance.photo(conn,data['id'])
@@ -515,42 +519,45 @@ def make_app(dsn, public_origin, *, management=False, trusted_proxies=()):
                         FROM teachers ORDER BY full_name,national_id''')
                 conn.autocommit=False
                 return mutate(conn,operation,data,profile)
+    def error_response(request, value, status):
+        with L.using_language(L.request_language(request)):
+            return JSONResponse({'error':L.message(value),'language':L.language()},status)
     async def api(request: Request):
         operation=request.path_params['operation']
         expected_method='GET' if operation in ('session','snapshot','fees.read','teachers.options') else 'POST'
-        if request.method!=expected_method: return JSONResponse({'error':'طريقة غير مسموحة.'},405)
+        if request.method!=expected_method: return error_response(request,'طريقة غير مسموحة.',405)
         token=request.cookies.get(COOKIE,'')
-        if len(token)>256: return JSONResponse({'error':'جلسة غير صالحة.'},401)
+        if len(token)>256: return error_response(request,'جلسة غير صالحة.',401)
         data={}
         if request.method=='POST':
-            if request.headers.get('origin')!=origin: return JSONResponse({'error':'مصدر الطلب غير مسموح.'},403)
-            if request.headers.get('content-type','').split(';')[0]!='application/json': return JSONResponse({'error':'صيغة الطلب غير مدعومة.'},415)
+            if request.headers.get('origin')!=origin: return error_response(request,'مصدر الطلب غير مسموح.',403)
+            if request.headers.get('content-type','').split(';')[0]!='application/json': return error_response(request,'صيغة الطلب غير مدعومة.',415)
             if operation!='login' and (not token or not hmac.compare_digest(request.headers.get('x-csrf-token',''),csrf(token))):
-                return JSONResponse({'error':'حدّث الصفحة ثم أعد المحاولة.'},403)
+                return error_response(request,'حدّث الصفحة ثم أعد المحاولة.',403)
             parts=[];size=0
             async for part in request.stream():
                 size+=len(part)
-                if size>MAX_BODY: return JSONResponse({'error':'الطلب أكبر من المسموح.'},413)
+                if size>MAX_BODY: return error_response(request,'الطلب أكبر من المسموح.',413)
                 parts.append(part)
             try:
                 data=json.loads(b''.join(parts))
                 if not isinstance(data,dict): raise ValueError()
-            except (ValueError,UnicodeDecodeError): return JSONResponse({'error':'بيانات الطلب غير صالحة.'},400)
+            except (ValueError,UnicodeDecodeError): return error_response(request,'بيانات الطلب غير صالحة.',400)
         try:
             if operation=='login':
                 if not isinstance(data.get('username'),str) or not isinstance(data.get('password'),str) or not 1<=len(data['password'])<=128 or len(data['username'])>128:
-                    return JSONResponse({'error':'تعذّر الدخول بهذه البيانات.'},401)
+                    return error_response(request,'تعذّر الدخول بهذه البيانات.',401)
                 peer=request.client.host if request.client else 'unknown'
                 reservation=attempts.reserve(peer)
-                if reservation is None: return JSONResponse({'error':'محاولات كثيرة؛ انتظر قليلًا.'},429)
-                new_token=await run_in_threadpool(execute,None,'login',data)
-                if not new_token: return JSONResponse({'error':'تعذّر الدخول بهذه البيانات.'},401)
+                if reservation is None: return error_response(request,'محاولات كثيرة؛ انتظر قليلًا.',429)
+                new_token=await run_in_threadpool(execute,None,'login',data,L.request_language(request))
+                if not new_token: return error_response(request,'تعذّر الدخول بهذه البيانات.',401)
                 attempts.success(peer,reservation)
                 response=JSONResponse({'ok':True})
                 response.set_cookie(COOKIE,new_token,secure=True,httponly=True,samesite='strict',path='/')
                 return response
-            if not token: return JSONResponse({'error':'سجّل الدخول أولًا.'},401)
-            result=await run_in_threadpool(execute,token,operation,data)
+            if not token: return error_response(request,'سجّل الدخول أولًا.',401)
+            result=await run_in_threadpool(execute,token,operation,data,L.request_language(request))
             if operation=='reports.export':
                 return Response(result,media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                     headers={'Content-Disposition':'attachment; filename="report.xlsx"'})
@@ -558,27 +565,27 @@ def make_app(dsn, public_origin, *, management=False, trusted_proxies=()):
             if operation=='logout': response.delete_cookie(COOKIE,path='/',secure=True,httponly=True,samesite='strict')
             return response
         except __import__('schema_migrations').SchemaNotReady:
-            return JSONResponse({'error':'التطبيق قيد التحديث؛ أكمل ترحيل قاعدة البيانات أولًا.'},503)
+            return error_response(request,'التطبيق قيد التحديث؛ أكمل ترحيل قاعدة البيانات أولًا.',503)
         except A.AccessDenied:
-            return JSONResponse({'error':'انتهت الجلسة أو ليس لديك صلاحية لهذا الإجراء.'},403 if token else 401)
+            return error_response(request,'انتهت الجلسة أو ليس لديك صلاحية لهذا الإجراء.',403 if token else 401)
         except __import__('psycopg2').errors.StringDataRightTruncation:
-            return JSONResponse({'error':'أحد الحقول أطول من المسموح؛ قصّر القيمة وأعد الحفظ.'},422)
+            return error_response(request,'أحد الحقول أطول من المسموح؛ قصّر القيمة وأعد الحفظ.',422)
         except __import__('psycopg2').errors.UniqueViolation:
-            return JSONResponse({'error':'توجد بيانات بالهوية نفسها؛ راجع السجل قبل الإضافة.'},422)
+            return error_response(request,'توجد بيانات بالهوية نفسها؛ راجع السجل قبل الإضافة.',422)
         except (ValueError,TypeError,KeyError) as exc:
-            return JSONResponse({'error':str(exc) if isinstance(exc,ValueError) else 'قيمة غير صحيحة في الطلب.'},422)
+            return error_response(request,str(exc) if isinstance(exc,ValueError) else 'قيمة غير صحيحة في الطلب.',422)
         except Exception:
             logging.getLogger(__name__).error('Live Pages operation failed; operation=%s incident=%s',operation,uuid.uuid4().hex)
-            return JSONResponse({'error':'تعذّر حفظ العملية. لم نعرض بيانات اتصال أو تفاصيل داخلية.'},500)
+            return error_response(request,'تعذّر حفظ العملية. لم نعرض بيانات اتصال أو تفاصيل داخلية.',500)
     async def private_file(request):
         token=request.cookies.get(COOKIE,'')
-        if not token or len(token)>256: return JSONResponse({'error':'سجّل الدخول أولًا.'},401)
+        if not token or len(token)>256: return error_response(request,'سجّل الدخول أولًا.',401)
         kind=request.path_params['kind'];ident=request.path_params['ident']
         if kind not in ('photo','attendance-photo','receipt','download'): return Response(status_code=404)
         if len(ident)>20: return Response(status_code=404)
         try:
             if kind=='download' and ident!='backup':return Response(status_code=404)
-            value=await run_in_threadpool(execute,token,'backup' if kind=='download' else 'attendance.photo' if kind=='attendance-photo' else 'photo' if kind=='photo' else 'pdf',{'id':ident})
+            value=await run_in_threadpool(execute,token,'backup' if kind=='download' else 'attendance.photo' if kind=='attendance-photo' else 'photo' if kind=='photo' else 'pdf',{'id':ident},L.request_language(request))
             if value is None: return Response(status_code=404)
             headers={'Content-Disposition':'attachment; filename="kindergarten-data.zip"'} if kind=='download' else {'Content-Disposition':f'attachment; filename="receipt-{int(ident)}.pdf"'} if kind=='receipt' else {}
             return Response(value,media_type='application/zip' if kind=='download' else 'image/jpeg' if kind in ('photo','attendance-photo') else 'application/pdf',headers=headers)
@@ -601,11 +608,13 @@ def make_app(dsn, public_origin, *, management=False, trusted_proxies=()):
         name=request.path_params['name']
         if name not in ('workspace.js','workspace.css','people.js','people.css','attendance-session.js'):return Response(status_code=404)
         return Response((LIVE_ROOT/name).read_bytes(),media_type='text/javascript' if name.endswith('.js') else 'text/css')
+    async def catalog_asset(request):
+        return Response('window.APP_MESSAGES='+json.dumps(L.CATALOG,ensure_ascii=False)+';',media_type='text/javascript')
     async def index(request): return Response(index_html(),media_type='text/html')
     app=Starlette(routes=[Route('/',index),Route('/api/health',health),
         Route('/api/{kind}/{ident}',private_file),
         Route('/api/{operation}',api,methods=['GET','POST']),
-        Route('/live/runtime.js',runtime),Route('/live/bridge.js',bridge),Route('/live/{name}',workspace_asset),Route('/{filename}',asset)])
+        Route('/locales/messages.js',catalog_asset),Route('/live/runtime.js',runtime),Route('/live/bridge.js',bridge),Route('/live/{name}',workspace_asset),Route('/{filename}',asset)])
     async def headers(request,call_next):
         if request.headers.get('host')!=parsed.netloc: return Response(status_code=400)
         response=await call_next(request)
