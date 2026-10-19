@@ -29,6 +29,7 @@ async def main():
             before=await snapshot();cash_before=before['overview']['total_cash']
             await page.locator('nav [data-page="students"]').click();await page.locator('#add-student').click()
             await page.locator('#student-form [name="name"]').fill('طالب إعفاء جزئي للمراجعة')
+            await page.locator('#student-form [name="department_id"]').select_option(index=1)
             await page.locator('#student-form [name="father"]').fill('أب الاختبار')
             await page.locator('#student-form [name="fatherPhone"]').fill('22334455')
             await page.locator('#student-form [name="gilet"]').uncheck()

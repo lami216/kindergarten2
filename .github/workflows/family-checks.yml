@@ -85,6 +85,7 @@ jobs:
           KG_LIVE_QA_OUT="$KG_LIVE_QA_OUT/family" python -m tests.browser_live_family
           KG_LIVE_QA_OUT="$KG_LIVE_QA_OUT/edge-cases" python -m tests.browser_live_edge_cases
           KG_LIVE_QA_OUT="$KG_LIVE_QA_OUT/unified-workspace" python -m tests.browser_unified_workspace
+          python -m tests.browser_people_live
       - name: Start isolated QA previews
         shell: bash
         run: |

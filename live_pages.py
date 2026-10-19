@@ -51,8 +51,8 @@ CONTENT_TYPES = {'.css':'text/css','.js':'text/javascript','.jpg':'image/jpeg','
 def index_html():
     html = (DESIGN_ROOT/'index.html').read_text(encoding='utf-8')
     html = html.replace('<script src="preview.js">','<script src="/live/runtime.js"></script>\n<script src="preview.js">')
-    html=html.replace('</head>','<link rel="stylesheet" href="/live/workspace.css"></head>')
-    return html.replace('</body>','<script src="/live/bridge.js"></script>\n<script src="/live/workspace.js"></script>\n</body>')
+    html=html.replace('</head>','<link rel="stylesheet" href="/live/workspace.css"><link rel="stylesheet" href="/live/people.css"></head>')
+    return html.replace('</body>','<script src="/live/bridge.js"></script>\n<script src="/live/workspace.js"></script>\n<script src="/live/people.js"></script>\n<script src="/live/attendance-session.js"></script>\n</body>')
 
 
 def json_ready(value):
@@ -171,7 +171,7 @@ def snapshot(conn, profile):
                 'paid':e['amount_paid'],'payee':e['payee'] or '', 'date':e['expense_date'],
                 'notes':e['notes'] or '', 'payment_method':e['payment_method'],
                 'cancelled':bool(e['cancelled_at']),'revision':R.revision(e)})
-    if A.can('departments.view'):
+    if any(A.can(p) for p in ('departments.view','students.create','teachers.create','teachers.edit')):
         result['departments']=[{'id':d['department_id'],'name':d['name'],'cancelled':bool(d['archived_at']),
                                 'revision':R.revision(d)} for d in rows(conn,'SELECT * FROM school_departments ORDER BY department_id')]
     if A.can('payments.create') or A.can('students.create') or A.can('fees.view'):
@@ -192,6 +192,9 @@ def snapshot(conn, profile):
         for u in result['users']: result['metrics'][str(u['user_id'])]=A.employee_metrics(conn,u['user_id'])
     else: result['metrics'][str(profile['user_id'])]=A.employee_metrics(conn,profile['user_id'])
     import live_tools
+    import attendance,school_people
+    result['teachers']=school_people.teachers(conn)
+    result['attendance']={'students':attendance.summaries(conn,'students'),'teachers':attendance.summaries(conn,'teachers')}
     result['tools']=live_tools.catalog()
     result['field_labels']=live_tools.LABELS
     result['resources']={key:dict(title=label,actions=list(actions)) for key,(label,actions) in A.RESOURCES.items()}
@@ -256,6 +259,12 @@ def edit_student(conn, data, actor):
 
 def mutate(conn, operation, data, profile):
     actor=profile['username']
+    if operation in ('attendance.read','attendance.save'):
+        import attendance
+        return attendance.read(conn,data) if operation=='attendance.read' else attendance.save(conn,data,profile)
+    if operation=='teachers.finance':
+        import school_people
+        return school_people.teacher_finance(conn,data)
     if operation=='tools.list':
         import live_tools
         return live_tools.list_rows(conn,data)
@@ -306,6 +315,12 @@ def mutate(conn, operation, data, profile):
         child=dict(full_name=name,birth_date=birthday,gender=gender,birth_place=text(data,'place',100),
             address=text(data,'address'),medical_details=text(data,'health'),allergies=text(data,'allergy'),
             general_notes=text(data,'notes'),authorized_pickups=[])
+        from school_people import department
+        # Registration and placement are persisted by db.save_child_with_family in one transaction.
+        chosen=data.get('department_id')
+        if type(chosen) not in (int,str) or (isinstance(chosen,str) and not chosen.isascii()) or (isinstance(chosen,str) and not chosen.isdecimal()):raise ValueError('اختر القسم.')
+        try:child['_department_id']=int(chosen)
+        except (ValueError,TypeError):raise ValueError('اختر قسم الطالب قبل التسجيل.') from None
         family=dict(father_name=text(data,'father',100),father_mobile=text(data,'fatherPhone',20),
             mother_name=text(data,'mother',100),mother_mobile=text(data,'motherPhone',20),contact_email='')
         mode=text(data,'mode',10,True)
@@ -478,6 +493,9 @@ def make_app(dsn, public_origin, *, management=False, trusted_proxies=()):
                     require(conn,'payments.view')
                     import receipt_pdf
                     return receipt_pdf.render_receipt_pdf(conn,int(data['id']))
+                if operation=='attendance.photo':
+                    import attendance
+                    return attendance.photo(conn,data['id'])
                 if operation=='photo':
                     p=student_photos.get(conn,data['id'])
                     return bytes(p['image_data']) if p.get('image_data') else None
@@ -556,14 +574,14 @@ def make_app(dsn, public_origin, *, management=False, trusted_proxies=()):
         token=request.cookies.get(COOKIE,'')
         if not token or len(token)>256: return JSONResponse({'error':'سجّل الدخول أولًا.'},401)
         kind=request.path_params['kind'];ident=request.path_params['ident']
-        if kind not in ('photo','receipt','download'): return Response(status_code=404)
+        if kind not in ('photo','attendance-photo','receipt','download'): return Response(status_code=404)
         if len(ident)>20: return Response(status_code=404)
         try:
             if kind=='download' and ident!='backup':return Response(status_code=404)
-            value=await run_in_threadpool(execute,token,'backup' if kind=='download' else 'photo' if kind=='photo' else 'pdf',{'id':ident})
+            value=await run_in_threadpool(execute,token,'backup' if kind=='download' else 'attendance.photo' if kind=='attendance-photo' else 'photo' if kind=='photo' else 'pdf',{'id':ident})
             if value is None: return Response(status_code=404)
             headers={'Content-Disposition':'attachment; filename="kindergarten-data.zip"'} if kind=='download' else {'Content-Disposition':f'attachment; filename="receipt-{int(ident)}.pdf"'} if kind=='receipt' else {}
-            return Response(value,media_type='application/zip' if kind=='download' else 'image/jpeg' if kind=='photo' else 'application/pdf',headers=headers)
+            return Response(value,media_type='application/zip' if kind=='download' else 'image/jpeg' if kind in ('photo','attendance-photo') else 'application/pdf',headers=headers)
         except __import__('schema_migrations').SchemaNotReady: return Response(status_code=503)
         except A.AccessDenied: return Response(status_code=403)
         except (ValueError,TypeError): return Response(status_code=404)
@@ -581,7 +599,7 @@ def make_app(dsn, public_origin, *, management=False, trusted_proxies=()):
     async def bridge(request): return Response((LIVE_ROOT/'bridge.js').read_bytes(),media_type='text/javascript')
     async def workspace_asset(request):
         name=request.path_params['name']
-        if name not in ('workspace.js','workspace.css'):return Response(status_code=404)
+        if name not in ('workspace.js','workspace.css','people.js','people.css','attendance-session.js'):return Response(status_code=404)
         return Response((LIVE_ROOT/name).read_bytes(),media_type='text/javascript' if name.endswith('.js') else 'text/css')
     async def index(request): return Response(index_html(),media_type='text/html')
     app=Starlette(routes=[Route('/',index),Route('/api/health',health),

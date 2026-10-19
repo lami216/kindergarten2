@@ -79,7 +79,7 @@ def test_unified_tools_permissions_reports_literal_export_and_fee_revision(brows
 
 def test_teacher_asset_idempotence_payroll_corrections_and_plain_search(browser):
     client,conn=browser;session=login(client)
-    teacher=dict(table='teachers',mode='create',values=dict(national_id='123456',full_name='معلمة بنفس الاسم',salary='2000'),reason='إضافة معلمة',confirmed=True,request_token=str(uuid.uuid4()))
+    teacher=dict(table='teachers',mode='create',values=dict(department_id=1,national_id='123456',full_name='معلمة بنفس الاسم',salary='2000'),reason='إضافة معلمة',confirmed=True,request_token=str(uuid.uuid4()))
     first=post(client,session,'tools.change',teacher);assert first.status_code==200,first.text
     retry=post(client,session,'tools.change',teacher);assert retry.status_code==200 and str(retry.json()['id'])==str(first.json()['id'])
     second=post(client,session,'tools.change',{**teacher,'values':{**teacher['values'],'national_id':'999999'},'request_token':str(uuid.uuid4())});assert second.status_code==200,second.text
@@ -131,14 +131,14 @@ def test_pickups_stale_edits_expense_settlement_and_archived_setup(browser):
     assert setup.status_code==422
 
 
-def test_upgrade_14_to_15_preserves_ledger_and_secures_request_table(browser):
+def test_upgrade_14_to_current_preserves_ledger_and_secures_request_table(browser):
     client,conn=browser;session=login(client)
     assert post(client,session,'students.create',intake()).status_code==200
     before=client.get('/api/snapshot').json()
     import schema_migrations as M,db
     with conn.cursor() as c:
         c.execute('DROP TABLE app_tool_requests')
-        c.execute('DELETE FROM app_schema_migrations WHERE version=15')
+        c.execute('DELETE FROM app_schema_migrations WHERE version>=15')
         c.execute('INSERT INTO app_schema_migrations(version) VALUES(14) ON CONFLICT DO NOTHING')
     with pytest.raises(M.SchemaNotReady):db.assert_schema_ready(conn)
     M.upgrade(conn)
@@ -167,7 +167,7 @@ def test_separate_expense_delete_and_teacher_asset_create_permissions(browser):
     A.save_user(employee_name='مسجل معلمات وتجهيزات',name='tools_creator',password=PASSWORD,permissions=['teachers.create','assets.create'])
     A.save_user(employee_name='معدل معلمات',name='tools_editor',password=PASSWORD,permissions=['teachers.edit'])
     creator=login(client,'tools_creator')
-    teacher=dict(table='teachers',mode='create',values=dict(national_id='C-111',full_name='معلمة بصلاحية إضافة',salary='2000'),reason='إضافة مصرح بها',confirmed=True,request_token=str(uuid.uuid4()))
+    teacher=dict(table='teachers',mode='create',values=dict(department_id=1,national_id='C-111',full_name='معلمة بصلاحية إضافة',salary='2000'),reason='إضافة مصرح بها',confirmed=True,request_token=str(uuid.uuid4()))
     result=post(client,creator,'tools.change',teacher);assert result.status_code==200,result.text
     item=post(client,creator,'tools.list',dict(table='teachers')).json()['items'][0]
     assert post(client,creator,'tools.change',dict(table='teachers',id=item['id'],mode='edit',revision=item['revision'],values={'salary':'3000'},reason='غير مصرح',confirmed=True)).status_code==403

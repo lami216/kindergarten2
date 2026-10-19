@@ -33,8 +33,8 @@ async def main():
             # Enough persisted children to exercise two pages and actual scrolling.
             import uuid
             for i in range(24):
-                await api('students.create',dict(name=f'قائمة فعلية {i:02}',birth='2022-01-01',gender='ذكر',mother='أم القائمة',motherPhone='22334455',mode='pay',amount='0',registration=False,gilet=False,request_token=str(uuid.uuid4())))
-            debtor=await api('students.create',dict(name='دين داخل الأرشيف فقط',birth='2022-01-01',gender='أنثى',mother='أم الأرشيف',motherPhone='99887766',mode='pay',amount='0',registration=True,gilet=False,request_token=str(uuid.uuid4())))
+                await api('students.create',dict(department_id=data['departments'][0]['id'],name=f'قائمة فعلية {i:02}',birth='2022-01-01',gender='ذكر',mother='أم القائمة',motherPhone='22334455',mode='pay',amount='0',registration=False,gilet=False,request_token=str(uuid.uuid4())))
+            debtor=await api('students.create',dict(department_id=data['departments'][0]['id'],name='دين داخل الأرشيف فقط',birth='2022-01-01',gender='أنثى',mother='أم الأرشيف',motherPhone='99887766',mode='pay',amount='0',registration=True,gilet=False,request_token=str(uuid.uuid4())))
             sid=debtor['id'];token=next(c['value'] for c in await context.cookies() if c['name']=='__Host-kg_session')
             import web_runtime as W,access_control as A,db,monthly_finance as F,record_history as H
             with W.request_context(state['dsn'],{'auth_session':token}):
@@ -77,13 +77,12 @@ async def main():
             await page.locator('#edit-fees').click();await page.locator('#fees-edit-form [name="tuition"]').fill('4500')
             await page.locator('#fees-edit-form [name="reason"]').fill('رسوم اختبار للفترات الجديدة');await page.locator('#fees-edit-form [name="confirmed"]').check();await page.locator('#fees-edit-form button.primary').click()
             await expect(page.locator('#record-dialog')).not_to_be_visible(timeout=20000);await expect(page.locator('#fees-view')).to_contain_text('4,500')
-            await page.locator('[data-tool-tab="records"]').click();await page.locator('#tool-table').select_option('teachers')
-            await expect(page.locator('#tool-rows .pager')).to_be_visible(timeout=20000)
-            await page.locator('#tool-create').click()
-            await page.locator('#tool-edit-form [name="full_name"]').fill('معلمة من الواجهة الموحدة');await page.locator('#tool-edit-form [name="national_id"]').fill('QA-1901')
-            await page.locator('#tool-edit-form [name="salary"]').fill('2000');await page.locator('#tool-edit-form [name="reason"]').fill('إضافة للتجربة')
-            await page.locator('#tool-edit-form [name="confirmed"]').check();await page.locator('#tool-edit-form button.primary').click()
-            await expect(page.locator('#tool-rows')).to_contain_text('معلمة من الواجهة الموحدة',timeout=20000)
+            await nav('teachers');await page.locator('#add-teacher').click()
+            await page.locator('#teacher-form [name="full_name"]').fill('معلمة من الواجهة الموحدة');await page.locator('#teacher-form [name="national_id"]').fill('QA-1901')
+            await page.locator('#teacher-form [name="salary"]').fill('2000');await page.locator('#teacher-form [name="department_id"]').select_option(index=1)
+            await page.locator('#teacher-form [name="reason"]').fill('إضافة للتجربة');await page.locator('#teacher-form [name="confirmed"]').check();await page.locator('#teacher-form button.primary').click()
+            await expect(page.locator('#teacher-roster')).to_contain_text('معلمة من الواجهة الموحدة',timeout=20000)
+            await nav('tools')
             await page.locator('[data-tool-tab="payroll"]').click();await page.locator('#new-salary').click()
             await page.locator('#payroll-form [name="teacher"]').select_option(label='معلمة من الواجهة الموحدة · QA-1901')
             await page.locator('#payroll-form [name="bonus"]').fill('500');await page.locator('#payroll-form [name="deductions"]').fill('100')

@@ -39,6 +39,8 @@ def access(monkeypatch,legacy_authorized_harness):
     token=A.login('owner',PASSWORD); assert token
     st.session_state.clear();st.session_state['auth_session']=token
     F.update_tariffs(1000,2000,3000,'owner')
+    import school_departments as D
+    D.create('قسم الاختبار')
     try: yield conn,connect,owner,token
     finally:
         st.session_state.clear();conn.close()

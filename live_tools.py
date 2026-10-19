@@ -10,14 +10,14 @@ import monthly_finance as F
 import db
 
 LABELS={
- 'father_name':'اسم الأب','father_mobile':'هاتف الأب','mother_name':'اسم الأم','mother_mobile':'هاتف الأم',
+ 'on_date':'يوم الحضور','excuse':'عذر الغياب','department_name':'القسم وقت التسجيل','person_id':'الملف','department_id':'القسم','father_name':'اسم الأب','father_mobile':'هاتف الأب','mother_name':'اسم الأم','mother_mobile':'هاتف الأم',
  'contact_email':'البريد','full_name':'الاسم','national_id':'الهوية','salary':'الراتب','mobile':'الهاتف',
  'address':'العنوان','hire_date':'تاريخ التوظيف','experience_years':'سنوات الخبرة','degree':'المؤهل','specialization':'التخصص',
  'purchase_date':'تاريخ الشراء','item_name':'اسم التجهيز','category':'التصنيف','quantity':'الكمية','unit_cost':'سعر الوحدة',
  'condition_status':'الحالة','notes':'الملاحظات','start_date':'بداية الاشتراك','status':'حالة الرسوم',
  'amount':'المبلغ','effective_on':'تاريخ إسقاط الدين','salary_month':'الشهر','base_salary':'الأساسي','bonus':'المكافأة',
  'deductions':'الخصومات','payment_date':'تاريخ الصرف','advance_date':'تاريخ السلفة','class_type':'الصف',
- 'section':'الشعبة','class_name':'اسم الصف','teacher_id':'المعلمة','year_id':'السنة','end_date':'النهاية','cohort_name':'الدفعة',
+ 'section':'الشعبة','class_name':'اسم الصف','teacher_id':'المعلم','year_id':'السنة','end_date':'النهاية','cohort_name':'الدفعة',
  'student_id':'الطالب','class_id':'الصف','registration_date':'التاريخ','annual_tuition':'الرسوم السابقة',
  'father_job':'عمل الأب','mother_job':'عمل الأم','mother_work_type':'نوع عمل الأم','father_id_type':'نوع هوية الأب',
  'mother_id_type':'نوع هوية الأم','landline':'الهاتف الثابت','status_refugee':'حالة اللجوء','father_work_phone':'هاتف عمل الأب',
@@ -25,7 +25,7 @@ LABELS={
  'marital_status':'الحالة الاجتماعية','mother_id':'هوية الأم'}
 TABLES={
  'parents':('أولياء الأمور',R.FIELDS['parents']),
- 'teachers':('المعلمات',R.FIELDS['teachers']),
+ 'teachers':('المعلمين',R.FIELDS['teachers']),
  'assets':('التجهيزات والجرد',R.FIELDS['assets']),
  'monthly_accounts':('الاشتراك والإعفاء',('start_date','status')),
  'monthly_waivers':('إسقاطات الدين',('amount','effective_on')),
@@ -37,7 +37,7 @@ TABLES={
 }
 DATES={'hire_date','purchase_date','start_date','end_date','effective_on','payment_date','advance_date','registration_date'}
 NUMBERS={'salary','experience_years','quantity','unit_cost','amount','base_salary','bonus','deductions','annual_tuition'}
-REQUIRED={'teachers':{'full_name','national_id'},'assets':{'item_name','category','quantity','unit_cost'},
+REQUIRED={'teachers':{'full_name','national_id','department_id'},'assets':{'item_name','category','quantity','unit_cost'},
           'monthly_accounts':{'start_date','status'},'monthly_waivers':{'amount','effective_on'}}
 
 def catalog():
@@ -114,13 +114,17 @@ def change(conn,data,profile):
             with conn.cursor() as c:
                 A.require(c,A.table_permission(table,'create'));H.context(c,actor,reason)
                 token=request_token(data)
-                fingerprint=F._hash(dict(table=table,values=values,actor=actor,reason=reason))
+                fingerprint=F._hash(dict(table=table,values=values,actor=actor,reason=reason,new_department=data.get('new_department','')))
                 c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))',(token,))
                 c.execute('SELECT * FROM app_tool_requests WHERE request_token=%s',(token,))
                 previous=c.fetchone()
                 if previous:
                     if previous['request_hash']!=fingerprint:raise ValueError('تغيّرت بيانات الطلب؛ أعد فتح النموذج.')
                     conn.commit();return {'id':previous['record_id'],'created':False}
+                if table=='teachers':
+                    from school_people import department
+                    values['department_id']=department(c,values.get('department_id'),data.get('new_department',''))
+                    A.require(c,'teachers.create')
                 R._validate(c,table,{},values)
                 if table=='teachers':
                     public=str(values.pop('national_id','')).strip()
@@ -171,7 +175,7 @@ def reports(conn,data):
     if kind=='salaries':
         require(conn,'salaries.view')
         teacher=text(data,'teacher',20)
-        return dict(summary={},items=rows(conn,'''SELECT t.full_name AS "المعلمة",COALESCE(t.display_national_id,t.national_id) AS "الهوية",
+        return dict(summary={},items=rows(conn,'''SELECT t.full_name AS "المعلم",COALESCE(t.display_national_id,t.national_id) AS "الهوية",
             p.salary_month AS "الشهر",p.payment_date AS "التاريخ",p.amount AS "قيمة المستند",p.cash_amount AS "النقد المدفوع",p.record_state AS "حالة المستند"
             FROM teacher_payments p JOIN teachers t USING(national_id) WHERE p.payment_date BETWEEN %s AND %s
             AND (%s='' OR p.national_id=%s) ORDER BY p.payment_date,p.payment_id''',(start,end,teacher,teacher)))

@@ -138,7 +138,7 @@ render=function(){
     if(page==='history'){
         Object.assign(recordNames,{parents:'أولياء الأمور',monthly_accounts:'حساب الطالب',monthly_waivers:'إلغاء الديون',
             monthly_tariffs:'الرسوم',student_departments:'توزيع الأطفال',department_transfers:'نقل الأطفال',
-            teacher_payments:'الرواتب',teacher_advances:'السلف',teachers:'المعلمات',assets:'الأصول والمعدات',
+            teacher_payments:'الرواتب',teacher_advances:'السلف',teachers:'المعلمين',assets:'الأصول والمعدات',
             academic_years:'السنوات الدراسية',classes:'الصفوف السابقة',registrations:'التسجيلات السابقة',payments:'الدفعات السابقة'});
         actionNames.deleted='حذف';actionNames.archived='أرشفة';
         if(changes.length===500){const p=document.createElement('p');p.className='muted';p.textContent='تُعرض أحدث 500 عملية. السجل الأقدم محفوظ في قاعدة البيانات.';$('#content').append(p);}

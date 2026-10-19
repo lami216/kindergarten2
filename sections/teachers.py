@@ -1,5 +1,5 @@
 """
-sections/teachers.py — إدارة ملفات وبينات المعلمات
+sections/teachers.py — إدارة ملفات وبينات المعلمين
 """
 
 import streamlit as st
@@ -9,9 +9,9 @@ import payroll_finance as P
 
 
 def render(conn):
-    ui.section_header("👩‍🏫", "المعلمون", "إدارة بيانات وملفات المعلمات في الروضة")
+    ui.section_header("👩‍🏫", "المعلمون", "إدارة بيانات وملفات المعلمين في الروضة")
 
-    tab_add, tab_view = st.tabs(["➕ إضافة معلمة", "📋 قائمة المعلمات والتعديل"])
+    tab_add, tab_view = st.tabs(["➕ إضافة معلمة", "📋 قائمة المعلمين والتعديل"])
 
     # -------------------------------------------------- TAB 1: ADD TEACHER --
     with tab_add:
@@ -27,7 +27,7 @@ def render(conn):
 
             address = st.text_input("العنوان السكني").strip()
 
-            submitted = st.form_submit_button("💾 حفظ المعلمة", type="primary", use_container_width=True)
+            submitted = st.form_submit_button("💾 حفظ المعلم", type="primary", use_container_width=True)
 
             if submitted:
                 if not national_id or not full_name:
@@ -41,7 +41,7 @@ def render(conn):
                         """, ('T'+uuid.uuid4().hex[:19],national_id, full_name, salary, mobile, address, str(hire_date)))
                         conn.commit()
                         cur.close()
-                        st.success(f"✅ تم إضافة المعلمة ({full_name}) بنجاح!")
+                        st.success(f"✅ تم إضافة المعلم ({full_name}) بنجاح!")
                         st.rerun()
                     except Exception as e:
                         conn.rollback()
@@ -71,7 +71,7 @@ def render(conn):
 
             t_options = [(r['national_id'], f"{r['full_name']} ({r['display_national_id']})") for _, r in teachers.iterrows()]
             selected_t = st.selectbox(
-                "اختر المعلمة للتعديل", 
+                "اختر المعلم للتعديل", 
                 options=t_options, 
                 format_func=lambda x: x[1] if x else "اختر...", 
                 index=None,

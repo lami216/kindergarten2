@@ -19,15 +19,15 @@ FIELDS = {
                 'father_job','mother_job','mother_work_type','father_id_type','mother_id_type',
                 'address','landline','status_refugee','father_work_phone','mother_work_phone',
                 'emergency_contact_name','emergency_contact_phone','marital_status','mother_id'),
-    'teachers': ('national_id','full_name','salary','mobile','address','hire_date',
+    'teachers': ('national_id','full_name','salary','mobile','address','hire_date','department_id',
                  'experience_years','degree','specialization'),
     'classes': ('class_type','section','class_name','teacher_id'),
     'academic_years': ('year_id','start_date','end_date','cohort_name'),
     'assets': ('purchase_date','item_name','category','quantity','unit_cost','condition_status','notes'),
     'registrations': ('student_id','class_id','year_id','status','registration_date','annual_tuition'),
 }
-LABELS = {'school_departments':'الأقسام','students':'الطلاب','student_photos':'صور الطلاب','parents':'أولياء الأمور',
-          'teachers':'المعلمات','classes':'الصفوف السابقة','academic_years':'السنوات الدراسية',
+LABELS = {'student_attendance':'حضور الطلاب','teacher_attendance':'حضور المعلمين','school_departments':'الأقسام','students':'الطلاب','student_photos':'صور الطلاب','parents':'أولياء الأمور',
+          'teachers':'المعلمين','classes':'الصفوف السابقة','academic_years':'السنوات الدراسية',
           'assets':'الأصول والمعدات','registrations':'التسجيلات السابقة','expenses':'المصروفات',
           'monthly_receipts':'الدفعات الشهرية','payments':'الدفعات السابقة',
           'teacher_payments':'الرواتب','teacher_advances':'السلف','monthly_tariffs':'الرسوم',
@@ -127,7 +127,7 @@ def edit(table, ident, updates, *, actor, reason, expected=None, clear_legacy_me
             import access_control as A
             actor=A.actor(c,A.table_permission(table,'edit'),actor)
             H.context(c,actor,reason)
-            if table in ('school_departments','student_departments'):
+            if table in ('school_departments','student_departments','teachers'):
                 c.execute("SELECT pg_advisory_xact_lock(hashtextextended('department_mutation',0))")
             old=_lock(c,table,ident,expected)
             if old.get('archived_at'): raise ValueError('السجل محذوف؛ اعرضه في سجل التغييرات.')
@@ -179,6 +179,13 @@ def cancel(table, ident, *, actor, reason, expected=None, destination=None, waiv
                     if int(destination)==int(ident): raise ValueError('اختر قسمًا مختلفًا.')
                     c.execute('SELECT department_id FROM school_departments WHERE department_id=%s AND archived_at IS NULL FOR UPDATE',(destination,))
                     if not c.fetchone(): raise ValueError('القسم البديل غير موجود.')
+                c.execute('SELECT national_id FROM teachers WHERE department_id=%s AND archived_at IS NULL FOR UPDATE',(ident,))
+                staff=c.fetchall()
+                if staff and destination is None:raise ValueError('القسم مرتبط بمعلمين؛ اختر القسم البديل قبل حذفه.')
+                if staff and destination is not None:
+                    A.require(c,'teachers.edit')
+                    c.execute('UPDATE teachers SET department_id=%s WHERE department_id=%s AND archived_at IS NULL',(destination,ident))
+                    A.require(c,'departments.delete')
                 c.execute('SELECT student_id FROM student_departments WHERE department_id=%s ORDER BY student_id FOR UPDATE',(ident,))
                 for member in c.fetchall():
                     if destination is None:

@@ -12,13 +12,15 @@ import web_runtime
 import db
 
 RESOURCES={
+    'student_attendance':('حضور الطلاب',('view','create','edit','delete')),
+    'teacher_attendance':('حضور المعلمين',('view','create','edit','delete')),
     'students':('الطلاب',('view','create','edit','delete')),
     'parents':('أولياء الأمور',('view','edit','delete')),
     'departments':('الأقسام ونقل الأطفال',('view','create','edit','delete')),
     'payments':('دفعات الطلاب والوصولات',('view','create','edit','delete')),
     'expenses':('المصروفات التشغيلية',('view','create','edit','delete')),
     'assets':('الأصول والتجهيزات',('view','create','edit','delete')),
-    'teachers':('المعلمات',('view','create','edit','delete')),
+    'teachers':('المعلمين',('view','create','edit','delete')),
     'salaries':('الرواتب والسلف',('view','create','edit','delete')),
     'classes':('سجل الصفوف السابق',('view','edit','delete')),
     'years':('السنوات الدراسية',('view','edit','delete')),
@@ -29,7 +31,7 @@ RESOURCES={
 }
 ACTIONS={'view':'عرض','create':'إضافة','edit':'تعديل','delete':'إلغاء / حذف'}
 PERMISSIONS={f'{resource}.{action}' for resource,(_,actions) in RESOURCES.items() for action in actions}
-TABLE_RESOURCE={'students':'students','student_photos':'students','parents':'parents','school_departments':'departments',
+TABLE_RESOURCE={'student_attendance':'student_attendance','teacher_attendance':'teacher_attendance','students':'students','student_photos':'students','parents':'parents','school_departments':'departments',
     'student_departments':'departments','department_transfers':'departments','monthly_receipts':'payments',
     'payments':'payments','expenses':'expenses','assets':'assets','teachers':'teachers',
     'teacher_payments':'salaries','teacher_advances':'salaries','classes':'classes',
@@ -109,6 +111,7 @@ def migrate(conn):
             -- One corrected receipt preserves/cancels the original and issues a replacement.
             IF TG_TABLE_NAME='monthly_receipts' AND permitted='payments.edit' THEN needed='payments.edit'; END IF;
             IF TG_TABLE_NAME IN ('student_departments','department_transfers') THEN needed='departments.edit'; END IF;
+            IF TG_TABLE_NAME='student_departments' AND TG_OP='INSERT' AND permitted='students.create' THEN needed=permitted; END IF;
             IF TG_TABLE_NAME='monthly_tariffs' THEN needed='fees.edit'; END IF;
             IF TG_TABLE_NAME='monthly_waivers' AND permitted='accounts.delete' THEN needed='accounts.delete'; END IF;
             IF TG_TABLE_NAME IN ('teacher_payments','teacher_advances') AND permitted='salaries.delete' THEN needed=permitted; END IF;
@@ -180,6 +183,8 @@ def _public(row):
 def validate_permissions(values):
     values=set(values)
     if values-PERMISSIONS: raise ValueError('توجد صلاحية غير معروفة.')
+    for resource,entity in (('student_attendance','students'),('teacher_attendance','teachers')):
+        if any(resource+'.'+a in values for a in ('create','edit','delete')):values.add(resource+'.view')
     for resource in RESOURCES:
         if any(f'{resource}.{a}' in values for a in ('edit','delete')):
             values.add(resource+'.view')

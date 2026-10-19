@@ -29,7 +29,7 @@ def post(client,session,operation,data):
 
 
 def intake(**changes):
-    result=dict(name='طفل فعلي للاختبار',birth='2022-01-01',gender='ذكر',father='',fatherPhone='',
+    result=dict(department_id=1,name='طفل فعلي للاختبار',birth='2022-01-01',gender='ذكر',father='',fatherPhone='',
         mother='أم الطفل',motherPhone='22334455',mode='none',amount='0',registration=False,gilet=False,
         request_token=str(uuid.uuid4()))
     result.update(changes)
