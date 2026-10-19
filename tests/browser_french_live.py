@@ -133,6 +133,8 @@ async def main(origin,username,password):
             await page.locator('#nav-student-attendance').click()
             await page.locator('#attendance-department').select_option(str(section))
             await page.locator('#start-attendance').click()
+            await expect(page.locator('[data-roll-row]')).to_have_count(1)
+            await expect(page.locator('[data-roll-row]').first).to_contain_text('Élève مريم')
             await expect(page.locator('[data-roll-status="present"]').first).to_be_enabled()
             await page.locator('[data-roll-status="present"]').first.click()
             await page.locator('#roll-review').click()

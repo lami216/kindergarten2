@@ -78,7 +78,19 @@ async def main():
             await expect(page.locator('#content')).to_contain_text('Frais : Exonéré')
             await page.evaluate("previewState.students.find(s=>s.id==='1').name='الطلاب';liveLoad().then(()=>{profileId='1';render()})")
             await expect(page.locator('.file-identity h2')).to_have_text('الطلاب')
-            await page.evaluate("navigate('student-attendance')")
+            await page.evaluate('''()=>{
+                const original=previewOperation;let hold=true;
+                previewOperation=async(op,data)=>{
+                    const value=await original(op,data);
+                    if(op==='attendance.read'&&hold){hold=false;return new Promise(resolve=>{window.releaseAttendanceLookup=()=>resolve(value);});}
+                    return value;
+                };
+                navigate('student-attendance');
+            }''')
+            await page.wait_for_function('typeof window.releaseAttendanceLookup==="function"')
+            await expect(page.locator('#attendance-department')).to_be_disabled()
+            await page.evaluate('window.releaseAttendanceLookup()')
+            await expect(page.locator('#attendance-department')).to_be_enabled()
             await page.locator('#start-attendance').click()
             await expect(page.locator('.roll-choice.selected')).to_have_count(0)
             await page.locator('#roll-review').click()

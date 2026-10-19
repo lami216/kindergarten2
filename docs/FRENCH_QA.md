@@ -59,3 +59,9 @@ response rebuilt the report form and reset the selected report. Lookup completio
 now refreshes only teacher options, preserving report type, dates and selected
 teacher. The French browser suite holds and releases this response deliberately
 and verifies the selected report still executes.
+
+A larger existing-data CI attendance scenario exposed an initial-load race: class
+selection was available before the attendance response initialized its state, so
+the selection could reset to all classes. The class selector is now disabled until
+the roster is ready. A held-response browser test verifies this loading boundary;
+the live journey asserts that the selected class contains only the intended child.
