@@ -46,3 +46,10 @@ were observed on browser exit; they did not represent failed application actions
 
 The public preview uses synthetic data. Production server rollout is separate.
 Translation maintenance is described in [localization.md](localization.md).
+
+GitHub CI follow-up: the pinned pypdf 6.1.3 reader dropped Latin text when a
+mixed Arabic/French name changed direction inside one PDF text object. French
+receipt lines now keep visual positions while emitting separate direction runs;
+PDF amounts use a font-supported regular space. The six localization tests pass
+with both pypdf 6.1.3 and 6.20.1, including names, period snapshots, cancellation
+and complete amount extraction.

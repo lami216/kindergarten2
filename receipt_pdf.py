@@ -5,6 +5,7 @@ Neither HTML printing nor external URLs are involved; the function reads only.
 """
 from io import BytesIO
 from pathlib import Path
+import re
 from zoneinfo import ZoneInfo
 
 import arabic_reshaper
@@ -32,7 +33,15 @@ def _print(c,x,y,text,*,size=11,color=INK):
     c.setFillColor(color)
     c.setFont(FONT_NAME,size)
     if L.language()=='fr':
-        c.drawString(45+(A4[0]-45-x),y,get_display(arabic_reshaper.reshape(str(text)),base_dir='L'))
+        visual=get_display(arabic_reshaper.reshape(str(text)),base_dir='L')
+        position=45+(A4[0]-45-x)
+        # Keep each direction in its own PDF text object. Older PDF readers
+        # otherwise discard Latin text when a mixed-script name switches to RTL.
+        # Positions use the same shaped visual string; the printed line is unchanged.
+        for run in re.split(r'([\u0590-\u08ff\ufb1d-\ufdff\ufe70-\ufeff]+)',visual):
+            if run:
+                c.drawString(position,y,run)
+                position+=pdfmetrics.stringWidth(run,FONT_NAME,size)
     else:
         c.drawRightString(x,y,_rtl(text))
 

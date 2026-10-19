@@ -90,6 +90,8 @@ def test_french_pdf_preserves_original_periods_and_user_content(monkeypatch):
     text='\n'.join(p.extract_text() for p in PdfReader(BytesIO(pdf)).pages)
     for expected in ('Reçu de paiement','Alice','Parent Dupont','2026-10-15','2026-11-14','MRO','Annulé'):
         assert expected in text
+    assert '4 500 MRO' in text
+    assert '\x00' not in text
     assert record == original
     assert L.language() == 'ar'
     out=Path(__file__).resolve().parents[1]/'visual-evidence'/'french'

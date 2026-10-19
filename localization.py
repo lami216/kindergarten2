@@ -16,7 +16,8 @@ def language():
 
 def number(value):
     formatted = f'{value:,}'
-    return formatted.replace(',', '\u202f').replace('.', ',') if language() == 'fr' else formatted
+    # The embedded receipt font has a regular space, but no narrow no-break space.
+    return formatted.replace(',', ' ').replace('.', ',') if language() == 'fr' else formatted
 
 
 @contextmanager
