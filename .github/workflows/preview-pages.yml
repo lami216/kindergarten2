@@ -22,7 +22,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: e64cdcb24d5f66176f904eccc0fdeb9072033199
+          ref: 4af321875ef3830c5fd5c8f94f9f2b8abbc3c7aa
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
