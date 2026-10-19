@@ -52,7 +52,7 @@ def catalog():
                 'date' if key in DATES else 'number' if key in NUMBERS else 'month' if key=='salary_month' else 'text',
                 required=key in REQUIRED.get(table,set()),choices=choices))
         groups.append(dict(key=table,title=title,fields=fields,edit=A.can(resource+'.edit'),
-            delete=A.can(resource+'.delete'),create=table in ('teachers','assets') and A.can(resource+'.edit')))
+            delete=A.can(resource+'.delete'),create=table in ('teachers','assets') and A.can(resource+'.create')))
     return groups
 
 def list_rows(conn,data):
@@ -110,9 +110,9 @@ def change(conn,data,profile):
     if table in R.FIELDS:
         if mode=='create':
             if table not in ('teachers','assets'):raise ValueError('الإضافة غير متاحة هنا.')
-            require(conn,A.table_permission(table,'edit'))
+            require(conn,A.table_permission(table,'create'))
             with conn.cursor() as c:
-                A.require(c,A.table_permission(table,'edit'));H.context(c,actor,reason)
+                A.require(c,A.table_permission(table,'create'));H.context(c,actor,reason)
                 token=request_token(data)
                 fingerprint=F._hash(dict(table=table,values=values,actor=actor,reason=reason))
                 c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))',(token,))

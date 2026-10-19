@@ -95,7 +95,7 @@ def _run(expense_id, action, payload, actor, reason, token, handler, expected=No
     try:
         with conn.cursor() as c:
             import access_control as A
-            actor=A.actor(c,'expenses.delete' if action=='cancel' else 'expenses.edit',actor)
+            actor=A.actor(c,'expenses.delete' if action in ('cancel','expense_entry_cancelled') else 'expenses.edit',actor)
             c.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s,0))",(token,))
             c.execute("SELECT request_hash FROM expense_request_log WHERE request_token=%s",
                       (token,))

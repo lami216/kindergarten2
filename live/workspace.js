@@ -54,6 +54,7 @@ receiptRows=function(){
     }).join('')||'<div class="empty">لا توجد وصولات مطابقة.</div>');
     return html+pager('receipts');
 };
+paymentOptions=function(term=''){return '<option value="">اختر طفلًا…</option>'+students.filter(s=>!s.cancelled&&childMatches(s,term)).map(s=>'<option value="'+esc(s.id)+'">'+esc([s.name,s.parent,s.phone].filter(Boolean).join(' · '))+'</option>').join('');};
 const workspaceReceiptList=receiptList;
 receiptList=()=>workspaceReceiptList().replace('</label>','</label><label class="check-row body-space"><input type="checkbox" id="receipt-archived" '+(includeArchivedReceipts?'checked':'')+'>إظهار وصولات الملفات المؤرشفة</label>');
 openReceipt=function(id){receiptPageId=Number(id);page='receipt';render();pageTop();};

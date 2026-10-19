@@ -101,7 +101,7 @@ def test_teacher_asset_idempotence_payroll_corrections_and_plain_search(browser)
 
 def test_pickups_stale_edits_expense_settlement_and_archived_setup(browser):
     client,conn=browser;session=login(client)
-    sid=post(client,session,'students.create',intake()).json()['id']
+    sid=post(client,session,'students.create',intake(mode='pay',registration=False)).json()['id']
     s=next(s for s in client.get('/api/snapshot').json()['students'] if s['id']==sid)
     edit=dict(id=sid,revision=s['revision'],parent_revision=s['parent_revision'],values=dict(pickups=[dict(name='خال الطفل',phone='22334455',relation='خال')]),reason='مخول استلام')
     saved=post(client,session,'students.edit',edit);assert saved.status_code==200,saved.text
@@ -144,3 +144,28 @@ def test_upgrade_14_to_15_preserves_ledger_and_secures_request_table(browser):
         row=c.fetchone();assert row['relrowsecurity']
         c.execute("SELECT COUNT(*) AS n FROM pg_class r CROSS JOIN LATERAL aclexplode(COALESCE(r.relacl,acldefault('r',r.relowner))) a WHERE r.oid='app_tool_requests'::regclass AND a.grantee=0")
         assert c.fetchone()['n']==0
+
+
+def test_separate_expense_delete_and_teacher_asset_create_permissions(browser):
+    client,conn=browser;owner=login(client)
+    exp=post(client,owner,'expenses.create',dict(category='مصروف مراجعة',amount='100',paid='100',date=str(F.today()),request_token=str(uuid.uuid4()))).json()
+    expense=client.get('/api/snapshot').json()['expenses'][0]
+    A.save_user(employee_name='معدل مصاريف',name='expense_editor',password=PASSWORD,permissions=['expenses.edit'])
+    A.save_user(employee_name='ملغي مصاريف',name='expense_deleter',password=PASSWORD,permissions=['expenses.delete'])
+    editor=login(client,'expense_editor')
+    cancel=dict(type='expenses',id=exp['id'],mode='cancel',revision=expense['revision'],reason='إلغاء إدخال خاطئ',confirmed=True,values={},request_token=str(uuid.uuid4()))
+    assert post(client,editor,'records.change',cancel).status_code==403
+    deleter=login(client,'expense_deleter')
+    result=post(client,deleter,'records.change',cancel);assert result.status_code==200,result.text
+    login(client)
+    A.save_user(employee_name='مسجل معلمات وتجهيزات',name='tools_creator',password=PASSWORD,permissions=['teachers.create','assets.create'])
+    A.save_user(employee_name='معدل معلمات',name='tools_editor',password=PASSWORD,permissions=['teachers.edit'])
+    creator=login(client,'tools_creator')
+    teacher=dict(table='teachers',mode='create',values=dict(national_id='C-111',full_name='معلمة بصلاحية إضافة',salary='2000'),reason='إضافة مصرح بها',confirmed=True,request_token=str(uuid.uuid4()))
+    result=post(client,creator,'tools.change',teacher);assert result.status_code==200,result.text
+    item=post(client,creator,'tools.list',dict(table='teachers')).json()['items'][0]
+    assert post(client,creator,'tools.change',dict(table='teachers',id=item['id'],mode='edit',revision=item['revision'],values={'salary':'3000'},reason='غير مصرح',confirmed=True)).status_code==403
+    asset=post(client,creator,'tools.change',dict(table='assets',mode='create',values=dict(item_name='كرسي',category='أثاث',quantity='1',unit_cost='100'),reason='إضافة جرد مصرح',confirmed=True,request_token=str(uuid.uuid4())))
+    assert asset.status_code==200,asset.text
+    editor=login(client,'tools_editor')
+    assert post(client,editor,'tools.change',{**teacher,'request_token':str(uuid.uuid4())}).status_code==403

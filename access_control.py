@@ -17,8 +17,8 @@ RESOURCES={
     'departments':('الأقسام ونقل الأطفال',('view','create','edit','delete')),
     'payments':('دفعات الطلاب والوصولات',('view','create','edit','delete')),
     'expenses':('المصروفات التشغيلية',('view','create','edit','delete')),
-    'assets':('الأصول والتجهيزات',('view','edit','delete')),
-    'teachers':('المعلمات',('view','edit','delete')),
+    'assets':('الأصول والتجهيزات',('view','create','edit','delete')),
+    'teachers':('المعلمات',('view','create','edit','delete')),
     'salaries':('الرواتب والسلف',('view','create','edit','delete')),
     'classes':('سجل الصفوف السابق',('view','edit','delete')),
     'years':('السنوات الدراسية',('view','edit','delete')),
@@ -185,6 +185,8 @@ def validate_permissions(values):
             values.add(resource+'.view')
     if 'payments.create' in values: values.add('payments.view')
     if 'salaries.create' in values: values.add('salaries.view')
+    for resource in ('teachers','assets'):
+        if resource+'.create' in values:values.add(resource+'.view')
     if 'accounts.edit' in values or 'accounts.delete' in values: values.add('payments.view')
     return sorted(values)
 
