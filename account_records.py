@@ -21,7 +21,7 @@ def change_account(student, *, actor, reason, start_date=None, status=None, canc
                 import student_debt as D
                 if any(r['remaining']>0 for r in D.current_debt(c,student,old)):
                     raise ValueError('سدّد أو ألغِ الدين المتبقي أولًا؛ الدفعات والإعفاءات متاحة في إدارة السجلات.')
-                c.execute('UPDATE monthly_accounts SET archived_at=now(),archived_by=%s,departure_on=%s WHERE student_id=%s',(actor,F.today(),student))
+                c.execute('UPDATE monthly_accounts SET archived_at=now(),archived_by=%s,departure_on=%s WHERE student_id=%s',(actor,min(old.get('departure_on') or F.today(),F.today()),student))
             else:
                 anchor=date.fromisoformat(str(start_date))
                 if anchor>F.today() or anchor<date(1990,1,1): raise ValueError('اختر تاريخ بداية بين 1990 واليوم.')

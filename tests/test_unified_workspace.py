@@ -40,6 +40,12 @@ def test_restore_waive_rearchive_preserves_absence_cutoff_and_cash(browser):
     replay=post(client,session,'students.waive',waiver);assert replay.status_code==200 and not replay.json()['created']
     data=client.get('/api/snapshot').json();s=next(s for s in data['students'] if s['id']==sid)
     assert s['account']['due']==0 and data['overview']['total_cash']==before['overview']['total_cash']
+    # Cancelling the subscription through tools must also retain the absence cutoff.
+    stopped=post(client,session,'tools.change',dict(table='monthly_accounts',id=sid,mode='cancel',revision=s['account_revision'],values={},reason='إيقاف اشتراك بعد المراجعة',confirmed=True))
+    assert stopped.status_code==200,stopped.text
+    stopped_data=client.get('/api/snapshot').json()
+    assert next(x for x in stopped_data['students'] if x['id']==sid)['account']['due']==0
+    assert stopped_data['overview']['total_cash']==before['overview']['total_cash']
     cancel=post(client,session,'records.change',dict(type='students',id=sid,mode='cancel',reason='أرشفة بعد التسوية',revision=s['revision'],confirmed=True,values={}))
     assert cancel.status_code==200,cancel.text
     final=client.get('/api/snapshot').json();s=next(s for s in final['students'] if s['id']==sid)
