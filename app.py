@@ -27,6 +27,10 @@ LOGO_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "
 # Setup
 # --------------------------------------------------------------------------
 st.set_page_config(page_title="روضة أطفال فودي حبيب ساكرا", page_icon="🌱", layout="wide")
+if st.get_option('server.baseUrlPath')=='management':
+    st.info('أصبحت أدوات الإدارة داخل واجهة الروضة الموحدة.')
+    st.link_button('العودة إلى الروضة','/')
+    st.stop()
 apply_style()
 
 try:

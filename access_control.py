@@ -41,7 +41,7 @@ PRIVATE_TABLES=set(TABLE_RESOURCE)|{
     'app_schema_migrations','record_changes','department_migrations','finance_schema_versions',
     'monthly_fees','monthly_periods','monthly_allocations','monthly_audit','historical_payment_audit',
     'expense_cash_events','payroll_audit','monthly_waiver_batches','expense_cash_amendments',
-    'expense_audit','expense_request_log','monthly_receipt_operations','monthly_allocation_snapshots'}
+    'expense_audit','expense_request_log','monthly_receipt_operations','monthly_allocation_snapshots','app_tool_requests'}
 
 
 class AccessDenied(ValueError):

@@ -1,0 +1,99 @@
+"""Real HTTP + PostgreSQL scenarios for the single owner workspace."""
+from datetime import timedelta
+from io import BytesIO
+import uuid
+import pytest
+from openpyxl import load_workbook
+from tests.test_live_pages_http import browser,login,post,intake
+from tests.test_access_control import access,PASSWORD
+import access_control as A
+import monthly_finance as F
+import records as R
+
+
+def test_restore_waive_rearchive_preserves_absence_cutoff_and_cash(browser):
+    client,conn=browser;session=login(client)
+    sid=post(client,session,'students.create',intake(mode='pay',registration=True,gilet=True)).json()['id']
+    import account_records as AR
+    with conn.cursor() as c:
+        c.execute('SELECT * FROM monthly_accounts WHERE student_id=%s',(sid,));account=dict(c.fetchone())
+    AR.change_account(sid,actor='owner',reason='تهيئة عينة قديمة',start_date=F.today()-timedelta(days=90),status='regular',expected=R.revision(account))
+    cutoff=F.today()-timedelta(days=45)
+    # Reproduce a legacy archived debtor. Current normal archive correctly refuses it.
+    with conn.cursor() as c:
+        A.require(c,'students.delete')
+        c.execute('UPDATE students SET archived_at=now() WHERE student_id=%s',(sid,))
+        A.require(c,'accounts.edit')
+        c.execute('UPDATE monthly_accounts SET archived_at=now(),departure_on=%s WHERE student_id=%s',(cutoff,sid))
+    before=client.get('/api/snapshot').json();s=next(s for s in before['students'] if s['id']==sid)
+    assert s['cancelled'] and s['account']['due']>0
+    payload=dict(student=sid,revision=s['revision'],account_revision=s['account_revision'],reason='استرجاع لمراجعة الدين',confirmed=True)
+    restored=post(client,session,'students.restore',payload);assert restored.status_code==200,restored.text
+    assert post(client,session,'students.restore',payload).status_code==422
+    data=client.get('/api/snapshot').json();s=next(s for s in data['students'] if s['id']==sid)
+    assert not s['cancelled'] and s['paused']
+    assert s['account']['due']==next(s for s in before['students'] if s['id']==sid)['account']['due']
+    waiver=dict(student=sid,revision=s['ledger_revision'],due=s['account']['due'],reason='إسقاط موثق دون قبض',confirmed=True,request_token=str(uuid.uuid4()))
+    wrong=post(client,session,'students.waive',{**waiver,'due':waiver['due']+1});assert wrong.status_code==422
+    saved=post(client,session,'students.waive',waiver);assert saved.status_code==200,saved.text
+    assert saved.json()['waived']==waiver['due']
+    replay=post(client,session,'students.waive',waiver);assert replay.status_code==200 and not replay.json()['created']
+    data=client.get('/api/snapshot').json();s=next(s for s in data['students'] if s['id']==sid)
+    assert s['account']['due']==0 and data['overview']['total_cash']==before['overview']['total_cash']
+    cancel=post(client,session,'records.change',dict(type='students',id=sid,mode='cancel',reason='أرشفة بعد التسوية',revision=s['revision'],confirmed=True,values={}))
+    assert cancel.status_code==200,cancel.text
+    final=client.get('/api/snapshot').json();s=next(s for s in final['students'] if s['id']==sid)
+    assert s['cancelled'] and s['account']['due']==0
+    with conn.cursor() as c:
+        c.execute('SELECT departure_on FROM monthly_accounts WHERE student_id=%s',(sid,));assert c.fetchone()['departure_on']==cutoff
+        c.execute('SELECT COUNT(*) AS n FROM record_changes WHERE table_name=%s AND record_key=%s AND action=%s',('students',sid,'updated'));assert c.fetchone()['n']>0
+
+
+def test_unified_tools_permissions_reports_literal_export_and_fee_revision(browser):
+    client,conn=browser;owner=login(client)
+    post(client,owner,'students.create',intake(name='=1+1'))
+    fee=client.get('/api/fees.read').json()
+    change=post(client,owner,'fees.save',{**fee['values'],'tuition':'5000','revision':fee['revision'],'reason':'تغيير رسوم جديد','confirmed':True})
+    assert change.status_code==200,change.text
+    stale=post(client,owner,'fees.save',{**fee['values'],'revision':fee['revision'],'reason':'نافذة قديمة','confirmed':True});assert stale.status_code==422
+    dates=dict(start=str(F.today().replace(day=1)),end=str(F.today()))
+    export=post(client,owner,'reports.export',dict(kind='students',**dates))
+    assert export.status_code==200,export.text
+    book=load_workbook(BytesIO(export.content));assert any(c.value=='=1+1' and c.data_type=='s' for row in book.active for c in row);book.close()
+    A.save_user(employee_name='تقارير إجمالية',name='aggregate_only',password=PASSWORD,permissions=['reports.view'])
+    restricted=login(client,'aggregate_only')
+    assert post(client,restricted,'reports.read',dict(kind='finance',**dates)).status_code==200
+    for kind in ('students','debt','salaries','expenses'):
+        assert post(client,restricted,'reports.read',dict(kind=kind,**dates)).status_code==403
+    assert client.get('/api/teachers.options').status_code==403
+    assert client.get('/api/download/backup').status_code==403
+    assert post(client,restricted,'tools.list',dict(table='app_users')).status_code==422
+    assert post(client,restricted,'tools.list',dict(table='parents')).status_code==403
+
+
+def test_teacher_asset_idempotence_payroll_corrections_and_plain_search(browser):
+    client,conn=browser;session=login(client)
+    teacher=dict(table='teachers',mode='create',values=dict(national_id='123456',full_name='معلمة بنفس الاسم',salary='2000'),reason='إضافة معلمة',confirmed=True,request_token=str(uuid.uuid4()))
+    first=post(client,session,'tools.change',teacher);assert first.status_code==200,first.text
+    retry=post(client,session,'tools.change',teacher);assert retry.status_code==200 and str(retry.json()['id'])==str(first.json()['id'])
+    second=post(client,session,'tools.change',{**teacher,'values':{**teacher['values'],'national_id':'999999'},'request_token':str(uuid.uuid4())});assert second.status_code==200,second.text
+    options=client.get('/api/teachers.options').json();assert len(options)==2 and len({r['id'] for r in options})==2
+    salary=dict(teacher=first.json()['id'],kind='salary',month=str(F.today())[:7],date=str(F.today()),base='2000',bonus='500',deductions='100',confirmed=True,request_token=str(uuid.uuid4()))
+    saved=post(client,session,'payroll.save',salary);assert saved.status_code==200,saved.text
+    assert post(client,session,'payroll.save',salary).json()['created'] is False
+    assert post(client,session,'tools.list',dict(table='teacher_payments',query='(')).status_code==200
+    item=post(client,session,'tools.list',dict(table='teacher_payments')).json()['items'][0]
+    assert item['cash']==2400
+    void=post(client,session,'tools.change',dict(table='teacher_payments',id=item['id'],revision=item['revision'],mode='void_document',values={},reason='إلغاء مستند دون رد النقد',confirmed=True))
+    assert void.status_code==200,void.text
+    item=post(client,session,'tools.list',dict(table='teacher_payments')).json()['items'][0]
+    assert item['cash']==2400 and item['document']=='cancelled'
+    removed=post(client,session,'tools.change',dict(table='teacher_payments',id=item['id'],revision=item['revision'],mode='cancel',values={},reason='إزالة إدخال نقد خاطئ',confirmed=True))
+    assert removed.status_code==200,removed.text
+    assert client.get('/api/snapshot').json()['overview']['salary_cash']==0
+    asset=dict(table='assets',mode='create',values=dict(item_name='طاولة',category='أثاث',quantity='2',unit_cost='100'),reason='جرد فقط',confirmed=True,request_token=str(uuid.uuid4()))
+    before=client.get('/api/snapshot').json()['overview']['expenses']
+    a=post(client,session,'tools.change',asset);assert a.status_code==200,a.text
+    assert post(client,session,'tools.change',asset).status_code==200
+    assert client.get('/api/snapshot').json()['overview']['expenses']==before
+    assert post(client,session,'tools.list',dict(table='assets')).json()['total']==1

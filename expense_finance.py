@@ -205,7 +205,7 @@ def correct(expense_id, *, amount_total, amount_paid, category, expense_date,
     return _run(expense_id,"expense_record_corrected",payload,actor,reason,token,action,expected)
 
 
-def settle(expense_id, amount, *, on_date=None, actor, reason, token=None):
+def settle(expense_id, amount, *, on_date=None, actor, reason, token=None, expected=None):
     paid=cash(amount)
     d=on_date if isinstance(on_date,date) else date.fromisoformat(str(on_date or business_today()))
     if d>business_today():raise ValueError("تاريخ الصرف لا يكون مستقبلياً.")
@@ -220,7 +220,7 @@ def settle(expense_id, amount, *, on_date=None, actor, reason, token=None):
         c.execute("""UPDATE expenses SET amount_paid=%s,payment_status=%s
                    WHERE expense_id=%s RETURNING *""",(value,status,expense_id))
         return dict(c.fetchone())
-    return _run(expense_id,"expense_cash_settled",payload,actor,reason,token,action)
+    return _run(expense_id,"expense_cash_settled",payload,actor,reason,token,action,expected)
 
 
 def cancel(expense_id, *, actor, reason, token=None, expected=None):

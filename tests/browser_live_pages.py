@@ -97,11 +97,11 @@ async def main():
             rid=saved['receipts'][-1]['id']
             await page.locator('[data-receipt="'+str(rid)+'"]').click()
             async with page.expect_download() as download_event:
-                await page.locator('#receipt-content a').click()
+                await page.locator('#receipt-page a').click()
             download=await download_event.value;await download.save_as(out/'real-receipt.pdf')
             assert (out/'real-receipt.pdf').read_bytes().startswith(b'%PDF-')
             passed('real_browser_pdf_download_from_original_receipt_dialog')
-            await page.locator('#receipt-content [data-record-mode="edit"]').click()
+            await page.locator('#receipt-page [data-record-mode="edit"]').click()
             await page.locator('#record-edit-form [name="amount"]').fill('2000')
             await page.locator('#record-edit-form [name="reason"]').fill('تصحيح المبلغ')
             await page.locator('#record-edit-form [name="agree"]').check()
@@ -109,8 +109,9 @@ async def main():
             await expect(page.locator('#record-dialog')).not_to_be_visible(timeout=20000)
             saved=await data();assert saved['overview']['total_cash']==8000
             replacement=next(r for r in saved['receipts'] if r['corrects_id']==rid)
+            await page.locator('[data-return-receipts]').click()
             await page.locator('[data-receipt="'+str(replacement['id'])+'"]').click()
-            await page.locator('#receipt-content [data-record-mode="cancel"]').click()
+            await page.locator('#receipt-page [data-record-mode="cancel"]').click()
             await page.locator('#record-edit-form [name="reason"]').fill('إلغاء إدخال خاطئ')
             await page.locator('#record-edit-form [name="agree"]').check()
             await page.locator('#record-edit-form button.danger').click()
@@ -155,30 +156,19 @@ async def main():
             await page.reload();await expect(page.locator('#preview-login')).to_be_hidden(timeout=20000)
             assert len((await data())['students'])==1
             passed('fresh_page_reuses_real_session_and_persisted_database_records')
+            await page.locator('#menu').click()
+            await page.locator('#nav-workspace').click()
+            await expect(page.locator('#content h1')).to_have_text('إدارة الروضة')
+            assert await page.locator('a[href="/management/"]').count()==0
+            await page.locator('[data-tool-tab="payroll"]').click()
+            await expect(page.locator('#new-salary')).to_be_visible()
+            passed('unified_payroll_tools_without_old_interface_or_second_login')
             extra=None
-            if os.getenv('KG_LIVE_MANAGEMENT')=='1':
-                await page.locator('#menu').click()
-                await page.locator('#live-extra-nav summary').click()
-                assert await page.locator('#live-extra-nav a').get_attribute('href')=='/management/'
-                await page.mouse.click(5,450)
-                extra=await context.new_page()
-                await extra.goto(state['origin']+'/management/')
-                await expect(extra.locator('.st-key-nav_salaries button')).to_be_visible(timeout=45000)
-                assert await extra.locator('input[type="password"]').count()==0
-                assert await extra.locator('[data-testid="stException"]').count()==0
-                await extra.locator('.st-key-nav_salaries button').click()
-                await expect(extra.get_by_role('tab',name='➕ صرف راتب شهري',exact=True)).to_be_visible(timeout=30000)
-                assert await extra.locator('[data-testid="stException"]').count()==0
-                passed('actual_nginx_websocket_and_supplementary_payroll_use_same_httponly_session')
             await page.locator('#menu').click();await page.locator('#demo-logout').click()
             await expect(page.locator('#live-login')).to_be_visible(timeout=20000)
             assert (await context.request.get(state['origin']+'/api/snapshot')).status==401
             assert not errors,errors
             passed('logout_revokes_session_and_no_javascript_errors')
-            if extra is not None:
-                await extra.reload()
-                await expect(extra.locator('input[type="password"]')).to_be_visible(timeout=30000)
-                passed('primary_logout_also_revokes_supplementary_streamlit_access')
             conn=psycopg2.connect(state['dsn'])
             with conn.cursor() as c:
                 c.execute('SELECT COUNT(*) FROM students');assert c.fetchone()[0]==1
