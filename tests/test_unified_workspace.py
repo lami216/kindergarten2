@@ -97,3 +97,50 @@ def test_teacher_asset_idempotence_payroll_corrections_and_plain_search(browser)
     assert post(client,session,'tools.change',asset).status_code==200
     assert client.get('/api/snapshot').json()['overview']['expenses']==before
     assert post(client,session,'tools.list',dict(table='assets')).json()['total']==1
+
+
+def test_pickups_stale_edits_expense_settlement_and_archived_setup(browser):
+    client,conn=browser;session=login(client)
+    sid=post(client,session,'students.create',intake()).json()['id']
+    s=next(s for s in client.get('/api/snapshot').json()['students'] if s['id']==sid)
+    edit=dict(id=sid,revision=s['revision'],parent_revision=s['parent_revision'],values=dict(pickups=[dict(name='خال الطفل',phone='22334455',relation='خال')]),reason='مخول استلام')
+    saved=post(client,session,'students.edit',edit);assert saved.status_code==200,saved.text
+    assert post(client,session,'students.edit',{**edit,'values':{'address':'نافذة قديمة'}}).status_code==422
+    current=next(s for s in client.get('/api/snapshot').json()['students'] if s['id']==sid)
+    assert current['pickups'][0]['name']=='خال الطفل'
+    invalid=post(client,session,'students.edit',{**edit,'revision':current['revision'],'values':dict(pickups=[dict(name='ناقص',phone='')])})
+    assert invalid.status_code==422
+    exp=post(client,session,'expenses.create',dict(category='إصلاح',amount='1200',paid='1000',date=str(F.today()),request_token=str(uuid.uuid4())));assert exp.status_code==200,exp.text
+    e=client.get('/api/snapshot').json()['expenses'][0]
+    settle=dict(id=e['id'],amount='100',date=str(F.today()),reason='دفع إضافي',revision=e['revision'],confirmed=True,request_token=str(uuid.uuid4()))
+    cash_before=client.get('/api/snapshot').json()['overview']['expenses']
+    payment=post(client,session,'expenses.settle',settle);assert payment.status_code==200,payment.text
+    assert post(client,session,'expenses.settle',settle).status_code==200
+    assert post(client,session,'expenses.settle',{**settle,'request_token':str(uuid.uuid4())}).status_code==422
+    after=client.get('/api/snapshot').json();assert after['overview']['expenses']==cash_before+100
+    current=next(s for s in after['students'] if s['id']==sid)
+    archived=post(client,session,'records.change',dict(type='students',id=sid,mode='cancel',reason='أرشفة',revision=current['revision'],confirmed=True,values={}))
+    assert archived.status_code==200,archived.text
+    setup=post(client,session,'accounts.setup',dict(student=sid,start=str(F.today()),status='regular',confirmed=True))
+    assert setup.status_code==422
+
+
+def test_upgrade_14_to_15_preserves_ledger_and_secures_request_table(browser):
+    client,conn=browser;session=login(client)
+    assert post(client,session,'students.create',intake()).status_code==200
+    before=client.get('/api/snapshot').json()
+    import schema_migrations as M,db
+    with conn.cursor() as c:
+        c.execute('DROP TABLE app_tool_requests')
+        c.execute('DELETE FROM app_schema_migrations WHERE version=15')
+        c.execute('INSERT INTO app_schema_migrations(version) VALUES(14) ON CONFLICT DO NOTHING')
+    with pytest.raises(M.SchemaNotReady):db.assert_schema_ready(conn)
+    M.upgrade(conn)
+    db.assert_schema_ready(conn)
+    after=client.get('/api/snapshot').json()
+    assert before['overview']==after['overview'] and before['students']==after['students']
+    with conn.cursor() as c:
+        c.execute("SELECT relrowsecurity,relacl FROM pg_class WHERE oid='app_tool_requests'::regclass")
+        row=c.fetchone();assert row['relrowsecurity']
+        c.execute("SELECT COUNT(*) AS n FROM pg_class r CROSS JOIN LATERAL aclexplode(COALESCE(r.relacl,acldefault('r',r.relowner))) a WHERE r.oid='app_tool_requests'::regclass AND a.grantee=0")
+        assert c.fetchone()['n']==0

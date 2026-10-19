@@ -1,6 +1,6 @@
 """Serve the ORIGINAL GitHub Pages files, backed by the existing Python ledger.
 
-No new database, demo accounts, financial engine, client-side authority or migration.
+No new database, demo accounts, financial engine or client-side authority.
 Run behind TLS/Nginx. Administration uses the same live interface.
 """
 import argparse
@@ -543,6 +543,8 @@ def make_app(dsn, public_origin, *, management=False, trusted_proxies=()):
             return JSONResponse({'error':'التطبيق قيد التحديث؛ أكمل ترحيل قاعدة البيانات أولًا.'},503)
         except A.AccessDenied:
             return JSONResponse({'error':'انتهت الجلسة أو ليس لديك صلاحية لهذا الإجراء.'},403 if token else 401)
+        except __import__('psycopg2').errors.StringDataRightTruncation:
+            return JSONResponse({'error':'أحد الحقول أطول من المسموح؛ قصّر القيمة وأعد الحفظ.'},422)
         except __import__('psycopg2').errors.UniqueViolation:
             return JSONResponse({'error':'توجد بيانات بالهوية نفسها؛ راجع السجل قبل الإضافة.'},422)
         except (ValueError,TypeError,KeyError) as exc:

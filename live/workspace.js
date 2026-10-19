@@ -186,6 +186,7 @@ function toolEditor(id,mode){
     if(mode==='create')for(const f of config.fields)values[f.key]=f.type==='date'?today:f.type==='number'?(f.key==='quantity'?1:0):'';
     const cash=toolTable.startsWith('teacher_');
     let note=mode==='void_document'?'يُلغى المستند فقط ويبقى النقد المصروف محسوبًا.':mode==='cancel'&&cash?'إلغاء إدخال مالي خاطئ: يُزال أثر النقد من الحسابات، مع حفظ الأصل وسجل التغيير.':mode==='cancel'?'يُؤرشف السجل مع حفظ البيانات والتاريخ.':cash?'تصحيح إدخال خاطئ وليس صرف مبلغ إضافي.':'تُحفظ التعديلات مع السبب واسم المسؤول.';
+    if(['classes','academic_years','registrations'].includes(toolTable))note+=' هذه سجلات النظام السابق؛ لا تغيّر مفاتيح الربط دون مراجعة، ولا تُحوّل وحداتها المالية القديمة تلقائيًا.';
     if(toolTable==='assets')note+=' تسجيل التجهيز في الجرد لا يخصم نقدًا؛ الصرف الفعلي يسجل كمصروف.';
     openProtected((mode==='create'?'إضافة':mode==='edit'?'تعديل':'إلغاء')+' · '+config.title,'<form id="tool-edit-form" data-mode="'+mode+'" data-id="'+esc(id||'')+'" data-table="'+toolTable+'" data-revision="'+esc(r?.revision||'')+'"><p class="archive-note">'+note+'</p>'+(mode==='edit'||mode==='create'?'<div class="form-grid body-space">'+config.fields.map(f=>fieldInput(f,values[f.key])).join('')+'</div>':'')+confirmation()+'</form>');
 }
@@ -301,7 +302,7 @@ document.addEventListener('click',async e=>{
     if(target.dataset.toolMode){handle();toolEditor(target.dataset.toolId,target.dataset.toolMode);return;}
     if(target.id==='tool-create'){handle();toolEditor(null,'create');return;}
     if(target.dataset.payrollRecords){handle();toolTable=target.dataset.payrollRecords;toolTab='records';toolPage=1;toolRows=null;render();loadToolRows();return;}
-    if(target.id==='new-salary'||target.id==='new-advance'){handle();teacherOptions=await liveCall('teachers.options');salaryWindow(target.id==='new-salary'?'salary':'advance');return;}
+    if(target.id==='new-salary'||target.id==='new-advance'){handle();try{teacherOptions=await liveCall('teachers.options');salaryWindow(target.id==='new-salary'?'salary':'advance');}catch(error){toast(error.message,'error');}return;}
     if(target.id==='edit-fees'){handle();openProtected('تعديل الرسوم','<form id="fees-edit-form" data-revision="'+esc(feeDraft.revision)+'"><p class="archive-note">تظل أسعار الأشهر السابقة محفوظة؛ الأسعار الجديدة للفترات الجديدة.</p><div class="form-grid">'+Object.entries({registration:'التسجيل',gilet:'الجيليه',tuition:'الشهرية'}).map(([key,label])=>fieldInput({key,label,type:'number',required:true},feeDraft.values[key])).join('')+'</div>'+confirmation()+'</form>');return;}
     if(target.id==='report-print'){handle();window.print();return;}
     if(target.id==='report-xlsx'){

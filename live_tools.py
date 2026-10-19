@@ -104,6 +104,7 @@ def change(conn,data,profile):
     values=data.get('values',{})
     if not isinstance(values,dict) or set(values)-set(TABLES[table][1]):raise ValueError('حقول غير متاحة.')
     if mode not in ('edit','cancel','create','void_document'):raise ValueError('الإجراء غير متاح.')
+    if mode=='void_document' and table not in ('teacher_payments','teacher_advances'):raise ValueError('إلغاء المستند متاح للرواتب والسلف فقط.')
     if mode=='create' and table not in ('teachers','assets'):raise ValueError('الإضافة غير متاحة هنا.')
     values={k:date.fromisoformat(v) if k in DATES and v else None if k in DATES else v for k,v in values.items()}
     if table in R.FIELDS:
