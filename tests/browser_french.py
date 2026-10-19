@@ -43,6 +43,28 @@ async def main():
                 await page.wait_for_timeout(160)
                 pages[name] = await page.locator('#content').inner_text()
                 await page.screenshot(path=str(out/(name+'-fr.png')),full_page=True)
+            # Deliberately hold a lookup response while the user fills the form.
+            await page.evaluate('''async()=>{
+                teacherOptions=await liveCall('teachers.options');
+                const original=previewOperation;
+                previewOperation=async(op,data)=>{
+                    const value=await original(op,data);
+                    if(op==='teachers.options')return new Promise(resolve=>{window.releaseTeacherLookup=()=>resolve(value);});
+                    return value;
+                };
+                toolTab='reports';navigate('tools');window.pendingTeacherLookup=loadWorkspace();
+            }''')
+            await page.wait_for_function('typeof window.releaseTeacherLookup==="function"')
+            await page.locator('#report-form [name="kind"]').select_option('students')
+            await page.locator('#report-form [name="start"]').fill('2026-09-01')
+            await page.locator('#report-form [name="teacher"]').select_option(index=1)
+            selected_teacher=await page.locator('#report-form [name="teacher"]').input_value()
+            await page.evaluate('window.releaseTeacherLookup();window.pendingTeacherLookup')
+            await expect(page.locator('#report-form [name="kind"]')).to_have_value('students')
+            await expect(page.locator('#report-form [name="start"]')).to_have_value('2026-09-01')
+            await expect(page.locator('#report-form [name="teacher"]')).to_have_value(selected_teacher)
+            await page.locator('#report-form button').click()
+            await expect(page.locator('#report-output th').first).to_have_text('Élève')
             await page.evaluate("navigate('students');studentMode='add';render()")
             await expect(page.locator('#student-form [name="gender"] option').first).to_have_attribute('value','ذكر')
             await expect(page.locator('#student-form [name="gender"] option').first).to_have_text('Garçon')

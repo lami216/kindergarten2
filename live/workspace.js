@@ -195,10 +195,11 @@ function salaryWindow(kind){
     form.oninput=update;form.elements.teacher.onchange=()=>{if(kind==='salary')form.elements.base.value=teacherOptions.find(t=>t.id===form.elements.teacher.value)?.salary||0;update();};
 }
 const summaryLabels={registration_cash:`${I18N.tr("ui.7fe8b06a4cc7")}`,gilet_cash:`${I18N.tr("ui.7de34c7a86b5")}`,monthly_cash:`${I18N.tr("ui.b2a3067e1414")}`,prepaid_cash:`${I18N.tr("ui.ffb1844cb319")}`,total_cash:`${I18N.tr("ui.8cdf8237d7ff")}`,new_cash:`${I18N.tr("ui.1d3dbd215200")}`,operational_cash:`${I18N.tr("ui.d3066a437004")}`,salary_cash:`${I18N.tr("ui.f46f9101d6c3")}`,advance_cash:`${I18N.tr("ui.8c2c17f894d7")}`,expenses:`${I18N.tr("ui.c9e37ad9e515")}`,remaining_cash:`${I18N.tr("ui.e447a5a85420")}`,due_now:`${I18N.tr("ui.6ce732bcb7a5")}`,registration_children:`${I18N.tr("ui.2b1b334f72c2")}`,gilet_count:`${I18N.tr("ui.996ecb25be62")}`};
+function reportTeacherChoices(selected=''){return `<option value="">${I18N.tr("ui.65f276da33cf")}</option>${teacherOptions.map(t=>'<option value="'+esc(t.id)+'" '+(selected===t.id?'selected':'')+'>'+esc(t.name+' · '+t.identity+(t.archived?` ${I18N.tr("ui.542078432380")}`:''))+'</option>').join('')}`;}
 function reportScreen(){
     const options={finance:`${I18N.tr("ui.f915274fc2c4")}`};
     for(const [key,title,area] of [['students',`${I18N.tr("ui.c56e2f31629f")}`,'students'],['debt',`${I18N.tr("ui.219dfac6a29b")}`,'receipts'],['expenses',`${I18N.tr("ui.eac7e1b9ac20")}`,'expenses'],['salaries',`${I18N.tr("ui.c3cf6edd07ce")}`,'salaries']])if(demoCan(area))options[key]=title;
-    return `<form id="report-form" class="panel"><div class="form-grid"><label>${I18N.tr("ui.a92dbae49f8a")}<select name="kind">${Object.entries(options).map(([k,v])=>'<option value="'+k+'" '+(reportRequest?.kind===k?'selected':'')+'>'+v+'</option>').join('')}</select></label>${fieldInput({key:'start',label:`${I18N.tr("ui.996988dbc52e")}`,type:'date',required:true},reportRequest?.start||today.slice(0,8)+'01')}${fieldInput({key:'end',label:`${I18N.tr("ui.217caed1c04f")}`,type:'date',required:true},reportRequest?.end||today)}<label>${I18N.tr("ui.36813b4e8159")}<select name="teacher"><option value="">${I18N.tr("ui.65f276da33cf")}</option>${teacherOptions.map(t=>'<option value="'+esc(t.id)+'" '+(reportRequest?.teacher===t.id?'selected':'')+'>'+esc(t.name+' · '+t.identity+(t.archived?` ${I18N.tr("ui.542078432380")}`:''))+'</option>').join('')}</select></label></div><button class="secondary body-space">${I18N.tr("ui.92ad0d774e56")}</button><p class="error" role="alert"></p></form><p class="muted">${I18N.tr("ui.d4787e96d6a3")}</p><section id="report-output">${reportHTML()}</section>`;
+    return `<form id="report-form" class="panel"><div class="form-grid"><label>${I18N.tr("ui.a92dbae49f8a")}<select name="kind">${Object.entries(options).map(([k,v])=>'<option value="'+k+'" '+(reportRequest?.kind===k?'selected':'')+'>'+v+'</option>').join('')}</select></label>${fieldInput({key:'start',label:`${I18N.tr("ui.996988dbc52e")}`,type:'date',required:true},reportRequest?.start||today.slice(0,8)+'01')}${fieldInput({key:'end',label:`${I18N.tr("ui.217caed1c04f")}`,type:'date',required:true},reportRequest?.end||today)}<label>${I18N.tr("ui.36813b4e8159")}<select name="teacher">${reportTeacherChoices(reportRequest?.teacher)}</select></label></div><button class="secondary body-space">${I18N.tr("ui.92ad0d774e56")}</button><p class="error" role="alert"></p></form><p class="muted">${I18N.tr("ui.d4787e96d6a3")}</p><section id="report-output">${reportHTML()}</section>`;
 }
 function reportHTML(){if(!reportData)return '';const items=reportData.items,keys=items.length?Object.keys(items[0]):[];return `<div class="panel"><div class="actions"><button class="secondary" id="report-xlsx">${I18N.tr("ui.e422937f6626")}</button><button class="secondary" id="report-print">${I18N.tr("ui.2e00e00acffe")}</button></div><div class="report-values body-space">${Object.entries(reportData.summary).filter(([key])=>key!=='new_cash').map(([k,v])=>detailLine(summaryLabels[k]||k,v)).join('')}</div>${keys.length?'<div class="table-wrap body-space"><table><thead><tr>'+keys.map(k=>'<th>'+esc(I18N.sourceLabel(k))+'</th>').join('')+'</tr></thead><tbody>'+items.map(r=>'<tr>'+keys.map(k=>'<td>'+esc(['الحالة','حالة المستند'].includes(k)?I18N.enumLabel(r[k]??'—'):(r[k]??'—'))+'</td>').join('')+'</tr>').join('')+'</tbody></table></div>':`<p class="muted body-space">${I18N.tr("ui.b02536bda450")}</p>`}</div>`;}
 showHistory=function(){
@@ -244,7 +245,14 @@ async function loadWorkspace(){
     try{
         if(toolTab==='records'){toolRows=null;await loadToolRows();}
         if(toolTab==='fees'){feeDraft=await liveCall('fees.read');if(page==='tools'&&toolTab==='fees')render();}
-        if((toolTab==='payroll'||toolTab==='reports')&&demoCan('salaries')){teacherOptions=await liveCall('teachers.options');if(page==='tools')render();}
+        if((toolTab==='payroll'||toolTab==='reports')&&demoCan('salaries')){
+            const tab=toolTab,options=await liveCall('teachers.options');teacherOptions=options;
+            // Updating a lookup must not rebuild a form the user is filling in.
+            if(page==='tools'&&toolTab===tab&&tab==='reports'){
+                const picker=$('#report-form [name="teacher"]');
+                if(picker)picker.innerHTML=reportTeacherChoices(picker.value);
+            }
+        }
     }catch(e){toast(e.message,'error');}
 }
 function bindWorkspaceInputs(){

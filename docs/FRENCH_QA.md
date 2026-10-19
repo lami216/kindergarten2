@@ -53,3 +53,9 @@ receipt lines now keep visual positions while emitting separate direction runs;
 PDF amounts use a font-supported regular space. The six localization tests pass
 with both pypdf 6.1.3 and 6.20.1, including names, period snapshots, cancellation
 and complete amount extraction.
+
+The real-service CI journey also exposed a lookup race: a delayed teacher-options
+response rebuilt the report form and reset the selected report. Lookup completion
+now refreshes only teacher options, preserving report type, dates and selected
+teacher. The French browser suite holds and releases this response deliberately
+and verifies the selected report still executes.
