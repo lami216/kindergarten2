@@ -79,7 +79,14 @@ jobs:
           python -m pytest -q tests/
           cat visual-evidence/overview-500.json
       - name: Install Chromium for browser tests
-        run: python -m playwright install --with-deps chromium
+        timeout-minutes: 10
+        run: |
+          # Avoid prolonged stalls on the hosted runner's Azure APT mirror.
+          if [ -f /etc/apt/apt-mirrors.txt ]; then
+            printf 'https://archive.ubuntu.com/ubuntu\n' | sudo tee /etc/apt/apt-mirrors.txt
+          fi
+          printf 'Acquire::Retries "3";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\n' | sudo tee /etc/apt/apt.conf.d/80-ci-downloads
+          python -m playwright install --with-deps chromium
       - name: Actual Streamlit and Starlette image, ZIP and PDF responses
         run: python -m tests.browser_dependency_responses
       - name: French interface, LTR mobile and login language selection

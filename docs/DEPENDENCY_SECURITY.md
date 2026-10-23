@@ -173,6 +173,15 @@ from Python's module path on the Ubuntu runner. CI now uses
 `python -m tests.browser_pr1`, matching local execution and retaining the whole
 test. This is an invocation fix, not an ignored or removed CI check.
 
+The next run on `902a5ff` passed dependency/security checks and all 306 tests
+with 11 subtests, but two hosted-runner attempts stalled fetching Ubuntu
+packages from `azure.archive.ubuntu.com` during Chromium setup. These were
+cancelled as infrastructure download stalls, not recorded as successful browser
+runs. CI now selects Ubuntu's official HTTPS archive for the runner's existing
+APT mirror list, with 30-second connection/data timeouts, three retries and a
+10-minute setup limit. Package signature verification and every browser check
+remain enabled; no application or production configuration is affected.
+
 ## Deployment and rollback (instructions only)
 
 After the exact PR head passes CI, build a **new** environment with Python 3.12
