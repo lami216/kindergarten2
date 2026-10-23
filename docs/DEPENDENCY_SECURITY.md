@@ -159,6 +159,14 @@ viewer restrictions remain intact. The complete profile journey passed locally
 at 390/1280px after this test-only fix. No application code, UI assets,
 database schema or grants were changed in this follow-up.
 
+The local historical screenshot matrix also exposed an expansion race: it
+checked collapsed state immediately after clicking the opener and could
+mistake the animation for a folded navigation group. The test now waits for
+the actual expanded state, separately checks the target item's visibility,
+and then clicks it normally. The 360/1280px matrix passed with 32 comparable
+screenshots. Screenshot, contrast and duplicate-submission assertions remain
+enabled; no force clicks, application or reference-design edits were added.
+
 ## Deployment and rollback (instructions only)
 
 After the exact PR head passes CI, build a **new** environment with Python 3.12

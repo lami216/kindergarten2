@@ -49,11 +49,14 @@ async def navigate(page, section):
     await nav.wait_for(state="attached", timeout=30000)
     if await sidebar_collapsed(page, nav):
         opener = page.locator('[data-testid="stExpandSidebarButton"]')
-        if await opener.first.is_visible():
-            await opener.first.click(timeout=10000)
-        group=page.get_by_text("ملفات الروضة",exact=True)
-        if await sidebar_collapsed(page, nav) and await group.count():
-            await group.click()
+        await opener.first.click(timeout=10000)
+        sidebar = page.locator('[data-testid="stSidebar"]')
+        if await sidebar.get_attribute('data-collapsed') is not None:
+            await expect(sidebar).to_have_attribute('data-collapsed', 'false')
+    group=page.get_by_text("ملفات الروضة",exact=True)
+    if not await nav.is_visible() and await group.count():
+        await group.click()
+    await expect(nav).to_be_visible()
     await nav.click(timeout=10000)
     heading = "إدارة الطلاب" if section == "students" else "أولياء الأمور"
     await expect(page.locator(".section-title")).to_contain_text(heading, timeout=15000)
