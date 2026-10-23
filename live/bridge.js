@@ -191,13 +191,13 @@ async function liveSubmit(form){
     }
     if(form.id==='payment-form'){
         const amount=$('#pay-amount').value;
-        if(!livePreview||livePreview.student!==receiptChild||Number(amount)!==Number(livePreview.amount)||!$('#pay-agree')?.checked)throw Error(`${I18N.tr("ui.bdbd3c3fdc57")}`);
-        return liveSaved('payments.create',{student:receiptChild,amount,confirmed:true,
+        if(!livePreview||livePreview.student!==receiptChild||livePreview.date!==get('date')||Number(amount)!==Number(livePreview.amount)||!$('#pay-agree')?.checked)throw Error(`${I18N.tr("ui.bdbd3c3fdc57")}`);
+        return liveSaved('payments.create',{student:receiptChild,amount,date:get('date'),confirmed:true,
             revision:livePreview.revision,tariff:livePreview.tariff},form);
     }
     if(form.id==='fee-collect-form'){
         if(!liveFee||!d.has('agree'))throw Error(`${I18N.tr("ui.d673efea91ae")}`);
-        return liveSaved('fees.collect',{...liveFee,confirmed:true},form);
+        return liveSaved('fees.collect',{...liveFee,date:get('date'),confirmed:true},form);
     }
     if(form.id==='expense-form'){
         const amount=get('amount'),status=get('status');
@@ -239,13 +239,13 @@ document.addEventListener('click',async event=>{
     const preview=event.target.closest('#payment-preview-button');
     if(!preview)return;
     event.preventDefault();event.stopImmediatePropagation();
-    livePreview=null;const amount=$('#pay-amount').value,student=receiptChild;
+    livePreview=null;const amount=$('#pay-amount').value,student=receiptChild,on=$('#pay-date').value;
     if(!$('#payment-form').reportValidity())return;
     preview.disabled=true;
     try{
-        const result=await liveCall('payments.preview',{student,amount});
-        if(student!==receiptChild||amount!==$('#pay-amount').value)return;
-        livePreview={...result,student};
+        const result=await liveCall('payments.preview',{student,amount,date:on});
+        if(student!==receiptChild||amount!==$('#pay-amount')?.value||on!==$('#pay-date')?.value)return;
+        livePreview={...result,student,date:on};
         $('#pay-preview').innerHTML=`<div class="payment-preview"><strong>${I18N.tr("ui.cfc87a02b937",{p0:esc(money(result.amount))})}</strong>${result.months.map(m=>`<p>${I18N.tr("ui.cbeb9ac49eea",{p0:esc(m.start),p1:esc(m.end),p2:esc(money(m.allocating))})}</p>`).join('')}<label class="check-row"><input id="pay-agree" type="checkbox"> ${I18N.tr("ui.bc3401d3860f")}</label><button class="primary" id="pay-save" disabled>${I18N.tr("ui.ee20bfe88097")}</button></div>`;
         $('#pay-agree').onchange=e=>$('#pay-save').disabled=!e.target.checked;
     }catch(error){toast(error.message);}finally{preview.disabled=false;}

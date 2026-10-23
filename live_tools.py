@@ -158,15 +158,16 @@ def reports(conn,data):
     from live_pages import text,require,rows
     require(conn,'reports.view')
     kind=text(data,'kind',30,True)
-    start=date.fromisoformat(text(data,'start',10,True));end=date.fromisoformat(text(data,'end',10,True))
-    if start>end or end>F.today():raise ValueError('راجع تاريخ البداية والنهاية.')
-    if kind=='finance':return dict(summary=F.financial_report(conn,start,end),items=[])
     if kind=='students':
         require(conn,'students.view')
         return dict(summary={},items=rows(conn,'''SELECT s.full_name AS "الطالب",d.name AS "القسم",
             p.father_name AS "الأب",p.father_mobile AS "هاتف الأب",p.mother_name AS "الأم",p.mother_mobile AS "هاتف الأم"
             FROM students s LEFT JOIN parents p USING(father_id) LEFT JOIN student_departments sd USING(student_id)
             LEFT JOIN school_departments d USING(department_id) WHERE s.archived_at IS NULL ORDER BY s.full_name'''))
+    end=date.fromisoformat(text(data,'end',10,True))
+    start=end if kind=='debt' else date.fromisoformat(text(data,'start',10,True))
+    if start>end or end>F.today():raise ValueError('راجع تاريخ البداية والنهاية.')
+    if kind=='finance':return dict(summary=F.financial_report(conn,start,end),items=[])
     if kind=='debt':
         require(conn,'payments.view')
         F._ensure_all_started(end);accounts=F.projections(conn,end,materialize=False)

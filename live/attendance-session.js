@@ -38,7 +38,7 @@ function rollFiltered(){
 }
 function rollPortrait(r){
  if(attendanceState.kind!=='students')return '';
- return '<span class="roll-avatar" aria-hidden="true"><span>'+esc(r.name.slice(0,1))+'</span>'+(r.photo?.data?'<img src="'+esc(r.photo.data)+'" alt="" width="32" height="32" loading="lazy" decoding="async">':'')+'</span>';
+ return studentAvatar(r,'roll-avatar',r.photo);
 }
 function rollRow(r){
  const s=attendanceState,value=selectedAttendance(r),canWrite=s.taking&&rollCanWrite(r),detail=r.identity||(s.kind==='students'?students.find(child=>child.id===r.id)?.parent:'')||r.department||'';
@@ -124,4 +124,3 @@ liveLoginScreen=function(){if(attendanceState){attendanceState.drafts.clear();at
 let rollResize;window.addEventListener('resize',()=>{clearTimeout(rollResize);rollResize=setTimeout(()=>{if(attendanceState?.rollOpen&&attendanceState.rollStep==='mark')renderRollRows();},150);});
 if(liveSession&&liveData&&page.endsWith('-attendance'))render();
 
-document.addEventListener('error',e=>{if(e.target.matches?.('.roll-avatar img'))e.target.remove();},true);

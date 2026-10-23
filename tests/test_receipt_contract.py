@@ -109,10 +109,9 @@ class ChildReceiptContractPG(TestCase):
         self.assertEqual(H.receipt_detail(self.admin,rid)["receipt"]["amount"],4500)
 
     def test_cancel_three_period_receipt_retains_partial_and_future_does_not_become_due(self):
-        # Anchor at two actual months ago; third period is future for this fixture.
-        anchor=F.anniversary(self.today,-2) if False else date(self.today.year,self.today.month,1)
-        anchor=F.anniversary(anchor,-2).replace(day=min(20,anchor.day+19))
-        # Exactly two completed anniversary starts, third is upcoming.
+        # Two started periods and a future third on every day of the month.
+        # A fixed day 20 made this fixture false from the 20th onward.
+        anchor=F.anniversary(date(self.today.year,self.today.month,1),-1)
         sid=self.child(start=anchor)
         part,_=F.take_payment(sid,1500,actor="receipt-qa",as_of=anchor)
         large,_=F.take_payment(sid,7500,actor="receipt-qa",as_of=anchor)

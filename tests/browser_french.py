@@ -10,6 +10,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
 from playwright.async_api import async_playwright, expect
 from scripts.build_pages_preview import build
+from tests.date_entry_helpers import fill_field
 
 
 async def main():
@@ -55,14 +56,15 @@ async def main():
                 toolTab='reports';navigate('tools');window.pendingTeacherLookup=loadWorkspace();
             }''')
             await page.wait_for_function('typeof window.releaseTeacherLookup==="function"')
-            await page.locator('#report-form [name="kind"]').select_option('students')
-            await page.locator('#report-form [name="start"]').fill('2026-09-01')
+            await page.locator('#report-form [name="kind"]').select_option('salaries')
+            await fill_field(page.locator('#report-form [name="start"]'), '2026-09-01')
             await page.locator('#report-form [name="teacher"]').select_option(index=1)
             selected_teacher=await page.locator('#report-form [name="teacher"]').input_value()
             await page.evaluate('window.releaseTeacherLookup();window.pendingTeacherLookup')
-            await expect(page.locator('#report-form [name="kind"]')).to_have_value('students')
+            await expect(page.locator('#report-form [name="kind"]')).to_have_value('salaries')
             await expect(page.locator('#report-form [name="start"]')).to_have_value('2026-09-01')
             await expect(page.locator('#report-form [name="teacher"]')).to_have_value(selected_teacher)
+            await page.locator('#report-form [name="kind"]').select_option('students')
             await page.locator('#report-form button').click()
             await expect(page.locator('#report-output th').first).to_have_text('Élève')
             await page.evaluate("navigate('students');studentMode='add';render()")

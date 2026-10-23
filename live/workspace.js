@@ -50,7 +50,7 @@ receiptRows=function(){
     }).slice().reverse();
     const html=pageSlice('receipts',rows,rs=>rs.map(r=>{
         const s=students.find(s=>s.id===r.student);
-        return `<div class="list-card" data-receipt-row="${r.id}"><div><strong>${esc(s.name)}</strong><small>${I18N.tr("ui.bd9628ee2920",{p0:r.id,p1:esc(r.date),p2:s.cancelled?` ${I18N.tr("ui.f1a581eef6bf")}`:''})}</small></div><div class="actions"><span class="status ${r.cancelled?'amber':''}">${I18N.tr("ui.cb786d585e2d",{p0:money(r.amount),p1:r.cancelled?` ${I18N.tr("ui.0b82a8e63244")}`:''})}</span><button class="secondary small" data-receipt="${r.id}">${I18N.tr("ui.566dbcea7afa")}</button></div></div>`;
+        return `<div class="list-card" data-receipt-row="${r.id}"><div class="row-person">${studentAvatar(s)}<div><strong>${esc(s.name)}</strong><small>${I18N.tr("ui.bd9628ee2920",{p0:r.id,p1:esc(r.date),p2:s.cancelled?` ${I18N.tr("ui.f1a581eef6bf")}`:''})}</small></div></div><div class="actions"><span class="status ${r.cancelled?'amber':''}">${I18N.tr("ui.cb786d585e2d",{p0:money(r.amount),p1:r.cancelled?` ${I18N.tr("ui.0b82a8e63244")}`:''})}</span><button class="secondary small" data-receipt="${r.id}">${I18N.tr("ui.566dbcea7afa")}</button></div></div>`;
     }).join('')||`<div class="empty">${I18N.tr("ui.e9325c1ddd94")}</div>`);
     return html+pager('receipts');
 };
@@ -61,7 +61,7 @@ openReceipt=function(id){receiptPageId=Number(id);page='receipt';render();pageTo
 function receiptScreen(){
     const r=receipts.find(r=>r.id===receiptPageId),s=r&&students.find(s=>s.id===r.student);
     if(!r||!s)return heading(`${I18N.tr("ui.5d24240aeff3")}`,`${I18N.tr("ui.765c140c65f9")}`,`<button class="secondary" data-return-receipts>${I18N.tr("ui.ceb9efa64a1f")}</button>`);
-    return `${heading(`${I18N.tr("ui.78ba4b68be77",{p0:r.id})}`,`${I18N.tr("ui.df3c75fa3c0e")}`,`<button class="secondary" data-return-receipts>${I18N.tr("ui.ceb9efa64a1f")}</button>`)}<section class="panel page-receipt" id="receipt-page"><span class="badge">${I18N.tr("ui.06aacc984eba")}</span>${r.cancelled?`<p class="notice-box">${I18N.tr("ui.5a65d9be6038")}</p>`:''}<h2 class="body-space">${esc(s.name)}</h2><p class="muted">${esc(s.parent)} · ${esc(s.phone)}</p><p>${I18N.tr("ui.a17de5e4aec4",{p0:esc(r.date)})}</p><div class="receipt-total">${money(r.amount)} <small>${I18N.tr("ui.894811c10b8d")}</small></div><div class="summary-detail">${detailLine(`${I18N.tr("ui.7dd297215d19")}`,r.registration)}${detailLine(`${I18N.tr("ui.c0a240e22598")}`,r.gilet)}${detailLine(`${I18N.tr("ui.e00922512362")}`,r.monthly)}</div><div class="actions"><a class="secondary" href="/api/receipt/${r.id}" target="_blank" rel="noopener">${I18N.tr("ui.47eb54fb2cf4")}</a>${recordActions('receipts',r.id,r.cancelled)}</div></section>`;
+    return `${heading(`${I18N.tr("ui.78ba4b68be77",{p0:r.id})}`,`${I18N.tr("ui.df3c75fa3c0e")}`,`<button class="secondary" data-return-receipts>${I18N.tr("ui.ceb9efa64a1f")}</button>`)}<section class="panel page-receipt" id="receipt-page"><span class="badge">${I18N.tr("ui.06aacc984eba")}</span>${r.cancelled?`<p class="notice-box">${I18N.tr("ui.5a65d9be6038")}</p>`:''}<div class="row-person body-space">${studentAvatar(s)}<div><h2>${esc(s.name)}</h2><p class="muted">${esc(s.parent)} · ${esc(s.phone)}</p></div></div><p>${I18N.tr("ui.a17de5e4aec4",{p0:esc(r.date)})}</p><div class="receipt-total">${money(r.amount)} <small>${I18N.tr("ui.894811c10b8d")}</small></div><div class="summary-detail">${detailLine(`${I18N.tr("ui.7dd297215d19")}`,r.registration)}${detailLine(`${I18N.tr("ui.c0a240e22598")}`,r.gilet)}${detailLine(`${I18N.tr("ui.e00922512362")}`,r.monthly)}</div><div class="actions"><a class="secondary" href="/api/receipt/${r.id}" target="_blank" rel="noopener">${I18N.tr("ui.47eb54fb2cf4")}</a>${recordActions('receipts',r.id,r.cancelled)}</div></section>`;
 }
 let expenseTerm='';
 const workspaceExpensePage=expensePage;
@@ -93,7 +93,7 @@ demoShowMetrics=function(){
 };
 function archiveScreen(){
     const input=archiveScreen.query||'',rows=students.filter(s=>s.cancelled&&childMatches(s,input));
-    const html=pageSlice('archives',rows,rs=>rs.map(s=>`<div class="list-card"><div><strong>${esc(s.name)}</strong><small>${esc(s.parent)} · ${esc(s.phone)}</small></div><div class="actions"><button class="secondary small" data-archive-profile="${esc(s.id)}">${I18N.tr("ui.b5ba49dd5f73")}</button>${canRestore()?`<button class="secondary small" data-restore="${esc(s.id)}">${I18N.tr("ui.41c88d959d57")}</button>`:''}</div></div>`).join('')||`<div class="empty">${I18N.tr("ui.99eacb2dec0f")}</div>`);
+    const html=pageSlice('archives',rows,rs=>rs.map(s=>`<div class="list-card"><div class="row-person">${studentAvatar(s)}<div><strong>${esc(s.name)}</strong><small>${esc(s.parent)} · ${esc(s.phone)}</small></div></div><div class="actions"><button class="secondary small" data-archive-profile="${esc(s.id)}">${I18N.tr("ui.b5ba49dd5f73")}</button>${canRestore()?`<button class="secondary small" data-restore="${esc(s.id)}">${I18N.tr("ui.41c88d959d57")}</button>`:''}</div></div>`).join('')||`<div class="empty">${I18N.tr("ui.99eacb2dec0f")}</div>`);
     return `${heading(`${I18N.tr("ui.66981cf53742")}`,`${I18N.tr("ui.f269eeee68d3")}`,`<button class="secondary" data-back-active>${I18N.tr("ui.e88c75392bba")}</button>`)}<div class="panel"><label>${I18N.tr("ui.17a50b597424")}<input id="archive-search" value="${esc(input)}" placeholder="${I18N.tr("ui.f6a88989e182")}"></label><div id="archive-rows">${html}${pager('archives')}</div></div>`;
 }
 function openProtected(title,body){
@@ -147,7 +147,7 @@ function visibleToolTables(){return (liveData.tools||[]).filter(t=>t.key!=='teac
 function tableChoices(){return visibleToolTables().map(t=>'<option value="'+t.key+'" '+(toolTable===t.key?'selected':'')+'>'+esc(I18N.sourceLabel(t.title))+'</option>').join('');}
 function toolsScreen(){
     const can=p=>demoActor.admin||liveSession.user.permissions.includes(p);
-    const tabs=[['records',`${I18N.tr("ui.70bdde6cdca8")}`,!!visibleToolTables().length],['fees',`${I18N.tr("ui.8bf5e54fbd8b")}`,can('fees.view')],['payroll',`${I18N.tr("ui.941f706ac934")}`,can('salaries.view')],['reports',`${I18N.tr("ui.2157b1313ba3")}`,can('reports.view')],['backup',`${I18N.tr("ui.316127a3a455")}`,demoActor.admin]];
+    const tabs=[['records',`${I18N.tr("ui.70bdde6cdca8")}`,!!visibleToolTables().length],['fees',`${I18N.tr("ui.8bf5e54fbd8b")}`,can('fees.view')],['payroll',`${I18N.tr("ui.941f706ac934")}`,can('salaries.view')],['backup',`${I18N.tr("ui.316127a3a455")}`,demoActor.admin]];
     if(!tabs.some(t=>t[0]===toolTab&&t[2]))toolTab=tabs.find(t=>t[2])?.[0]||'none';
     let html=heading(`${I18N.tr("ui.2a505c4c3257")}`,`${I18N.tr("ui.ba19d8330afd")}`)+'<div class="workspace-nav">'+tabs.filter(t=>t[2]).map(([key,label])=>'<button class="secondary" data-tool-tab="'+key+'" aria-selected="'+(toolTab===key)+'">'+label+'</button>').join('')+'</div>';
     if(toolTab==='records'){
@@ -223,7 +223,7 @@ render=function(){
         bindRecordButtons();
     }else workspaceRender();
     $('#live-extra-nav')?.remove();
-    if(!$('#nav-workspace')&&(liveData.tools?.length||demoActor.admin||liveSession.user.permissions.some(p=>['fees.view','reports.view','salaries.view'].includes(p)))){
+    if(!$('#nav-workspace')&&(liveData.tools?.length||demoActor.admin||liveSession.user.permissions.some(p=>['fees.view','salaries.view'].includes(p)))){
         const button=document.createElement('button');button.id='nav-workspace';button.dataset.page='tools';button.textContent=`${I18N.tr("ui.382057f38b2e")}`;button.onclick=()=>{navigate('tools');loadWorkspace();};
         document.querySelector('nav').insertBefore(button,$('#demo-logout'));
     }

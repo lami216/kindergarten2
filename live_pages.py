@@ -44,7 +44,7 @@ DESIGN_ROOT = Path(__file__).resolve().parent / 'docs'
 LIVE_ROOT = Path(__file__).resolve().parent / 'live'
 COOKIE = '__Host-kg_session'
 MAX_BODY = 8 * 1024 * 1024
-ASSETS = {'i18n.js','i18n.css','preview.css','preview.js','access-preview.js','student-profile.js','edit-windows.js',
+ASSETS = {'i18n.js','i18n.css','date-entry.js','date-entry.css','preview.css','preview.js','access-preview.js','student-profile.js','edit-windows.js',
           'school-logo.jpg','IBMPlexSansArabic-Regular.ttf','IBM_Plex_Sans_Arabic_OFL.txt'}
 CONTENT_TYPES = {'.css':'text/css','.js':'text/javascript','.jpg':'image/jpeg','.ttf':'font/ttf','.txt':'text/plain'}
 
@@ -52,8 +52,8 @@ CONTENT_TYPES = {'.css':'text/css','.js':'text/javascript','.jpg':'image/jpeg','
 def index_html():
     html = (DESIGN_ROOT/'index.html').read_text(encoding='utf-8')
     html = html.replace('<script src="preview.js">','<script src="/live/runtime.js"></script>\n<script src="preview.js">')
-    html=html.replace('</head>','<link rel="stylesheet" href="/live/workspace.css"><link rel="stylesheet" href="/live/people.css"></head>')
-    return html.replace('</body>','<script src="/live/bridge.js"></script>\n<script src="/live/workspace.js"></script>\n<script src="/live/people.js"></script>\n<script src="/live/attendance-session.js"></script>\n</body>')
+    html=html.replace('</head>','<link rel="stylesheet" href="/live/workspace.css"><link rel="stylesheet" href="/live/people.css"><link rel="stylesheet" href="/live/reports.css"></head>')
+    return html.replace('</body>','<script src="/live/bridge.js"></script>\n<script src="/live/workspace.js"></script>\n<script src="/live/people.js"></script>\n<script src="/live/attendance-session.js"></script>\n<script src="/live/reports.js"></script>\n</body>')
 
 
 def json_ready(value):
@@ -98,6 +98,19 @@ def whole_amount(value, *, zero=False):
 def request_token(data):
     try: return str(uuid.UUID(data['request_token']))
     except (KeyError,ValueError,TypeError,AttributeError): raise ValueError('رمز طلب الحفظ غير صالح؛ حدّث النموذج.') from None
+
+
+def cash_date(data):
+    """Old clients retain today's default; explicit receipt dates must be real, not future."""
+    if 'date' not in data: return None
+    value=text(data,'date',10,True)
+    try:
+        if not re.fullmatch(r'[0-9]{4}-[0-9]{2}-[0-9]{2}',value): raise ValueError()
+        day=date.fromisoformat(value)
+    except ValueError:
+        raise ValueError('أدخل تاريخ دفع صحيحًا.') from None
+    if day>F.today(): raise ValueError('تاريخ الدفع لا يمكن أن يكون في المستقبل.')
+    return day
 
 
 def snapshot(conn, profile):
@@ -260,6 +273,9 @@ def edit_student(conn, data, actor):
 
 def mutate(conn, operation, data, profile):
     actor=profile['username']
+    if operation in ('reports.finance','reports.finance.export'):
+        import finance_reports
+        return finance_reports.read(data) if operation=='reports.finance' else finance_reports.export(data)
     if operation in ('attendance.read','attendance.save'):
         import attendance
         return attendance.read(conn,data) if operation=='attendance.read' else attendance.save(conn,data,profile)
@@ -367,18 +383,19 @@ def mutate(conn, operation, data, profile):
         return {'changed':departments.transfer(ids,data.get('department_id'),actor=actor)}
     if operation=='payments.preview':
         require(conn,'payments.create')
+        cash_date(data)
         return F.payment_preview(conn,text(data,'student',20,True),whole_amount(data.get('amount')))
     if operation=='payments.create':
         if data.get('confirmed') is not True: raise ValueError('أكد قبض المبلغ بعد مراجعة المعاينة.')
         if type(data.get('revision')) is not int or type(data.get('tariff')) is not int: raise ValueError('أعد معاينة توزيع المبلغ.')
         receipt,created=F.take_payment(text(data,'student',20,True),whole_amount(data.get('amount')),payer=text(data,'payer'),
-            token=request_token(data),actor=actor,expected_revision=data['revision'],expected_tariff=data['tariff'])
+            token=request_token(data),actor=actor,as_of=cash_date(data),expected_revision=data['revision'],expected_tariff=data['tariff'])
         return {'id':receipt,'created':created}
     if operation=='fees.collect':
         import student_debt as D
         if data.get('confirmed') is not True: raise ValueError('أكد قبض الرسم فعليًا.')
         ident,created=D.pay_unpaid_fee(text(data,'student',20,True),text(data,'kind',20,True),actor=actor,
-            token=request_token(data),expected_due=data.get('due'))
+            token=request_token(data),expected_due=data.get('due'),as_of=cash_date(data))
         return {'id':ident,'created':created}
     if operation=='expenses.create':
         ident,created=E.create(category=text(data,'category',100,True),amount_total=data.get('amount'),
@@ -558,7 +575,7 @@ def make_app(dsn, public_origin, *, management=False, trusted_proxies=()):
                 return response
             if not token: return error_response(request,'سجّل الدخول أولًا.',401)
             result=await run_in_threadpool(execute,token,operation,data,L.request_language(request))
-            if operation=='reports.export':
+            if operation in ('reports.export','reports.finance.export'):
                 return Response(result,media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                     headers={'Content-Disposition':'attachment; filename="report.xlsx"'})
             response=JSONResponse(json_ready(result))
@@ -606,7 +623,7 @@ def make_app(dsn, public_origin, *, management=False, trusted_proxies=()):
     async def bridge(request): return Response((LIVE_ROOT/'bridge.js').read_bytes(),media_type='text/javascript')
     async def workspace_asset(request):
         name=request.path_params['name']
-        if name not in ('workspace.js','workspace.css','people.js','people.css','attendance-session.js'):return Response(status_code=404)
+        if name not in ('workspace.js','workspace.css','people.js','people.css','attendance-session.js','reports.js','reports.css'):return Response(status_code=404)
         return Response((LIVE_ROOT/name).read_bytes(),media_type='text/javascript' if name.endswith('.js') else 'text/css')
     async def catalog_asset(request):
         return Response('window.APP_MESSAGES='+json.dumps(L.CATALOG,ensure_ascii=False)+';',media_type='text/javascript')

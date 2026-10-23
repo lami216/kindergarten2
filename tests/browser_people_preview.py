@@ -5,6 +5,7 @@ from functools import partial
 from scripts.build_pages_preview import build
 from pathlib import Path
 from playwright.async_api import async_playwright,expect
+from tests.date_entry_helpers import fill_field
 
 async def main():
     out=Path(__file__).resolve().parents[1]/'visual-evidence'/'people-preview';out.mkdir(parents=True,exist_ok=True)
@@ -81,7 +82,7 @@ async def main():
             passed.append('teacher_and_inline_department_created_together')
             await page.locator('nav [data-page="students"]').click()
             await page.locator('#add-student').click()
-            for key,value in {'name':'طالب ربط القسم','birth':'2022-01-01','mother':'أم الطالب','motherPhone':'22112233'}.items():await page.locator('#student-form [name="'+key+'"]').fill(value)
+            for key,value in {'name':'طالب ربط القسم','birth':'2022-01-01','mother':'أم الطالب','motherPhone':'22112233'}.items():await fill_field(page.locator('#student-form [name="'+key+'"]'), value)
             assert not await page.locator('#student-form').evaluate('(f)=>f.checkValidity()')
             await page.locator('#student-form [name="department_id"]').select_option(label='قسم النجوم')
             await page.locator('#student-form .form-end button.primary').click()

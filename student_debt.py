@@ -128,7 +128,7 @@ def waive_debt(student, reason, confirmed, *, actor, token=None, effective_on=No
         conn.close()
 
 
-def pay_unpaid_fee(student, kind, *, actor, token=None, expected_due=None):
+def pay_unpaid_fee(student, kind, *, actor, token=None, expected_due=None, as_of=None):
     """Accept real cash for exactly one requested, presently unpaid fee."""
     if expected_due is not None: F.amount(expected_due)
     if kind not in ("registration","gilet"):
@@ -151,9 +151,10 @@ def pay_unpaid_fee(student, kind, *, actor, token=None, expected_due=None):
             if old:
                 if expected_due is not None and (expected_due!=int(old["amount"]) or old["state"]!="active"):
                     raise ValueError("تغيّرت الدفعة؛ أعد فتح نافذة تسديد الرسم.")
-                previous_hash=F._hash({"student":student,"kind":kind,"fee_id":row["fee_id"],
-                                      "amount":int(old["amount"]),
-                                      "purpose":"specific-unpaid-fee"})
+                previous_payload={"student":student,"kind":kind,"fee_id":row["fee_id"],
+                                  "amount":int(old["amount"]),"purpose":"specific-unpaid-fee"}
+                if as_of is not None: previous_payload['received_on']=str(as_of)
+                previous_hash=F._hash(previous_payload)
                 if old["student_id"]!=student or old["request_hash"]!=previous_hash:
                     raise ValueError("تعارض رمز طلب القبض؛ تغير الرسم أو الطفل.")
                 conn.commit()
@@ -161,10 +162,12 @@ def pay_unpaid_fee(student, kind, *, actor, token=None, expected_due=None):
             if due<=0: raise ValueError("لا يوجد مبلغ مستحق لهذا الرسم.")
             if expected_due is not None and due!=expected_due:
                 raise ValueError("تغيّر المبلغ المستحق؛ أعد فتح نافذة تسديد الرسم.")
-            fingerprint=F._hash({"student":student,"kind":kind,"fee_id":row["fee_id"],
-                                 "amount":due,"purpose":"specific-unpaid-fee"})
+            payload={"student":student,"kind":kind,"fee_id":row["fee_id"],
+                     "amount":due,"purpose":"specific-unpaid-fee"}
+            if as_of is not None: payload['received_on']=str(as_of)
+            fingerprint=F._hash(payload)
             rid,new=F._issue(c,account,due,"ولي الأمر",actor,token,fingerprint,
-                    selected_registration=kind=="registration",selected_gilet=kind=="gilet")
+                    selected_registration=kind=="registration",selected_gilet=kind=="gilet",as_of=as_of)
         conn.commit()
         return rid,new
     except Exception:

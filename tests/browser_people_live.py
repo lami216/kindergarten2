@@ -3,6 +3,7 @@ import asyncio,json,sys,io
 from PIL import Image
 from pathlib import Path
 from playwright.async_api import async_playwright,expect
+from tests.date_entry_helpers import fill_field
 
 async def main(origin,username,password):
     out=Path(__file__).resolve().parents[1]/'visual-evidence'/'people-live';out.mkdir(parents=True,exist_ok=True)
@@ -28,7 +29,7 @@ async def main(origin,username,password):
             data=await page.evaluate('liveCall("snapshot")');teacher=next(t for t in data['teachers'] if t['name']=='معلم من الواجهة الفعلية')['id'];section=next(d for d in data['departments'] if d['name']=='قسم الواجهة الفعلية')['id']
             results.append('actual_teacher_and_department_atomic_registration')
             await page.locator('nav [data-page="students"]').click();await page.locator('#add-student').click()
-            for key,value in {'name':'طالب الحضور الفعلي','birth':'2022-01-01','mother':'أم الطالب','motherPhone':'22334455'}.items():await page.locator('#student-form [name="'+key+'"]').fill(value)
+            for key,value in {'name':'طالب الحضور الفعلي','birth':'2022-01-01','mother':'أم الطالب','motherPhone':'22334455'}.items():await fill_field(page.locator('#student-form [name="'+key+'"]'), value)
             portrait=io.BytesIO();Image.new('RGB',(48,48),'teal').save(portrait,format='PNG')
             await page.locator('#student-form [name="photo"]').set_input_files(dict(name='synthetic-portrait.png',mimeType='image/png',buffer=portrait.getvalue()))
             await page.locator('#student-form [name="department_id"]').select_option(str(section))
