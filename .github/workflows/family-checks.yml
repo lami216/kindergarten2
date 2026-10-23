@@ -170,7 +170,7 @@ jobs:
       - name: Chromium single-currency operator and scrolled finance acceptance
         run: PYTHONPATH=. python tests/browser_single_currency.py
       - name: Chromium regression and same-data screenshots
-        run: python tests/browser_pr1.py
+        run: python -m tests.browser_pr1
       - name: Actual Chromium monthly/exempt receipt PostgreSQL readback
         run: PYTHONPATH=. python tests/browser_monthly_finance.py
       - name: Chromium child receipts, PDF and history acceptance

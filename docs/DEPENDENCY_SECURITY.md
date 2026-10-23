@@ -167,6 +167,12 @@ and then clicks it normally. The 360/1280px matrix passed with 32 comparable
 screenshots. Screenshot, contrast and duplicate-submission assertions remain
 enabled; no force clicks, application or reference-design edits were added.
 
+The remote historical-matrix step also needed module invocation after adding
+the shared test helper: `python tests/browser_pr1.py` omits the repository root
+from Python's module path on the Ubuntu runner. CI now uses
+`python -m tests.browser_pr1`, matching local execution and retaining the whole
+test. This is an invocation fix, not an ignored or removed CI check.
+
 ## Deployment and rollback (instructions only)
 
 After the exact PR head passes CI, build a **new** environment with Python 3.12
