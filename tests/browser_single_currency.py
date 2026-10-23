@@ -15,6 +15,7 @@ from unittest.mock import patch
 
 import psycopg2
 from psycopg2.extras import RealDictCursor
+from tests.sidebar_helpers import collapse_sidebar, sidebar_collapsed
 from playwright.async_api import async_playwright, expect
 
 import db
@@ -56,7 +57,7 @@ async def open_section(page,section):
     await page.goto(BASE,wait_until="domcontentloaded")
     nav=page.locator(f".st-key-nav_{section} button")
     await nav.wait_for(state="attached",timeout=30000)
-    if not await nav.is_visible():
+    if await sidebar_collapsed(page, nav):
         await page.locator('[data-testid="stExpandSidebarButton"]').first.click()
     await nav.click()
     heading={"students":"إدارة الطلاب","payments":"الدفعات المالية",
@@ -64,7 +65,7 @@ async def open_section(page,section):
              "expenses":"المصروفات","salaries":"رواتب المعلمات"}[section]
     await expect(page.locator(".section-title")).to_contain_text(heading,timeout=30000)
     if await nav.is_visible():
-        await page.locator('[data-testid="stSidebarCollapseButton"] button').first.click()
+        await collapse_sidebar(page)
     await page.wait_for_timeout(220)
 
 

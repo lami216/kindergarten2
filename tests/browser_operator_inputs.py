@@ -6,6 +6,7 @@ from pathlib import Path
 import re
 import sys
 import uuid
+from tests.sidebar_helpers import collapse_sidebar, sidebar_collapsed
 from playwright.async_api import async_playwright,expect
 from tests.browser_payroll_review import sql,select_teacher
 from tests.browser_runtime_readiness import nav
@@ -17,7 +18,7 @@ OUT=Path('visual-evidence/operator-inputs')
 async def section(page,key,tab):
     await nav(page,key)
     await expect(page.get_by_role('tab',name=tab,exact=True)).to_be_visible(timeout=30000)
-    collapse=page.locator('[data-testid="stSidebarCollapseButton"] button').first
+    collapse=page.get_by_role('button', name='Collapse sidebar', exact=True)
     if await collapse.is_visible(): await collapse.click()
     await page.get_by_role('tab',name=tab,exact=True).click()
 
@@ -93,7 +94,7 @@ async def run():
                     if saved['amount']==1400: break
                     await page.wait_for_timeout(200)
                 assert saved=={'amount':Decimal(1400),'amount_paid':Decimal(1000)},saved
-                await expect(page.locator('[data-testid="stDialog"] [role="dialog"]')).to_have_count(0,timeout=30000)
+                await expect(page.get_by_role('dialog')).to_have_count(0,timeout=30000)
                 await open_editor.click()
                 await expect(form).to_be_visible(timeout=30000)
                 await expect(total_input).to_have_value('1400.00')

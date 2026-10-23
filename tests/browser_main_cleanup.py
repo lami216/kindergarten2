@@ -8,6 +8,7 @@ import uuid
 import psycopg2
 import pandas as pd
 from openpyxl import load_workbook
+from tests.sidebar_helpers import collapse_sidebar, sidebar_collapsed
 from playwright.async_api import async_playwright, expect
 
 OUT=Path('visual-evidence/main-cleanup')
@@ -16,13 +17,13 @@ OUT=Path('visual-evidence/main-cleanup')
 async def navigate(page,section):
     button=page.locator('.st-key-nav_'+section+' button')
     await button.wait_for(state='attached',timeout=30000)
-    if not await button.is_visible():
+    if await sidebar_collapsed(page, button):
         await page.locator('[data-testid="stExpandSidebarButton"]').first.click()
     await button.click()
     await expect(page.locator('.section-title')).to_contain_text(
         'الرئيسية' if section=='dashboard' else 'التقارير والتصدير')
     if await button.is_visible():
-        await page.locator('[data-testid="stSidebarCollapseButton"] button').first.click()
+        await collapse_sidebar(page)
 
 
 async def choose_report(page,label):

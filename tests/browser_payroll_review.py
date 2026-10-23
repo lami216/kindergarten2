@@ -6,6 +6,7 @@ import uuid
 from pathlib import Path
 import psycopg2
 from psycopg2.extras import RealDictCursor
+from tests.sidebar_helpers import collapse_sidebar, sidebar_collapsed
 from playwright.async_api import async_playwright, expect
 
 BASE="http://127.0.0.1:8501"
@@ -41,12 +42,12 @@ async def run():
         await page.goto(BASE,wait_until="domcontentloaded")
         nav=page.locator(".st-key-nav_salaries button")
         await nav.wait_for(state="attached",timeout=30000)
-        if not await nav.is_visible():
+        if await sidebar_collapsed(page, nav):
             await page.locator('[data-testid="stExpandSidebarButton"]').first.click()
         await nav.click()
         await expect(page.get_by_role("tab",name="➕ صرف راتب شهري")).to_be_visible(timeout=20000)
         if await nav.is_visible():
-            await page.locator('[data-testid="stSidebarCollapseButton"] button').first.click()
+            await collapse_sidebar(page)
         # The disbursement tab is selected by default.
         await select_teacher(page,".st-key-salary_teacher",name)
         button=page.get_by_role("button",name="🧾 تسجيل الصرف وطباعة قسيمة الراتب")

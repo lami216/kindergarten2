@@ -10,6 +10,7 @@ import zipfile
 from io import BytesIO
 from PIL import Image
 
+from tests.sidebar_helpers import collapse_sidebar, sidebar_collapsed
 from playwright.async_api import async_playwright, expect
 import db
 import monthly_finance as F
@@ -25,7 +26,7 @@ def inspect_calendar_pixels(payload):
     """Catch large white patches and native red selection hidden from text CSS."""
     image=Image.open(BytesIO(payload)).convert('RGB')
     width,height=image.size
-    pixels=list(image.getdata())
+    pixels=list(image.get_flattened_data())
     def largest_region(mask):
         largest=0
         while mask:
@@ -55,7 +56,7 @@ def inspect_calendar_pixels(payload):
 async def nav(page,key):
     button=page.locator(f'.st-key-nav_{key} button')
     await button.wait_for(state='attached',timeout=30000)
-    if not await button.is_visible():
+    if await sidebar_collapsed(page, button):
         await page.locator('[data-testid="stExpandSidebarButton"]').first.click()
     await button.click()
 
@@ -63,8 +64,7 @@ async def nav(page,key):
 async def calendar(page,width):
     await nav(page,'students')
     await expect(page.get_by_role('tab',name='➕ إضافة طالب جديد')).to_be_visible(timeout=30000)
-    collapse=page.locator('[data-testid="stSidebarCollapseButton"] button').first
-    if await collapse.is_visible(): await collapse.click()
+    await collapse_sidebar(page)
     await page.get_by_role('tab',name='➕ إضافة طالب جديد').click()
     draft=page.get_by_role('textbox',name='اسم الطفل *',exact=True)
     await expect(draft).to_be_visible()
@@ -76,22 +76,37 @@ async def calendar(page,width):
     await expect(draft).to_have_value('مسودة اختبار التقويم')
     field=page.get_by_label('تاريخ الميلاد *',exact=True)
     if not await field.count(): field=page.locator('[data-testid="stDateInput"] input').first
+    modern = await field.get_attribute('role') == 'group'
+    widget = field.locator('xpath=ancestor::*[@data-testid="stDateInput"]')
     # Current month includes selected, ordinary and future/disabled days.
-    await field.fill(F.today().strftime('%Y/%m/%d'))
-    await field.press('Enter')
-    await expect(field).to_have_value(F.today().strftime('%Y/%m/%d'))
+    if modern:
+        for part, value in [('year', F.today().year), ('month', F.today().month), ('day', F.today().day)]:
+            segment = field.locator('[data-type="' + part + '"]')
+            await segment.press('ControlOrMeta+A')
+            await segment.press_sequentially(str(value))
+            await expect(segment).to_have_attribute('aria-valuenow', str(value))
+        await segment.press('Tab')
+    else:
+        await field.fill(F.today().strftime('%Y/%m/%d'))
+        await field.press('Enter')
+        await expect(field).to_have_value(F.today().strftime('%Y/%m/%d'))
+    async def open_calendar():
+        if modern:
+            await widget.locator('[data-testid="stDateInputCalendarButton"]').click()
+        else:
+            await field.press('ArrowDown')
+    popup=page.locator('[data-testid="stDateInputCalendar"]' if modern else '[data-baseweb="calendar"]')
     samples=[]
     for attempt in range(2):
         # ArrowDown opens or enters the calendar without toggling an already
         # open popover after committing a manually typed date.
-        await field.press('ArrowDown')
-        popup=page.locator('[data-baseweb="calendar"]')
+        await open_calendar()
         await expect(popup).to_be_visible()
         probe=await popup.evaluate('''root=>{
           const rgb=s=>(s.match(/[\\d.]+/g)||[]).map(Number);
           const luminance=c=>c.slice(0,3).map(x=>{x/=255;return x<=.04045?x/12.92:((x+.055)/1.055)**2.4})
              .reduce((s,x,i)=>s+x*[.2126,.7152,.0722][i],0);
-          const cells=[...root.querySelectorAll('[role="gridcell"][aria-label]')];
+          const cells=[...root.querySelectorAll('[role="gridcell"]')];
           return {root:getComputedStyle(root).backgroundColor,cells:cells.map(cell=>{
             const number=cell.querySelector('div')||cell;
             const style=getComputedStyle(number); let node=number,bg;
@@ -112,12 +127,15 @@ async def calendar(page,width):
         await page.keyboard.press('Escape')
         await expect(popup).to_be_hidden()
     # Actual selection works, then daylight remains readable and draft survives.
-    await field.press('ArrowDown')
-    cell=page.locator('[data-baseweb="calendar"] [role="gridcell"][aria-label^="Choose"]').first
-    if not await cell.count():
-        cell=page.locator('[data-baseweb="calendar"] [role="gridcell"][aria-label^="Selected"]').first
+    await open_calendar()
+    if modern:
+        cell=popup.locator('[role="gridcell"] [role="button"]:not([aria-disabled="true"])').first
+    else:
+        cell=popup.locator('[role="gridcell"][aria-label^="Choose"]').first
+        if not await cell.count():
+            cell=popup.locator('[role="gridcell"][aria-label^="Selected"]').first
     await cell.click()
-    await expect(page.locator('[data-baseweb="calendar"]')).to_be_hidden()
+    await expect(popup).to_be_hidden()
     await page.locator('.st-key-night_mode').click()
     await page.wait_for_function("getComputedStyle(document.querySelector('.stApp')).backgroundColor==='rgb(250, 250, 249)'")
     await expect(draft).to_have_value('مسودة اختبار التقويم')

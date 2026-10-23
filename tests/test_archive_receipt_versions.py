@@ -72,8 +72,9 @@ conn.close()
     app.number_input(key=f'monthly_amount_stale_{student}_v0').set_value(500).run(timeout=30)
     next(b for b in app.button if b.key==f'monthly_preview_button_stale_{student}').click().run(timeout=30)
     assert app.session_state[f'monthly_preview_stale_{student}']['amount']==500
+    app.checkbox(key=f'monthly_confirm_stale_{student}_v0').check().run(timeout=30)
+    assert not next(b for b in app.button if b.key==f'monthly_save_stale_{student}_v0').disabled
     archive(student,'records')
-    app.checkbox(key=f'monthly_confirm_stale_{student}_v0').check()
     next(b for b in app.button if b.key==f'monthly_save_stale_{student}_v0').click().run(timeout=30)
     assert not app.exception
     assert any('أُبطلت معاينة' in item.value for item in app.info)

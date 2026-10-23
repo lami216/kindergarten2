@@ -7,6 +7,34 @@ permissions:
   contents: read
 
 jobs:
+  runtime-security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Clean constrained runtime install and compatibility
+        run: |
+          python -m venv /tmp/kg-runtime
+          /tmp/kg-runtime/bin/python -m pip install --upgrade pip==26.2.2
+          /tmp/kg-runtime/bin/python -m pip install -r requirements.txt
+          /tmp/kg-runtime/bin/python -m pip check
+          mkdir -p visual-evidence
+          /tmp/kg-runtime/bin/python -m pip freeze --all > visual-evidence/runtime-freeze.txt
+      - name: Audit every resolved runtime package with a separate auditor
+        run: |
+          python -m venv /tmp/kg-auditor
+          /tmp/kg-auditor/bin/python -m pip install pip-audit==2.10.1
+          /tmp/kg-auditor/bin/python -m pip_audit --path /tmp/kg-runtime/lib/python3.12/site-packages --format json --output visual-evidence/runtime-audit.json
+          /tmp/kg-runtime/bin/python scripts/check_runtime_audit.py visual-evidence/runtime-freeze.txt visual-evidence/runtime-audit.json
+      - name: Upload dependency evidence even on audit or network failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-security
+          path: visual-evidence/
+          retention-days: 14
   test:
     runs-on: ubuntu-latest
     services:
@@ -33,7 +61,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
-          pip install pytest playwright pypdf==6.1.3 pypdfium2==5.14.0 httpx==0.28.1
+          pip install -c constraints-python312.txt pytest playwright pypdf==6.1.3 pypdfium2==5.14.0 httpx==0.28.1
           pip check
           mkdir -p visual-evidence
           pip freeze > visual-evidence/installed-versions.txt
@@ -51,7 +79,16 @@ jobs:
           python -m pytest -q tests/
           cat visual-evidence/overview-500.json
       - name: Install Chromium for browser tests
-        run: python -m playwright install --with-deps chromium
+        timeout-minutes: 10
+        run: |
+          # Avoid prolonged stalls on the hosted runner's Azure APT mirror.
+          if [ -f /etc/apt/apt-mirrors.txt ]; then
+            printf 'https://archive.ubuntu.com/ubuntu\n' | sudo tee /etc/apt/apt-mirrors.txt
+          fi
+          printf 'Acquire::Retries "3";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\n' | sudo tee /etc/apt/apt.conf.d/80-ci-downloads
+          python -m playwright install --with-deps chromium
+      - name: Actual Streamlit and Starlette image, ZIP and PDF responses
+        run: python -m tests.browser_dependency_responses
       - name: French interface, LTR mobile and login language selection
         run: python -m tests.browser_french
       - name: Manual dates, calendar validation, drafts and bilingual mobile layout
@@ -98,6 +135,7 @@ jobs:
           python -m tests.browser_people_live
           python -m tests.browser_french_live
           python -m tests.browser_reports_live
+          python -m tests.browser_security_live
       - name: Start isolated QA previews
         shell: bash
         run: |
@@ -139,7 +177,7 @@ jobs:
       - name: Chromium single-currency operator and scrolled finance acceptance
         run: PYTHONPATH=. python tests/browser_single_currency.py
       - name: Chromium regression and same-data screenshots
-        run: python tests/browser_pr1.py
+        run: python -m tests.browser_pr1
       - name: Actual Chromium monthly/exempt receipt PostgreSQL readback
         run: PYTHONPATH=. python tests/browser_monthly_finance.py
       - name: Chromium child receipts, PDF and history acceptance

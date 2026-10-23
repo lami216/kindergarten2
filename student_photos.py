@@ -9,6 +9,7 @@ import record_history as H
 
 MAX_UPLOAD = 5 * 1024 * 1024
 MAX_PIXELS = 12_000_000
+ALLOWED_FORMATS = ('JPEG', 'PNG', 'WEBP')
 
 
 def normalize(raw):
@@ -20,15 +21,17 @@ def normalize(raw):
     try:
         with warnings.catch_warnings():
             warnings.simplefilter('error', Image.DecompressionBombWarning)
-            with Image.open(io.BytesIO(raw)) as probe:
-                if probe.format not in ('JPEG', 'PNG', 'WEBP'):
+            # Restrict decoder selection before inspecting untrusted content.
+            # Filename/MIME and a format check after open cannot enforce this.
+            with Image.open(io.BytesIO(raw), formats=ALLOWED_FORMATS) as probe:
+                if probe.format not in ALLOWED_FORMATS:
                     raise ValueError('الصورة يجب أن تكون JPG أو PNG أو WebP.')
                 if getattr(probe, 'n_frames', 1) != 1:
                     raise ValueError('اختر صورة ثابتة، وليست صورة متحركة.')
                 if probe.width * probe.height > MAX_PIXELS:
                     raise ValueError('أبعاد الصورة كبيرة جدًا؛ اختر صورة أصغر من 12 مليون بكسل.')
                 probe.verify()
-            with Image.open(io.BytesIO(raw)) as source:
+            with Image.open(io.BytesIO(raw), formats=ALLOWED_FORMATS) as source:
                 image = ImageOps.exif_transpose(source)
                 image.thumbnail((640, 640), Image.Resampling.LANCZOS)
                 # Flatten transparency and omit EXIF/location/name metadata.
