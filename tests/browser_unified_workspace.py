@@ -90,7 +90,7 @@ async def main():
             await page.locator('#payroll-form [name="reason"]').fill('صرف حقيقي في قاعدة اختبار');await page.locator('#payroll-form [name="confirmed"]').check();await page.locator('#payroll-form button.primary').click()
             await expect(page.locator('#record-dialog')).not_to_be_visible(timeout=20000)
             passed('fees_teacher_and_live_salary_preview_saved_in_unified_tools')
-            await page.locator('[data-tool-tab="reports"]').click();await page.locator('#report-form button').click();await expect(page.locator('#report-output .panel')).to_be_visible(timeout=20000)
+            await nav('reports');await page.locator('[data-report-mode="other"]').click();await page.locator('#report-form button').click();await expect(page.locator('#report-output .panel')).to_be_visible(timeout=20000)
             async with page.expect_download() as dl:await page.locator('#report-xlsx').click()
             download=await dl.value;await download.save_as(out/'financial-report.xlsx')
             await page.set_viewport_size({'width':390,'height':900});await page.wait_for_timeout(300)

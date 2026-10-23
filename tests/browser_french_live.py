@@ -105,7 +105,7 @@ async def main(origin,username,password):
             await page.locator('#payroll-form [name="confirmed"]').check()
             await page.locator('#payroll-form button.primary').click()
             await expect(page.locator('#record-dialog')).to_be_hidden()
-            await page.locator('[data-tool-tab="reports"]').click()
+            await page.locator('#nav-reports').click();await page.locator('[data-report-mode="other"]').click()
             await page.locator('#report-form [name="kind"]').select_option('students')
             await page.locator('#report-form button').click()
             await expect(page.locator('#report-output th').first).to_have_text('Élève')
