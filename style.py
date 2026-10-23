@@ -523,19 +523,19 @@ div[data-testid="stToolbar"] { visibility:visible; }
 }
 [data-testid="stExpandSidebarButton"]::after { content:"القائمة"; font-size:14px; }
 [data-testid="stSidebarCollapseButton"] button::after { content:"إغلاق"; font-size:12px; }
-section[data-testid="stSidebar"][aria-expanded="true"] [data-testid="stSidebarCollapseButton"],
-section[data-testid="stSidebar"][aria-expanded="true"] [data-testid="stSidebarCollapseButton"] button {
+section[data-testid="stSidebar"]:is([aria-expanded="true"],[data-collapsed="false"]) [data-testid="stSidebarCollapseButton"],
+section[data-testid="stSidebar"]:is([aria-expanded="true"],[data-collapsed="false"]) [data-testid="stSidebarCollapseButton"] button {
     opacity:1 !important; visibility:visible !important;
 }
-section[data-testid="stSidebar"][aria-expanded="false"] { transform:translateX(100%); visibility:hidden; }
+section[data-testid="stSidebar"]:is([aria-expanded="false"],[data-collapsed="true"]) { transform:translateX(100%); visibility:hidden; }
 /* Some Streamlit descendants explicitly override inherited visibility.
    Keep the whole closed rail non-painting and non-interactive; do not hide
    the native reopen button, which lives outside this closed section. */
-section[data-testid="stSidebar"][aria-expanded="false"] * {
+section[data-testid="stSidebar"]:is([aria-expanded="false"],[data-collapsed="true"]) * {
     visibility:hidden !important;
     pointer-events:none !important;
 }
-section[data-testid="stSidebar"][aria-expanded="false"] [data-testid="stSidebarContent"] {
+section[data-testid="stSidebar"]:is([aria-expanded="false"],[data-collapsed="true"]) [data-testid="stSidebarContent"] {
     visibility:hidden !important;
 }
 button:focus-visible, input:focus-visible, [role="switch"]:focus-visible {
@@ -547,7 +547,7 @@ button:focus-visible, input:focus-visible, [role="switch"]:focus-visible {
         width:min(300px, calc(100vw - 48px)) !important;
         min-width:0 !important; max-width:min(300px, calc(100vw - 48px)) !important;
     }
-    [data-testid="stSidebar"][aria-expanded="true"] {
+    [data-testid="stSidebar"]:is([aria-expanded="true"],[data-collapsed="false"]) {
         transform:none; box-shadow:-32px 0 48px rgba(0,0,0,.4);
     }
     [data-testid="stSidebarContent"] { height:100%; overflow-y:auto; }
@@ -620,39 +620,43 @@ div[data-testid="stForm"] div[data-baseweb="input"]:focus-within,
     border-color:var(--card-border) !important; caret-color:var(--text-main);
 }
 [data-baseweb="popover"], [data-baseweb="menu"], [role="listbox"],
-[role="option"], [data-baseweb="calendar"], [data-baseweb="calendar"] button {
+[role="option"], :is([data-baseweb="calendar"],[data-testid="stDateInputCalendar"]), :is([data-baseweb="calendar"],[data-testid="stDateInputCalendar"]) button {
     background:var(--card-bg) !important; color:var(--text-main) !important;
 }
 /* BaseWeb renders the calendar in a portal, outside .stApp. Day cells are
    divs with inline light-theme colors, not buttons. Paint the whole surface. */
-[data-baseweb="calendar"], [data-baseweb="calendar"] :is(div,button,span,select) {
+:is([data-baseweb="calendar"],[data-testid="stDateInputCalendar"]), :is([data-baseweb="calendar"],[data-testid="stDateInputCalendar"]) :is(div,button,span,select,table,thead,tbody,tr,td,th,header) {
     background-color:var(--card-bg) !important;
     color:var(--text-main) !important;
     opacity:1 !important;
 }
-[data-baseweb="calendar"] svg { fill:currentColor !important; }
+:is([data-baseweb="calendar"],[data-testid="stDateInputCalendar"]) svg { fill:currentColor !important; }
 /* Native light-theme pseudo-elements also paint empty cells and selection.
    Use the actual cell surface; otherwise white bars/red rings survive. */
-[data-baseweb="calendar"] [role="gridcell"]::before,
-[data-baseweb="calendar"] [role="gridcell"]::after { content:none !important; }
-[data-baseweb="calendar"] [aria-disabled="true"],
-[data-baseweb="calendar"] [aria-disabled="true"] *,
-[data-baseweb="calendar"] [aria-label^="Not available"],
-[data-baseweb="calendar"] [aria-label^="Not available"] * {
+:is([data-baseweb="calendar"],[data-testid="stDateInputCalendar"]) [role="gridcell"]::before,
+:is([data-baseweb="calendar"],[data-testid="stDateInputCalendar"]) [role="gridcell"]::after,
+[data-testid="stDateInputCalendar"] [role="gridcell"] [role="button"]::before,
+[data-testid="stDateInputCalendar"] [role="gridcell"] [role="button"]::after { content:none !important; }
+:is([data-baseweb="calendar"],[data-testid="stDateInputCalendar"]) [aria-disabled="true"],
+:is([data-baseweb="calendar"],[data-testid="stDateInputCalendar"]) [aria-disabled="true"] *,
+:is([data-baseweb="calendar"],[data-testid="stDateInputCalendar"]) [aria-label^="Not available"],
+:is([data-baseweb="calendar"],[data-testid="stDateInputCalendar"]) [aria-label^="Not available"] * {
     color:var(--text-muted) !important; cursor:not-allowed;
 }
-[data-baseweb="calendar"] [role="gridcell"]:not([aria-disabled="true"]):hover,
-[data-baseweb="calendar"] [role="gridcell"]:not([aria-disabled="true"]):hover * {
+:is([data-baseweb="calendar"],[data-testid="stDateInputCalendar"]) [role="gridcell"]:not([aria-disabled="true"]):hover,
+:is([data-baseweb="calendar"],[data-testid="stDateInputCalendar"]) [role="gridcell"]:not([aria-disabled="true"]):hover * {
     background-color:var(--primary-light) !important;
 }
-[data-baseweb="calendar"] [aria-selected="true"],
-[data-baseweb="calendar"] [aria-selected="true"] *,
-[data-baseweb="calendar"] [aria-label^="Selected"],
-[data-baseweb="calendar"] [aria-label^="Selected"] * {
+:is([data-baseweb="calendar"],[data-testid="stDateInputCalendar"]) [aria-selected="true"],
+:is([data-baseweb="calendar"],[data-testid="stDateInputCalendar"]) [aria-selected="true"] *,
+:is([data-baseweb="calendar"],[data-testid="stDateInputCalendar"]) [aria-label^="Selected"],
+:is([data-baseweb="calendar"],[data-testid="stDateInputCalendar"]) [aria-label^="Selected"] *,
+[data-testid="stDateInputCalendar"] [data-selected="true"],
+[data-testid="stDateInputCalendar"] [data-selected="true"] * {
     background-color:#006348 !important; color:#fff !important;
     border-radius:50% !important;
 }
-[data-baseweb="calendar"] :focus-visible {
+:is([data-baseweb="calendar"],[data-testid="stDateInputCalendar"]) :focus-visible {
     outline:2px solid #8dd9bc !important; outline-offset:-2px;
 }
 [data-baseweb="select"] span { color:var(--text-main) !important; }

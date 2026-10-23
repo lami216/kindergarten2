@@ -135,8 +135,18 @@ collapse; the old helper inferred state from an offscreen button's visibility.
 Shared test helpers now read actual sidebar state and use the accessible
 collapse control (revealed by hover), preserving navigation assertions.
 The failing dashboard/report/XLSX browser journey was rerun locally and passed
-at both 390 and 1280px before resubmission. Production CSS/HTML and user routes
+at both 390 and 1280px before resubmission. Approved live_pages CSS/HTML and user routes
 remain unchanged. The latest PR checks supersede the failed first CI attempt.
+
+Additional retained-Streamlit compatibility checks exposed the same renamed
+sidebar state in the existing CSS and the new React Aria date control. The
+existing hiding/interaction and calendar palette selectors now also match the
+new attributes; no design values or live_pages assets changed. The calendar
+test uses the actual editable date segments and semantic popup/cells, keeping
+the draft-preservation, date-selection, pixel and WCAG contrast assertions.
+Local three-session/ZIP/calendar run passed at 390/1280px, with distinct DB
+connections, 44 verified export tables, an exact 12000 MRO receipt and minimum
+calendar text contrast 7.2959:1. Theme/sidebar tests (5) also passed.
 
 ## Deployment and rollback (instructions only)
 
