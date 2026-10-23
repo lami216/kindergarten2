@@ -10,6 +10,7 @@ import zipfile
 from io import BytesIO
 from PIL import Image
 
+from tests.sidebar_helpers import collapse_sidebar, sidebar_collapsed
 from playwright.async_api import async_playwright, expect
 import db
 import monthly_finance as F
@@ -55,7 +56,7 @@ def inspect_calendar_pixels(payload):
 async def nav(page,key):
     button=page.locator(f'.st-key-nav_{key} button')
     await button.wait_for(state='attached',timeout=30000)
-    if not await button.is_visible():
+    if await sidebar_collapsed(page, button):
         await page.locator('[data-testid="stExpandSidebarButton"]').first.click()
     await button.click()
 
@@ -63,7 +64,7 @@ async def nav(page,key):
 async def calendar(page,width):
     await nav(page,'students')
     await expect(page.get_by_role('tab',name='➕ إضافة طالب جديد')).to_be_visible(timeout=30000)
-    collapse=page.locator('[data-testid="stSidebarCollapseButton"] button').first
+    collapse=page.get_by_role('button', name='Collapse sidebar', exact=True)
     if await collapse.is_visible(): await collapse.click()
     await page.get_by_role('tab',name='➕ إضافة طالب جديد').click()
     draft=page.get_by_role('textbox',name='اسم الطفل *',exact=True)

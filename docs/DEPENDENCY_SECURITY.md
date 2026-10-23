@@ -127,6 +127,17 @@ stale button; it still checks server rejection and unchanged cash. The final
 full run is serialized against that schema. No application behavior was
 changed to satisfy these tests.
 
+The first CI attempt passed runtime-security, all 306 tests/11 subtests and
+the complete real live_pages browser step, then failed in the historical
+Streamlit dashboard browser helper. Streamlit 1.66 exposes explicit
+`data-collapsed` state and removes the collapse control after mobile automatic
+collapse; the old helper inferred state from an offscreen button's visibility.
+Shared test helpers now read actual sidebar state and use the accessible
+collapse control (revealed by hover), preserving navigation assertions.
+The failing dashboard/report/XLSX browser journey was rerun locally and passed
+at both 390 and 1280px before resubmission. Production CSS/HTML and user routes
+remain unchanged. The latest PR checks supersede the failed first CI attempt.
+
 ## Deployment and rollback (instructions only)
 
 After the exact PR head passes CI, build a **new** environment with Python 3.12

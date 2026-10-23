@@ -7,6 +7,7 @@ from pathlib import Path
 
 import psycopg2
 from psycopg2.extras import RealDictCursor
+from tests.sidebar_helpers import collapse_sidebar, sidebar_collapsed
 from playwright.async_api import async_playwright, expect
 import monthly_finance as F
 import db
@@ -32,12 +33,12 @@ async def open_students(page):
     await page.goto(BASE,wait_until="domcontentloaded")
     await page.locator(".st-key-nav_students button").wait_for(state="attached",timeout=30000)
     nav=page.locator(".st-key-nav_students button")
-    if not await nav.is_visible():
+    if await sidebar_collapsed(page, nav):
         await page.locator('[data-testid="stExpandSidebarButton"]').first.click()
     await nav.click()
     await expect(page.locator(".section-title")).to_contain_text("إدارة الطلاب",timeout=30000)
     if await nav.is_visible():
-        await page.locator('[data-testid="stSidebarCollapseButton"] button').first.click()
+        await collapse_sidebar(page)
     await page.wait_for_timeout(250)
 
 

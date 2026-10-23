@@ -6,6 +6,7 @@ import re
 from pathlib import Path
 
 import psycopg2
+from tests.sidebar_helpers import collapse_sidebar, sidebar_collapsed
 from playwright.async_api import async_playwright, expect
 
 OUT = Path("visual-evidence")
@@ -46,12 +47,12 @@ async def navigate(page, section):
     # stApp mounts before Streamlit has finished rendering navigation;
     # avoid treating a still-loading 1280px page as a missing opener.
     await nav.wait_for(state="attached", timeout=30000)
-    if not await nav.is_visible():
+    if await sidebar_collapsed(page, nav):
         opener = page.locator('[data-testid="stExpandSidebarButton"]')
         if await opener.first.is_visible():
             await opener.first.click(timeout=10000)
         group=page.get_by_text("ملفات الروضة",exact=True)
-        if not await nav.is_visible() and await group.count():
+        if await sidebar_collapsed(page, nav) and await group.count():
             await group.click()
     await nav.click(timeout=10000)
     heading = "إدارة الطلاب" if section == "students" else "أولياء الأمور"
@@ -60,11 +61,10 @@ async def navigate(page, section):
 
 async def sidebar_state(page, opened):
     nav = page.locator(".st-key-nav_students button")
-    if opened and not await nav.is_visible():
+    if opened and await sidebar_collapsed(page, nav):
         await page.locator('[data-testid="stExpandSidebarButton"]').first.click(timeout=10000)
     if not opened and await nav.is_visible():
-        button = page.locator('[data-testid="stSidebarCollapseButton"] button')
-        await button.first.click(timeout=10000)
+        await collapse_sidebar(page)
     await page.wait_for_timeout(220)
 
 

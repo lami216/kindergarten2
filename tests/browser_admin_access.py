@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 from unittest.mock import patch
 import psycopg2
 from psycopg2.extras import RealDictCursor
+from tests.sidebar_helpers import collapse_sidebar, sidebar_collapsed
 from playwright.async_api import async_playwright,expect
 import access_control as A
 import db
@@ -47,10 +48,10 @@ async def grant(page,resource,action):
 async def nav(page,key,staff=False):
     button=page.locator(f'.st-key-{"staff_nav_" if staff else "nav_"}{key} button')
     await button.wait_for(state='attached',timeout=30000)
-    if not await button.is_visible():
+    if await sidebar_collapsed(page, button):
         await page.locator('[data-testid="stExpandSidebarButton"]').first.click()
     await button.click()
-    collapse=page.locator('[data-testid="stSidebarCollapseButton"] button').first
+    collapse=page.get_by_role('button', name='Collapse sidebar', exact=True)
     if await collapse.is_visible(): await collapse.click()
 
 

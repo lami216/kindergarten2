@@ -7,6 +7,7 @@ from decimal import Decimal
 from pathlib import Path
 import psycopg2
 from psycopg2.extras import RealDictCursor
+from tests.sidebar_helpers import collapse_sidebar, sidebar_collapsed
 from playwright.async_api import async_playwright, expect
 
 BASE="http://127.0.0.1:8501"
@@ -59,13 +60,13 @@ async def test_browser():
         await page.goto(BASE,wait_until="domcontentloaded")
         nav=page.locator(".st-key-nav_payments button")
         await nav.wait_for(state="attached",timeout=30000)
-        if not await nav.is_visible():
+        if await sidebar_collapsed(page, nav):
             await page.locator('[data-testid="stExpandSidebarButton"]').first.click()
         await nav.click()
         await expect(page.locator(".section-title").first).to_contain_text(
             "الدفعات المالية",timeout=20000)
         if await nav.is_visible():
-            await page.locator('[data-testid="stSidebarCollapseButton"] button').first.click()
+            await collapse_sidebar(page)
         await page.get_by_role("tab",name="📂 الدفعات السنوية القديمة").click()
         await page.get_by_role("tab",name="📋 سجل الدفعات والإعادة").click()
         select=page.locator(".st-key-payment_select_edit")

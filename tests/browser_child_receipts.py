@@ -14,6 +14,7 @@ from unittest.mock import patch
 
 import psycopg2
 from psycopg2.extras import RealDictCursor
+from tests.sidebar_helpers import collapse_sidebar, sidebar_collapsed
 from playwright.async_api import async_playwright, expect
 from pypdf import PdfReader
 
@@ -56,12 +57,12 @@ async def goto_students(page):
     await page.goto(BASE,wait_until="domcontentloaded")
     nav=page.locator(".st-key-nav_students button")
     await nav.wait_for(state="attached",timeout=30000)
-    if not await nav.is_visible():
+    if await sidebar_collapsed(page, nav):
         await page.locator('[data-testid="stExpandSidebarButton"]').first.click()
     await nav.click()
     await expect(page.get_by_role("tab",name="📋 عرض / تعديل / حذف")).to_be_visible(timeout=30000)
     if await nav.is_visible():
-        await page.locator('[data-testid="stSidebarCollapseButton"] button').first.click()
+        await collapse_sidebar(page)
     await page.get_by_role("tab",name="📋 عرض / تعديل / حذف").click()
 
 
