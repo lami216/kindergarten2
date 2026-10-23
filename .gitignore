@@ -1,6 +1,8 @@
 __pycache__/
 *.py[cod]
 .pytest_cache/
+.venv*/
+.qa/
 .streamlit/secrets.toml
 visual-evidence/
 
