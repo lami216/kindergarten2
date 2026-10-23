@@ -148,6 +148,17 @@ Local three-session/ZIP/calendar run passed at 390/1280px, with distinct DB
 connections, 44 verified export tables, an exact 12000 MRO receipt and minimum
 calendar text contrast 7.2959:1. Theme/sidebar tests (5) also passed.
 
+CI follow-up: run 39982570955 on 683faa0 passed the security job, full
+306-test/11-subtest suite and all actual live_pages journeys, then caught a
+legacy browser assertion requiring closed dialogs to be removed from the DOM.
+React Aria retains hidden dialog nodes. The student-profile and expense
+browser tests now require zero accessible dialogs; the profile test also waits
+for the discard rerun to finish before reopening the editor. Assertions for
+discarded drafts, unchanged persisted addresses, image revisions/removal and
+viewer restrictions remain intact. The complete profile journey passed locally
+at 390/1280px after this test-only fix. No application code, UI assets,
+database schema or grants were changed in this follow-up.
+
 ## Deployment and rollback (instructions only)
 
 After the exact PR head passes CI, build a **new** environment with Python 3.12
