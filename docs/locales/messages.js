@@ -4791,6 +4791,402 @@ window.APP_MESSAGES={
   "field.photo_revision": {
     "ar": "نسخة الصورة",
     "fr": "Version de la photo"
+  },
+  "date.label": {
+    "ar": "التاريخ",
+    "fr": "Date"
+  },
+  "date.day": {
+    "ar": "اليوم",
+    "fr": "Jour"
+  },
+  "date.month": {
+    "ar": "الشهر",
+    "fr": "Mois"
+  },
+  "date.year": {
+    "ar": "السنة",
+    "fr": "Année"
+  },
+  "date.incomplete": {
+    "ar": "أكمل اليوم والشهر وآخر رقمين من السنة.",
+    "fr": "Renseignez le jour, le mois et les deux derniers chiffres de l’année."
+  },
+  "date.yearInvalid": {
+    "ar": "اكتب آخر رقمين من السنة.",
+    "fr": "Saisissez les deux derniers chiffres de l’année."
+  },
+  "date.invalid": {
+    "ar": "هذا اليوم غير موجود في الشهر المختار.",
+    "fr": "Ce jour n’existe pas dans le mois choisi."
+  },
+  "date.min": {
+    "ar": "اختر تاريخًا من {date} فما بعد.",
+    "fr": "Choisissez une date à partir du {date}."
+  },
+  "date.max": {
+    "ar": "اختر تاريخًا لا يتجاوز {date}.",
+    "fr": "Choisissez une date au plus tard le {date}."
+  },
+  "date.month.1": {
+    "ar": "يناير",
+    "fr": "janvier"
+  },
+  "date.month.2": {
+    "ar": "فبراير",
+    "fr": "février"
+  },
+  "date.month.3": {
+    "ar": "مارس",
+    "fr": "mars"
+  },
+  "date.month.4": {
+    "ar": "أبريل",
+    "fr": "avril"
+  },
+  "date.month.5": {
+    "ar": "مايو",
+    "fr": "mai"
+  },
+  "date.month.6": {
+    "ar": "يونيو",
+    "fr": "juin"
+  },
+  "date.month.7": {
+    "ar": "يوليو",
+    "fr": "juillet"
+  },
+  "date.month.8": {
+    "ar": "أغسطس",
+    "fr": "août"
+  },
+  "date.month.9": {
+    "ar": "سبتمبر",
+    "fr": "septembre"
+  },
+  "date.month.10": {
+    "ar": "أكتوبر",
+    "fr": "octobre"
+  },
+  "date.month.11": {
+    "ar": "نوفمبر",
+    "fr": "novembre"
+  },
+  "date.month.12": {
+    "ar": "ديسمبر",
+    "fr": "décembre"
+  },
+  "date.monthIncomplete": {
+    "ar": "اختر الشهر واكتب آخر رقمين من السنة.",
+    "fr": "Choisissez le mois et saisissez les deux derniers chiffres de l’année."
+  },
+  "date.paymentInvalid": {
+    "ar": "أدخل تاريخ دفع صحيحًا.",
+    "fr": "Saisissez une date de paiement valide."
+  },
+  "date.paymentFuture": {
+    "ar": "تاريخ الدفع لا يمكن أن يكون في المستقبل.",
+    "fr": "La date du paiement ne peut pas être dans le futur."
+  },
+  "reports.title": {
+    "ar": "التقارير",
+    "fr": "Rapports"
+  },
+  "reports.subtitle": {
+    "ar": "اختر الفترة، وراجع المقبوض والمدفوع وتفاصيل كل حركة.",
+    "fr": "Choisissez une période pour consulter les encaissements, les décaissements et leur détail."
+  },
+  "reports.finance": {
+    "ar": "حركة المال",
+    "fr": "Mouvements de trésorerie"
+  },
+  "reports.other": {
+    "ar": "تقارير أخرى",
+    "fr": "Autres rapports"
+  },
+  "reports.show": {
+    "ar": "عرض التقرير",
+    "fr": "Afficher le rapport"
+  },
+  "reports.today": {
+    "ar": "اليوم",
+    "fr": "Aujourd’hui"
+  },
+  "reports.last7": {
+    "ar": "آخر 7 أيام",
+    "fr": "7 derniers jours"
+  },
+  "reports.thisMonth": {
+    "ar": "هذا الشهر",
+    "fr": "Ce mois-ci"
+  },
+  "reports.lastMonth": {
+    "ar": "الشهر الماضي",
+    "fr": "Mois dernier"
+  },
+  "reports.custom": {
+    "ar": "فترة مخصصة",
+    "fr": "Période personnalisée"
+  },
+  "reports.from": {
+    "ar": "من تاريخ",
+    "fr": "Du"
+  },
+  "reports.to": {
+    "ar": "إلى تاريخ",
+    "fr": "Au"
+  },
+  "reports.income": {
+    "ar": "المقبوض خلال الفترة",
+    "fr": "Encaissements de la période"
+  },
+  "reports.outgoing": {
+    "ar": "المدفوع خلال الفترة",
+    "fr": "Décaissements de la période"
+  },
+  "reports.net": {
+    "ar": "صافي حركة الفترة",
+    "fr": "Solde des mouvements"
+  },
+  "reports.opening": {
+    "ar": "الرصيد المسجل قبل الفترة",
+    "fr": "Solde enregistré avant la période"
+  },
+  "reports.closing": {
+    "ar": "الرصيد المسجل بنهاية الفترة",
+    "fr": "Solde enregistré en fin de période"
+  },
+  "reports.registration": {
+    "ar": "رسوم التسجيل",
+    "fr": "Frais d’inscription"
+  },
+  "reports.gilet": {
+    "ar": "الجيليه",
+    "fr": "Tenues scolaires"
+  },
+  "reports.monthly": {
+    "ar": "الشهريات",
+    "fr": "Mensualités"
+  },
+  "reports.prepaid": {
+    "ar": "منها مبالغ مدفوعة مقدمًا",
+    "fr": "Dont paiements anticipés"
+  },
+  "reports.other_income": {
+    "ar": "مقبوضات أخرى",
+    "fr": "Autres encaissements"
+  },
+  "reports.operational": {
+    "ar": "المصاريف",
+    "fr": "Dépenses"
+  },
+  "reports.salary": {
+    "ar": "الرواتب المدفوعة",
+    "fr": "Salaires versés"
+  },
+  "reports.advance": {
+    "ar": "السلف المدفوعة",
+    "fr": "Avances versées"
+  },
+  "reports.cashNote": {
+    "ar": "هذه أرصدة الحركات المسجلة في البرنامج؛ صافي الفترة ليس ربحًا محاسبيًا، وأي رصيد افتتاحي غير مسجل لا يدخل في الحساب.",
+    "fr": "Ces soldes reposent sur les mouvements enregistrés. Le solde de la période n’est pas un bénéfice comptable et n’inclut aucun fonds initial non enregistré."
+  },
+  "reports.correctionNote": {
+    "ar": "يعكس التقرير السجلات بعد آخر التصحيحات والإلغاءات، ولا يسجل الإلغاء قبضًا أو صرفًا جديدًا.",
+    "fr": "Le rapport tient compte des corrections et annulations actuelles. Une annulation ne crée pas de nouveau mouvement d’argent."
+  },
+  "reports.details": {
+    "ar": "تفاصيل الحركات",
+    "fr": "Détail des mouvements"
+  },
+  "reports.all": {
+    "ar": "كل الحركات",
+    "fr": "Tous les mouvements"
+  },
+  "reports.query": {
+    "ar": "البحث في الحركات",
+    "fr": "Rechercher un mouvement"
+  },
+  "reports.queryHint": {
+    "ar": "اسم الطالب، المصروف، المستلم أو رقم الوصل",
+    "fr": "Élève, dépense, bénéficiaire ou numéro de reçu"
+  },
+  "reports.date": {
+    "ar": "التاريخ",
+    "fr": "Date"
+  },
+  "reports.type": {
+    "ar": "نوع الحركة",
+    "fr": "Type de mouvement"
+  },
+  "reports.description": {
+    "ar": "البيان",
+    "fr": "Libellé"
+  },
+  "reports.party": {
+    "ar": "المستلم / التفاصيل",
+    "fr": "Bénéficiaire / détail"
+  },
+  "reports.amount": {
+    "ar": "المبلغ",
+    "fr": "Montant"
+  },
+  "reports.incomingColumn": {
+    "ar": "مقبوض",
+    "fr": "Encaissement"
+  },
+  "reports.outgoingColumn": {
+    "ar": "مدفوع",
+    "fr": "Décaissement"
+  },
+  "reports.reference": {
+    "ar": "رقم المستند",
+    "fr": "Référence"
+  },
+  "reports.open": {
+    "ar": "فتح الوصل",
+    "fr": "Ouvrir le reçu"
+  },
+  "reports.restricted": {
+    "ar": "التفاصيل حسب صلاحيات حسابك",
+    "fr": "Détail selon les droits de votre compte"
+  },
+  "reports.count": {
+    "ar": "{count} حركة",
+    "fr": "{count} mouvements"
+  },
+  "reports.filteredTotal": {
+    "ar": "صافي الحركات المعروضة",
+    "fr": "Solde des mouvements filtrés"
+  },
+  "reports.filterNote": {
+    "ar": "المجاميع في الأعلى للفترة كاملة؛ البحث والتبويب يصفّيان التفاصيل فقط.",
+    "fr": "Les totaux ci-dessus couvrent toute la période. La recherche et les onglets filtrent uniquement le détail."
+  },
+  "reports.noRows": {
+    "ar": "لا توجد حركات مطابقة في هذه الفترة.",
+    "fr": "Aucun mouvement correspondant sur cette période."
+  },
+  "reports.pending": {
+    "ar": "جارٍ إعداد التقرير…",
+    "fr": "Préparation du rapport…"
+  },
+  "reports.empty": {
+    "ar": "اختر الفترة واضغط عرض التقرير.",
+    "fr": "Choisissez une période, puis affichez le rapport."
+  },
+  "reports.stale": {
+    "ar": "تغيّرت الفترة. اضغط عرض التقرير لتحديث الأرقام.",
+    "fr": "La période a changé. Actualisez le rapport pour afficher les chiffres correspondants."
+  },
+  "reports.xlsx": {
+    "ar": "تنزيل Excel",
+    "fr": "Télécharger Excel"
+  },
+  "reports.print": {
+    "ar": "طباعة التقرير",
+    "fr": "Imprimer le rapport"
+  },
+  "reports.generated": {
+    "ar": "أُعدّ التقرير في",
+    "fr": "Rapport établi le"
+  },
+  "reports.asOf": {
+    "ar": "حتى تاريخ",
+    "fr": "Au"
+  },
+  "reports.studentsDebt": {
+    "ar": "ديون الطلاب بنهاية الفترة",
+    "fr": "Sommes dues par les familles en fin de période"
+  },
+  "reports.suppliersDebt": {
+    "ar": "المتبقي للموردين بنهاية الفترة",
+    "fr": "Sommes dues aux fournisseurs en fin de période"
+  },
+  "reports.debtNote": {
+    "ar": "الديون ليست مقبوضات أو مدفوعات؛ وتُعرض منفصلة حتى نهاية الفترة المختارة.",
+    "fr": "Les dettes ne sont ni des encaissements ni des décaissements. Elles sont présentées séparément à la fin de la période choisie."
+  },
+  "reports.summarySheet": {
+    "ar": "الملخص",
+    "fr": "Synthèse"
+  },
+  "reports.detailsSheet": {
+    "ar": "الحركات",
+    "fr": "Mouvements"
+  },
+  "reports.debtSheet": {
+    "ar": "الديون",
+    "fr": "Dettes"
+  },
+  "reports.period": {
+    "ar": "الفترة",
+    "fr": "Période"
+  },
+  "reports.invoiceReport": {
+    "ar": "فواتير المصروفات",
+    "fr": "Factures de dépenses"
+  },
+  "reports.invoiceNote": {
+    "ar": "قائمة الفواتير بحسب تاريخها، والمدفوع فيها تراكمي. لمعرفة المال الخارج خلال فترة استخدم حركة المال.",
+    "fr": "Les factures sont classées par date et les paiements indiqués sont cumulés. Consultez les mouvements de trésorerie pour les décaissements d’une période."
+  },
+  "reports.voidDocument": {
+    "ar": "المستند ملغى مع بقاء الصرف",
+    "fr": "Document annulé, décaissement maintenu"
+  },
+  "reports.currency": {
+    "ar": "أوقية قديمة (MRO)",
+    "fr": "anciennes ouguiyas (MRO)"
+  },
+  "reports.exportChanged": {
+    "ar": "تغيرت الحركات المالية؛ حدّث التقرير قبل تصديره.",
+    "fr": "Les mouvements ont changé. Actualisez le rapport avant de l’exporter."
+  },
+  "reports.saved": {
+    "ar": "تم إعداد التقرير.",
+    "fr": "Rapport prêt."
+  },
+  "reports.previous": {
+    "ar": "السابق",
+    "fr": "Précédent"
+  },
+  "reports.next": {
+    "ar": "التالي",
+    "fr": "Suivant"
+  },
+  "reports.archived": {
+    "ar": "مؤرشف",
+    "fr": "Archivé"
+  },
+  "reports.printTitle": {
+    "ar": "تقرير حركة المال",
+    "fr": "Rapport des mouvements de trésorerie"
+  },
+  "reports.debts": {
+    "ar": "الديون بنهاية الفترة",
+    "fr": "Dettes en fin de période"
+  },
+  "reports.partNote": {
+    "ar": "المدفوع مقدمًا جزء من الشهريات، وليس مبلغًا إضافيًا.",
+    "fr": "Les paiements anticipés sont inclus dans les mensualités, sans ajout au total."
+  },
+  "reports.incomeEntry": {
+    "ar": "قبض طالب",
+    "fr": "Paiement d’un élève"
+  },
+  "reports.operationalEntry": {
+    "ar": "مصروف",
+    "fr": "Dépense"
+  },
+  "reports.salaryEntry": {
+    "ar": "راتب",
+    "fr": "Salaire"
+  },
+  "reports.advanceEntry": {
+    "ar": "سلفة",
+    "fr": "Avance"
   }
 }
 ;

@@ -712,7 +712,9 @@ def take_payment(student, cash, *, payer="", token=None, actor="مديرة ال�
     actor=_actor(actor)
     cash=amount(cash)
     token=str(token or uuid.uuid4())
-    fp=_hash({"student":student,"amount":cash,"payer":payer.strip(),"kind":"monthly"})
+    fingerprint={"student":student,"amount":cash,"payer":payer.strip(),"kind":"monthly"}
+    if as_of is not None: fingerprint['received_on']=str(as_of)
+    fp=_hash(fingerprint)
     connection=db.new_transaction_connection()
     try:
         with connection.cursor() as c:

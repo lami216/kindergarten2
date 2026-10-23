@@ -45,3 +45,15 @@ source. CI rejects a stale generated bundle.
 Run `python scripts/check_translations.py`, `pytest tests/test_localization.py`
 and `python -m tests.browser_french`. CI also runs the Arabic regression journeys
 and the French real-service browser journey against a disposable database.
+
+Date fields share `docs/date-entry.js` and `docs/date-entry.css`. Render new fields
+as `input type="date"` (or `month` for a salary month), with their normal name,
+ISO value, required flag and min/max bounds. The shared component supplies the
+localized day, month list and year suffix automatically, including in dialogs.
+Keep reading/writing the original input's ISO value; do not store translated
+month names or a two-digit year. Its input event invalidates stale drafts;
+change commits after focus leaves the complete group, so attendance filters
+cannot reload between typing the day and the year. Existing historical years
+retain their century. Only dates that the user actually changes are rewritten.
+`tests.date_entry_helpers.fill_field` enters these fields through their visible
+controls; `python -m tests.browser_date_entry` covers the shared behavior.

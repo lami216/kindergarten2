@@ -1,0 +1,17 @@
+.date-entry{display:grid;grid-template-columns:minmax(54px,.65fr) minmax(96px,1.4fr) minmax(84px,.95fr);gap:8px;width:100%;min-width:0;align-items:end;margin-top:6px}
+.date-entry.date-entry-month{grid-template-columns:minmax(96px,1.4fr) minmax(84px,.95fr)}
+.date-entry-field{display:block;min-width:0}
+.date-entry-caption{display:block;margin-bottom:5px;font-size:11px;color:var(--muted);font-weight:normal}
+.date-entry input,.date-entry select{width:100%;min-width:0;margin:0;padding:10px 8px;height:46px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:8px}
+.date-entry input{text-align:center;font-variant-numeric:tabular-nums}
+.date-entry-year{display:flex;align-items:center;border:1px solid var(--border);border-radius:8px;background:var(--surface);height:46px;overflow:hidden}
+.date-entry-year input{border:0;border-radius:0;min-width:0;padding-inline:4px;flex:1;background:transparent}
+.date-entry-century{padding-inline-start:10px;color:var(--muted);font-variant-numeric:tabular-nums}
+.date-entry-year:focus-within{outline:3px solid #64bc9e;outline-offset:3px}
+.date-entry-year input:focus-visible{outline:0}
+.date-entry-error{grid-column:1/-1;font-size:11px;line-height:1.7;color:#ba3a3a;font-weight:normal}
+.date-entry [aria-invalid="true"]{border-color:#ba3a3a}
+.dark .date-entry-error{color:#ffb4ab}
+.dark .date-entry [aria-invalid="true"]{border-color:#ffb4ab}
+.date-entry select option{background:var(--surface);color:var(--text)}
+input[data-date-canonical][hidden]{display:none!important}

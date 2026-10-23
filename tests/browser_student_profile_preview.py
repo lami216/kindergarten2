@@ -23,7 +23,7 @@ async def run():
             for width in (390,1280):
                 page=await browser.new_page(viewport={'width':width,'height':1000})
                 errors=[];page.on('pageerror',lambda error:errors.append(str(error)))
-                await page.goto(f'http://127.0.0.1:{server.server_port}')
+                await page.goto(f'http://127.0.0.1:{server.server_port}',wait_until='networkidle')
                 await page.locator('#preview-enter').click()
                 if width<769: await page.locator('#menu').click()
                 await page.locator('nav [data-page="students"]').click()

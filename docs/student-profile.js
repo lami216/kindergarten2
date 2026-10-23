@@ -1,5 +1,16 @@
 /* Synthetic per-tab portraits only; real private storage is student_photos.py. */
 const studentPortraits=new Map();
+function studentPortrait(s){
+ if(studentPortraits.has(s.id))return studentPortraits.get(s.id);
+ if(studentPortraits.has(String(s.id)))return studentPortraits.get(String(s.id));
+ return s.photo;
+}
+function studentAvatar(s,style='avatar',portrait=studentPortrait(s)){
+ return `<span class="${style} student-avatar" data-student-avatar="${esc(s.id)}" aria-hidden="true"><span>${esc(Array.from(s.name||'')[0]||'')}</span>${portrait?.data?`<img src="${esc(portrait.data)}" alt="" width="35" height="35" loading="lazy" decoding="async">`:''}</span>`;
+}
+// All student lists share the same identity renderer and the same current photo.
+person=s=>`<div class="row-person">${studentAvatar(s)}<div>${esc(s.name)}<small>${esc(s.parent)}</small></div></div>`;
+document.addEventListener('error',e=>{if(e.target.matches?.('.student-avatar img'))e.target.remove();},true);
 recordNames.student_photos=`${I18N.tr("ui.51f238d4c59d")}`;
 Object.assign(historyFields,{photo:`${I18N.tr("ui.a35a713b5b75")}`,revision:`${I18N.tr("ui.c2c923f54cd4")}`,sha256:`${I18N.tr("ui.4e0e6ee82e19")}`});
 const profileCan=(action)=>demoCan('students',action);
@@ -92,6 +103,6 @@ bindStudentForm=function(){
  f.onsubmit=e=>{
   e.preventDefault();if(busy||invalid){$('#student-error').textContent=busy?`${I18N.tr("ui.43504fa0ef22")}`:`${I18N.tr("ui.a515243e0fbc")}`;return;}
   const count=students.length,portrait=prepared,d=new FormData(f);submit(e);
-  if(students.length>count){const s=students.at(-1);Object.assign(s,{place:d.get('place')?.trim()||'',address:d.get('address')?.trim()||'',health:d.get('health')?.trim()||''});if(portrait){const p={...portrait,revision:1};studentPortraits.set(s.id,p);logChange('student_photos',s.id,'created',null,portraitMeta(s,p),`${I18N.tr("ui.f059d2b65ba1")}`);}}
+  if(students.length>count){const s=students.at(-1);Object.assign(s,{place:d.get('place')?.trim()||'',address:d.get('address')?.trim()||'',health:d.get('health')?.trim()||''});if(portrait){const p={...portrait,revision:1};studentPortraits.set(s.id,p);logChange('student_photos',s.id,'created',null,portraitMeta(s,p),`${I18N.tr("ui.f059d2b65ba1")}`);render();}}
  };
 };

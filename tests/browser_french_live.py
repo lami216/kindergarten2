@@ -7,6 +7,7 @@ import sys
 from pypdf import PdfReader
 from openpyxl import load_workbook
 from playwright.async_api import async_playwright, expect
+from tests.date_entry_helpers import fill_field
 
 
 async def main(origin,username,password):
@@ -39,7 +40,7 @@ async def main(origin,username,password):
             await page.locator('nav [data-page="students"]').click()
             await page.locator('#add-student').click()
             for key,value in {'name':'Élève مريم','birth':'2022-01-01','mother':'Mère فاطمة','motherPhone':'22334455','amount':'4500'}.items():
-                await page.locator('#student-form [name="'+key+'"]').fill(value)
+                await fill_field(page.locator('#student-form [name="'+key+'"]'), value)
             await page.locator('#student-form [name="gender"]').select_option('أنثى')
             await page.locator('#student-form [name="department_id"]').select_option(str(section))
             await page.locator('#student-form .form-end button.primary').click()
@@ -104,7 +105,7 @@ async def main(origin,username,password):
             await page.locator('#payroll-form [name="confirmed"]').check()
             await page.locator('#payroll-form button.primary').click()
             await expect(page.locator('#record-dialog')).to_be_hidden()
-            await page.locator('[data-tool-tab="reports"]').click()
+            await page.locator('#nav-reports').click();await page.locator('[data-report-mode="other"]').click()
             await page.locator('#report-form [name="kind"]').select_option('students')
             await page.locator('#report-form button').click()
             await expect(page.locator('#report-output th').first).to_have_text('Élève')

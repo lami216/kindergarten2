@@ -104,3 +104,6 @@ aside { overflow-y:auto; }
 .profile-official-edit{width:100%;margin:0 0 24px;min-height:58px}
 dialog{max-height:90dvh;overflow:auto}.discard-box{position:sticky;bottom:0;background:var(--surface);border:2px solid #d49748;padding:16px;border-radius:14px;margin-top:20px;box-shadow:0 -8px 20px #0002}
 .fee-mode-buttons{display:flex;gap:12px;margin:16px 0}.fee-mode-buttons button{flex:1;min-height:54px}
+
+/* Small student portraits share the existing avatar space in every list. */
+.student-avatar{position:relative;overflow:hidden;flex-shrink:0}.student-avatar>span{line-height:1}.student-avatar img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}.payment-student-summary{padding-block:14px;border-bottom:1px solid var(--border);margin-bottom:16px}
