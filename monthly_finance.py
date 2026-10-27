@@ -630,10 +630,14 @@ def initialize_in_transaction(c, student, options, actor, token):
            (student_id,status,start_date,created_by,exempt_by,exempt_at,due_at_period_end)
            VALUES(%s,'exempt',%s,%s,%s,now(),%s)""",(student,anchor,_actor(actor),_actor(actor),bool(options.get("due_at_period_end",False))))
         _audit(c,student,None,"exemption",actor,{},{"all_fees":"exempt","start_date":anchor})
+        if options.get('start_source')=='registration_date':
+            _audit(c,student,None,'subscription_start_selected',actor,{},dict(start_date=anchor,source='intake'))
         return None
     settings=_tariffs(c)
     c.execute("""INSERT INTO monthly_accounts(student_id,status,start_date,created_by,due_at_period_end)
                   VALUES(%s,'regular',%s,%s,%s)""",(student,anchor,_actor(actor),bool(options.get("due_at_period_end",False))))
+    if options.get('start_source')=='registration_date':
+        _audit(c,student,None,'subscription_start_selected',actor,{},dict(start_date=anchor,source='intake'))
     if options.get("charge_registration",True):
         c.execute("""INSERT INTO monthly_fees(student_id,kind,price)
                   VALUES(%s,'registration',%s)""",(student,settings["registration"]))
@@ -845,7 +849,8 @@ def correct_receipt(receipt_id, new_amount, reason, *, actor="مديرة الر�
             if not old:
                 raise ValueError("الوصل غير موجود.")
             account = _lock(c,old["student_id"],for_payment=False)
-            if account['status']!='regular':
+            # A historical date/payer correction does not receive new money.
+            if account['status']!='regular' and new_amount!=int(old['amount']):
                 raise ValueError('الحساب معفي؛ يمكن إلغاء الوصل القديم دون تسجيل قبض جديد.')
             correct_date = received_on if received_on is not None else old["received_on"]
             if isinstance(correct_date,str):

@@ -87,6 +87,7 @@ async def main():
                         await page.evaluate('navigate("reports")')
                         await page.locator('#finance-report-form button.primary').click()
                         await page.wait_for_function('()=>financeData!==null')
+                        await page.locator('[data-report-section=money][role=tab]').click()
                         await page.evaluate('window.print=()=>{}')
                         await page.locator('#fin-print').click()
                         await page.emulate_media(media='print')

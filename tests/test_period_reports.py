@@ -90,7 +90,7 @@ def test_export_matches_display_filters_safe_text_and_stale_revision(browser):
     downloaded = post(client, session, 'reports.finance.export', request)
     assert downloaded.status_code == 200, downloaded.text[:200] if downloaded.status_code != 200 else ''
     book = load_workbook(BytesIO(downloaded.content))
-    assert book.sheetnames == ['الملخص', 'الحركات', 'الديون']
+    assert book.sheetnames == ['الملخص', 'الحركات', 'الديون', 'الطلاب الجدد', 'حضور الطلاب', 'مقارنة الفترتين']
     rows = list(book['الحركات'].values)
     assert len(rows) == 2 and rows[1][2] == '=1+1 (supplies)' and rows[1][5] == 200
     assert book['الحركات']['C2'].data_type == 's'

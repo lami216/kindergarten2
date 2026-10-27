@@ -1,5 +1,5 @@
 """Period cash reports: totals, drill-down and export share one consistent ledger."""
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 import hashlib
 from io import BytesIO
@@ -72,6 +72,67 @@ def dates(data):
     return start, end
 
 
+def school_period(cursor, start, end, permissions):
+    """Enrollment dates and student-days from the same report snapshot as cash."""
+    from subscription_dates import registration_sql
+    cursor.execute('''SELECT s.student_id AS id,s.full_name AS name,s.archived_at IS NOT NULL AS archived,
+        '''+registration_sql()+''' AS registered_on,d.name AS department
+        FROM students s LEFT JOIN student_departments sd USING(student_id)
+        LEFT JOIN monthly_accounts a USING(student_id)
+        LEFT JOIN school_departments d USING(department_id) ORDER BY s.full_name,s.student_id''')
+    students = [dict(row) for row in cursor.fetchall()]
+    added = [dict(row, registered_on=str(row['registered_on'])) for row in students
+             if row['registered_on'] is not None and start <= row['registered_on'] <= end]
+    result = dict(new_count=len(added), new_students=added if permissions['students'] else [],
+                  unknown_dates=sum(row['registered_on'] is None for row in students), attendance=None)
+    if permissions['attendance']:
+        from attendance import percentages
+        cursor.execute('''SELECT a.person_id AS id,s.full_name AS name,s.archived_at IS NOT NULL AS archived,
+            COUNT(*) FILTER(WHERE a.status='present') AS present,
+            COUNT(*) FILTER(WHERE a.status='absent') AS absent,
+            COUNT(*) FILTER(WHERE a.status='excused') AS excused
+            FROM student_attendance a JOIN students s ON s.student_id=a.person_id
+            WHERE a.cancelled_at IS NULL AND a.on_date BETWEEN %s AND %s
+            GROUP BY a.person_id,s.full_name,s.archived_at ORDER BY s.full_name,a.person_id''', (start, end))
+        rows = [dict(id=row['id'], name=row['name'], archived=row['archived'], **percentages(row))
+                for row in cursor.fetchall()]
+        cursor.execute('''SELECT COUNT(DISTINCT on_date) AS days FROM student_attendance
+            WHERE cancelled_at IS NULL AND on_date BETWEEN %s AND %s''', (start, end))
+        result['attendance'] = dict(summary=percentages({key: sum(row[key] for row in rows)
+            for key in ('present', 'absent', 'excused')}), students_count=len(rows),
+            recorded_days=cursor.fetchone()['days'], items=rows)
+    return result
+
+
+def previous_period(cursor, start, end, permissions):
+    """Equal-length preceding range; aggregates only, inside the same snapshot."""
+    try:
+        previous_end = start - timedelta(days=1)
+        previous_start = start - timedelta(days=(end-start).days+1)
+    except OverflowError:
+        return None
+    cursor.execute('SELECT category,COALESCE(SUM(amount),0) AS amount FROM ('+LEDGER+
+                   ') period_rows WHERE key IS NOT NULL GROUP BY category',
+                   dict(start=previous_start,end=previous_end))
+    amounts = {row['category']: row['amount'] for row in cursor.fetchall()}
+    incoming = amounts.get('income', ZERO)
+    outgoing = sum((amounts.get(k, ZERO) for k in ('operational','salary','advance')), ZERO)
+    from subscription_dates import registration_sql
+    cursor.execute('''SELECT COUNT(*) AS n FROM students s LEFT JOIN monthly_accounts a USING(student_id) WHERE
+        '''+registration_sql()+''' BETWEEN %s AND %s''', (previous_start,previous_end))
+    result = dict(start=str(previous_start),end=str(previous_end),new_count=cursor.fetchone()['n'],
+                  summary=dict(income=incoming,outgoing=outgoing,net=incoming-outgoing),attendance=None)
+    if permissions['attendance']:
+        from attendance import percentages
+        cursor.execute('''SELECT COUNT(*) FILTER(WHERE status='present') AS present,
+            COUNT(*) FILTER(WHERE status='absent') AS absent,
+            COUNT(*) FILTER(WHERE status='excused') AS excused
+            FROM student_attendance WHERE cancelled_at IS NULL AND on_date BETWEEN %s AND %s''',
+            (previous_start,previous_end))
+        result['attendance'] = percentages(cursor.fetchone())
+    return result
+
+
 def read(data):
     start, end = dates(data)
     if not A.can('reports.view'):
@@ -86,6 +147,7 @@ def read(data):
             profile = A.require(c, 'reports.view', lock=False)
             can = lambda area: A.allowed(profile, area + '.view')
             permissions = {area: can(area) for area in ('payments', 'expenses', 'salaries', 'students')}
+            permissions['attendance'] = can('student_attendance')
             c.execute(LEDGER, {'start': start, 'end': end})
             raw = [dict(r) for r in c.fetchall()]
             opening = raw[0]['opening'] if raw else ZERO
@@ -129,6 +191,8 @@ def read(data):
             result = dict(start=str(start), end=str(end), summary=summary, items=items, permissions=permissions,
                           debt=dict(students_total=student_total, suppliers_total=supplier_total,
                                     students=student_debts, suppliers=supplier_debts if permissions['expenses'] else []))
+            result['school'] = school_period(c, start, end, permissions)
+            result['comparison'] = previous_period(c, start, end, permissions)
             result['revision'] = hashlib.sha256(json.dumps(result, default=str, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
             result['generated_at'] = datetime.now(timezone.utc).isoformat()
             return result
@@ -178,6 +242,38 @@ def export(data):
     for key, title in (('students', 'studentsDebt'), ('suppliers', 'suppliersDebt')):
         for row in report['debt'][key]:
             debts.append([label(title), row['name'], row['amount']])
+    school = report['school']
+    summary.append([label('newStudents'), school['new_count']])
+    if report['permissions']['students']:
+        added = book.create_sheet(label('newSheet'))
+        added.append([label('student'), label('registeredOn'), label('department'), label('fileState')])
+        for row in school['new_students']:
+            added.append([row['name'], row['registered_on'], row['department'], label('archived') if row['archived'] else label('active')])
+    if school['attendance'] is not None:
+        attendance = school['attendance']
+        for key in ('present', 'absent', 'excused', 'total', 'attendance_rate', 'absence_rate'):
+            summary.append([label(key), attendance['summary'][key]])
+        summary.append([label('recordedDays'), attendance['recorded_days']])
+        summary.append([label('attendanceNote')])
+        sheet = book.create_sheet(label('attendanceSheet'))
+        sheet.append([label(key) for key in ('student', 'present', 'absent', 'excused', 'total', 'attendance_rate', 'absence_rate')])
+        for row in attendance['items']:
+            sheet.append([row['name'], *[row[key] for key in ('present', 'absent', 'excused', 'total', 'attendance_rate', 'absence_rate')]])
+    previous = report['comparison']
+    if previous is not None:
+        sheet = book.create_sheet(label('comparisonSheet'))
+        sheet.append([label('period'),report['start'],report['end']])
+        sheet.append([label('previousRange'),previous['start'],previous['end']])
+        sheet.append([label('metric'),label('currentRange'),label('previousRange'),label('difference')])
+        for key in ('income','outgoing','net'):
+            current, old = report['summary'][key], previous['summary'][key]
+            sheet.append([label(key),current,old,current-old])
+        current, old = school['new_count'], previous['new_count']
+        sheet.append([label('newStudents'),current,old,current-old])
+        if school['attendance'] is not None:
+            current, old = school['attendance']['summary']['attendance_rate'], previous['attendance']['attendance_rate']
+            sheet.append([label('attendance_rate'),current,old,current-old if current is not None and old is not None else None])
+        sheet.append([label('comparisonNote')])
     for sheet in book:
         sheet.sheet_view.rightToLeft = L.language() == 'ar'
         sheet.freeze_panes = 'A2'

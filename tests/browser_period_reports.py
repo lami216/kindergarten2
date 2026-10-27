@@ -53,6 +53,7 @@ async def main():
                     await page.screenshot(path=str(out / (language + '-desktop.png')), full_page=True)
                     passed.append(language + ': dedicated route and period details reconcile')
 
+                    await page.locator('[data-report-section=money][role=tab]').click()
                     await page.locator('#fin-query').fill('(')
                     assert await page.locator('.fin-screen-table tbody tr').count() == 1
                     assert await page.evaluate('financeRows()[0].amount') == 200
@@ -90,6 +91,7 @@ async def main():
                     await page.evaluate('releaseOldFinance()')
                     await expect(page.locator('#fin-start')).to_have_value(await page.evaluate('today'))
                     assert await page.evaluate('financeData.start===today&&financeData.end===today')
+                    await page.locator('[data-fin-period=custom]').click()
                     start = page.locator('#fin-start')
                     await start.locator('xpath=preceding-sibling::*[1]').locator('[data-date-part="year"]').fill('2')
                     assert not await page.locator('#finance-report-form').evaluate('(f)=>f.checkValidity()')
@@ -116,6 +118,7 @@ async def main():
                     await page.screenshot(path=str(out / (language + '-mobile.png')), full_page=True)
                     await page.locator('#theme').click()
                     await page.screenshot(path=str(out / (language + '-dark-mobile.png')), full_page=True)
+                    await page.locator('[data-report-section=money][role=tab]').click()
                     await page.emulate_media(media='print')
                     await page.evaluate("document.body.classList.add('print-finance')")
                     await expect(page.locator('#sidebar')).not_to_be_visible()
