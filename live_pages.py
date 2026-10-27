@@ -53,7 +53,7 @@ def index_html():
     html = (DESIGN_ROOT/'index.html').read_text(encoding='utf-8')
     html = html.replace('<script src="preview.js">','<script src="/live/runtime.js"></script>\n<script src="preview.js">')
     html=html.replace('</head>','<link rel="stylesheet" href="/live/workspace.css"><link rel="stylesheet" href="/live/people.css"><link rel="stylesheet" href="/live/reports.css"></head>')
-    return html.replace('</body>','<script src="/live/bridge.js"></script>\n<script src="/live/workspace.js"></script>\n<script src="/live/people.js"></script>\n<script src="/live/attendance-session.js"></script>\n<script src="/live/reports.js"></script>\n</body>')
+    return html.replace('</body>','<script src="/live/bridge.js"></script>\n<script src="/live/workspace.js"></script>\n<script src="/live/people.js"></script>\n<script src="/live/attendance-session.js"></script>\n<script src="/live/reports.js"></script>\n<script src="/live/subscriptions.js"></script>\n</body>')
 
 
 def json_ready(value):
@@ -125,6 +125,7 @@ def snapshot(conn, profile):
     accounts = F.projections(conn,result['today'],materialize=False) if can_payments else {}
     parents = {}
     photos = {}
+    subscription_edits = {}
     if can_students:
         parents = {p['father_id']:p for p in rows(conn,'SELECT * FROM parents')}
         photos = {p['student_id']:p for p in rows(conn,
@@ -132,10 +133,18 @@ def snapshot(conn, profile):
         result['families'] = [dict(id=p['father_id'],father=p['father_name'] or '',
             fatherPhone=p['father_mobile'] or '',mother=p['mother_name'] or '',
             motherPhone=p['mother_mobile'] or '') for p in parents.values() if not p['archived_at']]
+        if A.can('students.edit') and A.can('accounts.edit'):
+            editable=rows(conn,'SELECT * FROM monthly_accounts WHERE archived_at IS NULL')
+            revisions={r['student_id']:int(r['revision']) for r in rows(conn,
+                'SELECT student_id,MAX(audit_id) AS revision FROM monthly_audit GROUP BY student_id')}
+            subscription_edits={a['student_id']:dict(start=str(a['start_date']),revision=R.revision(a),
+                ledger_revision=revisions.get(a['student_id'],0)) for a in editable}
     visible = A.can('students.view') or A.can('payments.view') or A.can('departments.view')
     if visible:
-        children=rows(conn,'''SELECT s.*,p.father_name,p.father_mobile,p.mother_name,p.mother_mobile,
+        from subscription_dates import registration_sql,profile_summary
+        children=rows(conn,'''SELECT s.*,p.father_name,p.father_mobile,p.mother_name,p.mother_mobile,'''+registration_sql()+''' AS registered_on,
             d.name AS department_name FROM students s LEFT JOIN parents p USING(father_id)
+            LEFT JOIN monthly_accounts a USING(student_id)
             LEFT JOIN student_departments sd USING(student_id)
             LEFT JOIN school_departments d ON d.department_id=sd.department_id
             ORDER BY s.student_id''')
@@ -148,7 +157,10 @@ def snapshot(conn, profile):
                 'class':s['department_name'] or '', 'cancelled':bool(s['archived_at']),
                 'registration':0,'gilet':0,'exempt':False,'account':None}
             if A.can('students.view'):
-                raw={k:v for k,v in s.items() if k not in ('father_name','father_mobile','mother_name','mother_mobile','department_name')}
+                raw={k:v for k,v in s.items() if k not in ('father_name','father_mobile','mother_name','mother_mobile','department_name','registered_on')}
+                child['registered_on']=s['registered_on']
+                if not s['archived_at'] and s['student_id'] in subscription_edits:
+                    child['subscription_edit']=subscription_edits[s['student_id']]
                 child.update(birth=s['birth_date'],gender=s['gender'],place=s['birth_place'] or '',
                     address=s['address'] or '',health=s['medical_details'] or '',
                     allergy=s['allergies'] or '',notes=s['general_notes'] or '',pickups=s['authorized_pickups'] or [],revision=R.revision(raw))
@@ -163,6 +175,7 @@ def snapshot(conn, profile):
                     child.update(ledger_revision=0,account_revision=R.revision(p['account']),paused=bool(p['account'].get('departure_on')),exempt=p['exempt'],subscription_status=p['account']['status'],registration=p['fees'].get('registration',{}).get('price',0),
                         gilet=p['fees'].get('gilet',{}).get('price',0),start=p['account']['start_date'])
                     child['account']={'paid':p['cash_paid'],'due':p['due_now'],'full':p['paid_periods'],
+                        **profile_summary(p),
                         'monthPaid':sum(x['paid'] for x in p['periods']),
                         'registration_due':max(0,p['fees'].get('registration',{}).get('price',0)-p['fees'].get('registration',{}).get('paid',0)-p['fees'].get('registration',{}).get('waived',0)),
                         'gilet_due':max(0,p['fees'].get('gilet',{}).get('price',0)-p['fees'].get('gilet',{}).get('paid',0)-p['fees'].get('gilet',{}).get('waived',0))}
@@ -249,6 +262,11 @@ def edit_student(conn, data, actor):
         if 'pickups' in values:
             update['authorized_pickups']=pickup_values(values['pickups'])
         R._validate(c,'students',old,update)
+        if 'start_date' in values:
+            from subscription_dates import correct_start
+            correct_start(c,ident,text(values,'start_date',10,True),actor=actor,reason=reason,
+                birth=update.get('birth_date',old['birth_date']),
+                expected=text(data,'account_revision',64,True),expected_ledger=data.get('ledger_revision'))
         if update:
             c.execute(sql.SQL('UPDATE students SET {} WHERE student_id=%s').format(
                 sql.SQL(',').join(sql.SQL('{}=%s').format(sql.Identifier(k)) for k in update)),
@@ -346,7 +364,9 @@ def mutate(conn, operation, data, profile):
         mode=text(data,'mode',10,True)
         if mode not in ('pay','none','exempt'): raise ValueError('طريقة الرسوم غير صحيحة.')
         cash=whole_amount(data.get('amount',0),zero=True) if mode=='pay' else 0
-        finance=dict(mode='exempt' if mode=='exempt' else 'regular',start_date=str(F.today()),
+        from subscription_dates import intake_date
+        subscription_start=intake_date(data.get('start_date'),birthday)
+        finance=dict(mode='exempt' if mode=='exempt' else 'regular',start_date=str(subscription_start),start_source='registration_date' if 'start_date' in data else '',
             charge_registration=bool(data.get('registration')) if mode=='pay' else mode!='exempt',
             due_at_period_end=True,registration=bool(data.get('registration')) if mode=='pay' else False,
             gilet=bool(data.get('gilet')) if mode=='pay' else False,cash=cash,
@@ -623,7 +643,7 @@ def make_app(dsn, public_origin, *, management=False, trusted_proxies=()):
     async def bridge(request): return Response((LIVE_ROOT/'bridge.js').read_bytes(),media_type='text/javascript')
     async def workspace_asset(request):
         name=request.path_params['name']
-        if name not in ('workspace.js','workspace.css','people.js','people.css','attendance-session.js','reports.js','reports.css'):return Response(status_code=404)
+        if name not in ('workspace.js','workspace.css','people.js','people.css','attendance-session.js','reports.js','reports.css','subscriptions.js'):return Response(status_code=404)
         return Response((LIVE_ROOT/name).read_bytes(),media_type='text/javascript' if name.endswith('.js') else 'text/css')
     async def catalog_asset(request):
         return Response('window.APP_MESSAGES='+json.dumps(L.CATALOG,ensure_ascii=False)+';',media_type='text/javascript')

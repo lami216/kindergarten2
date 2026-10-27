@@ -4892,15 +4892,15 @@
     "fr": "Rapports"
   },
   "reports.subtitle": {
-    "ar": "اختر الفترة، وراجع المقبوض والمدفوع وتفاصيل كل حركة.",
-    "fr": "Choisissez une période pour consulter les encaissements, les décaissements et leur détail."
+    "ar": "اختر الفترة، ثم انتقل للتفاصيل التي تحتاجها.",
+    "fr": "Choisissez une période, puis consultez la rubrique qui vous intéresse."
   },
   "reports.finance": {
     "ar": "حركة المال",
-    "fr": "Mouvements de trésorerie"
+    "fr": "Trésorerie"
   },
   "reports.other": {
-    "ar": "تقارير أخرى",
+    "ar": "تقارير إضافية",
     "fr": "Autres rapports"
   },
   "reports.show": {
@@ -5186,5 +5186,345 @@
   "reports.advanceEntry": {
     "ar": "سلفة",
     "fr": "Avance"
+  },
+  "profile.parentsShared": {
+    "ar": "بيانات الأهل مشتركة بين أطفال الأسرة المرتبطين بالسجل نفسه؛ تصحيحها هنا يحدّثها لديهم جميعًا.",
+    "fr": "Les coordonnées sont communes aux enfants rattachés à cette famille. Toute correction sera appliquée à leurs dossiers."
+  },
+  "reports.schoolTitle": {
+    "ar": "الطلاب والحضور خلال الفترة",
+    "fr": "Élèves et assiduité sur la période"
+  },
+  "reports.newStudents": {
+    "ar": "الطلاب الجدد",
+    "fr": "Nouveaux élèves"
+  },
+  "reports.registrationNote": {
+    "ar": "حسب أول تاريخ تسجيل محفوظ، أو تاريخ إضافة الملف عند عدم وجود تسجيل سابق.",
+    "fr": "Selon la première date d’inscription enregistrée, ou la date de création du dossier à défaut."
+  },
+  "reports.attendance_rate": {
+    "ar": "نسبة الحضور",
+    "fr": "Taux de présence"
+  },
+  "reports.absence_rate": {
+    "ar": "نسبة الغياب",
+    "fr": "Taux d’absence"
+  },
+  "reports.present": {
+    "ar": "حضور",
+    "fr": "Présences"
+  },
+  "reports.absent": {
+    "ar": "غياب دون عذر",
+    "fr": "Absences non justifiées"
+  },
+  "reports.excused": {
+    "ar": "غياب بعذر",
+    "fr": "Absences justifiées"
+  },
+  "reports.total": {
+    "ar": "أيام مسجّلة",
+    "fr": "Jours renseignés"
+  },
+  "reports.studentDays": {
+    "ar": "حالات حضور من مجموع الحالات المسجّلة",
+    "fr": "présences sur les journées-élèves renseignées"
+  },
+  "reports.includingExcused": {
+    "ar": "يشمل الغياب بعذر",
+    "fr": "absences justifiées incluses"
+  },
+  "reports.attendanceRestricted": {
+    "ar": "تحتاج صلاحية عرض حضور الطلاب.",
+    "fr": "Droit de consultation des présences des élèves requis."
+  },
+  "reports.recordedDays": {
+    "ar": "تواريخ أخذ الحضور",
+    "fr": "Dates de pointage"
+  },
+  "reports.markedStudents": {
+    "ar": "طلاب لديهم حضور مسجّل",
+    "fr": "Élèves avec un pointage"
+  },
+  "reports.attendanceNote": {
+    "ar": "النسبة من الحالات المسجّلة فقط: حضور ÷ (حضور + غياب + غياب بعذر). الأيام غير المسجّلة لا تُحسب غيابًا، والنسبة العامة تُحسب من مجموع الحالات، لا من متوسط نسب الأطفال.",
+    "fr": "Le taux de présence correspond aux présences divisées par tous les pointages (présence, absence justifiée ou non). Les jours non renseignés sont exclus. Le taux global repose sur tous les pointages, pas sur la moyenne des taux des élèves."
+  },
+  "reports.unknownDates": {
+    "ar": "{count} ملفًا بلا تاريخ تسجيل معروف؛ لم تُحسب ضمن الطلاب الجدد.",
+    "fr": "{count} dossiers sans date d’inscription connue ne sont pas comptés parmi les nouveaux élèves."
+  },
+  "reports.attendanceDetails": {
+    "ar": "تفاصيل حضور الطلاب",
+    "fr": "Assiduité par élève"
+  },
+  "reports.studentSearch": {
+    "ar": "البحث عن طالب في تفاصيل الفترة",
+    "fr": "Rechercher un élève sur la période"
+  },
+  "reports.studentCount": {
+    "ar": "{count} طالبًا",
+    "fr": "{count} élèves"
+  },
+  "reports.student": {
+    "ar": "الطالب",
+    "fr": "Élève"
+  },
+  "reports.registeredOn": {
+    "ar": "تاريخ التسجيل",
+    "fr": "Date d’inscription"
+  },
+  "reports.department": {
+    "ar": "القسم الحالي",
+    "fr": "Classe actuelle"
+  },
+  "reports.fileState": {
+    "ar": "حالة الملف الحالية",
+    "fr": "État actuel du dossier"
+  },
+  "reports.active": {
+    "ar": "نشط",
+    "fr": "Actif"
+  },
+  "reports.noAttendance": {
+    "ar": "لا توجد سجلات حضور مطابقة خلال هذه الفترة؛ لا تعني هذه الحالة غياب الأطفال.",
+    "fr": "Aucun pointage correspondant sur cette période. Cela ne signifie pas que les élèves étaient absents."
+  },
+  "reports.noNewStudents": {
+    "ar": "لا يوجد طلاب جدد مطابقون خلال الفترة.",
+    "fr": "Aucun nouvel élève correspondant sur cette période."
+  },
+  "reports.newSheet": {
+    "ar": "الطلاب الجدد",
+    "fr": "Nouveaux élèves"
+  },
+  "reports.attendanceSheet": {
+    "ar": "حضور الطلاب",
+    "fr": "Présences des élèves"
+  },
+  "reports.overview": {
+    "ar": "نظرة عامة",
+    "fr": "Vue d’ensemble"
+  },
+  "reports.moneyTab": {
+    "ar": "حركة المال",
+    "fr": "Trésorerie"
+  },
+  "reports.attendanceTab": {
+    "ar": "الحضور والغياب",
+    "fr": "Présences et absences"
+  },
+  "reports.reportSections": {
+    "ar": "أقسام التقرير",
+    "fr": "Rubriques du rapport"
+  },
+  "reports.viewMovements": {
+    "ar": "تفاصيل الحركات",
+    "fr": "Voir les mouvements"
+  },
+  "reports.previousRange": {
+    "ar": "الفترة السابقة",
+    "fr": "Période précédente"
+  },
+  "reports.currentRange": {
+    "ar": "الفترة المختارة",
+    "fr": "Période choisie"
+  },
+  "reports.comparisonNote": {
+    "ar": "المقارنة مع الفترة السابقة مباشرة وبنفس عدد الأيام؛ نسب الحضور تعتمد على السجلات المتاحة في كل فترة.",
+    "fr": "La comparaison porte sur la période immédiatement précédente, de même durée. Les taux de présence reposent sur les pointages disponibles dans chaque période."
+  },
+  "reports.comparisonSheet": {
+    "ar": "مقارنة الفترتين",
+    "fr": "Comparaison"
+  },
+  "reports.metric": {
+    "ar": "المؤشر",
+    "fr": "Indicateur"
+  },
+  "reports.difference": {
+    "ar": "التغيّر",
+    "fr": "Écart"
+  },
+  "reports.vsPrevious": {
+    "ar": "عن السابقة",
+    "fr": "par rapport à la période précédente"
+  },
+  "reports.unchanged": {
+    "ar": "دون تغيّر عن السابقة",
+    "fr": "Aucun changement"
+  },
+  "reports.noComparison": {
+    "ar": "لا توجد بيانات حضور للمقارنة",
+    "fr": "Pas de pointages comparables"
+  },
+  "reports.points": {
+    "ar": "نقطة",
+    "fr": "points"
+  },
+  "reports.pupilsUnit": {
+    "ar": "طلاب",
+    "fr": "élèves"
+  },
+  "reports.childrenWithAbsence": {
+    "ar": "طلاب لديهم غياب",
+    "fr": "Élèves avec des absences"
+  },
+  "reports.ofMarked": {
+    "ar": "من {count} طلاب لديهم سجلات، ويشمل الغياب بعذر.",
+    "fr": "Sur {count} élèves avec des pointages, absences justifiées comprises."
+  },
+  "reports.understandSummary": {
+    "ar": "توضيح الأرقام وطريقة حسابها",
+    "fr": "Comprendre les indicateurs"
+  },
+  "reports.incomeBreakdown": {
+    "ar": "توزيع المقبوضات",
+    "fr": "Répartition des encaissements"
+  },
+  "reports.expenseBreakdown": {
+    "ar": "توزيع المصروفات",
+    "fr": "Répartition des décaissements"
+  },
+  "reports.balancesAndDebt": {
+    "ar": "الأرصدة والديون بنهاية الفترة",
+    "fr": "Soldes et dettes en fin de période"
+  },
+  "reports.showStudents": {
+    "ar": "عرض الطلاب",
+    "fr": "Afficher les élèves"
+  },
+  "reports.attendanceFilter.all": {
+    "ar": "كل من لديهم سجلات",
+    "fr": "Tous les élèves avec un pointage"
+  },
+  "reports.attendanceFilter.absence": {
+    "ar": "لديهم غياب، بعذر أو دون عذر",
+    "fr": "Avec au moins une absence"
+  },
+  "reports.attendanceFilter.unexcused": {
+    "ar": "لديهم غياب دون عذر",
+    "fr": "Avec une absence non justifiée"
+  },
+  "reports.attendanceFilter.excused": {
+    "ar": "لديهم غياب بعذر",
+    "fr": "Avec une absence justifiée"
+  },
+  "reports.attendanceMethod": {
+    "ar": "طريقة حساب الحضور",
+    "fr": "Calcul des taux de présence"
+  },
+  "reports.registrationMethod": {
+    "ar": "كيف يُحسب الطالب الجديد؟",
+    "fr": "Calcul des nouvelles inscriptions"
+  },
+  "reports.choosePeriod": {
+    "ar": "فترة التقرير",
+    "fr": "Période du rapport"
+  },
+  "reports.onePeriod": {
+    "ar": "تنطبق على كل أقسام التقرير",
+    "fr": "Commune à toutes les rubriques"
+  },
+  "reports.backOverview": {
+    "ar": "العودة لملخص الفترة",
+    "fr": "Retour au bilan de la période"
+  },
+  "reports.printSection": {
+    "ar": "طباعة الجزء المعروض",
+    "fr": "Imprimer cette rubrique"
+  },
+  "payments.subscriptionAnchor": {
+    "ar": "بداية الاشتراك: {date}",
+    "fr": "Début de l’inscription : {date}"
+  },
+  "payments.cashDateNote": {
+    "ar": "الأشهر تُحسب من بداية الاشتراك. تاريخ الدفع يسجّل يوم قبض المال ولا يغيّر بداية الأشهر.",
+    "fr": "Les mois sont calculés à partir du début de l’inscription. La date du paiement indique le jour de l’encaissement, sans décaler les mois."
+  },
+  "payments.periodLimit": {
+    "ar": "عدد الفترات يتجاوز الحد المسموح.",
+    "fr": "Le nombre de périodes dépasse la limite autorisée."
+  },
+  "subscription.start": {
+    "ar": "تاريخ التسجيل وبداية الاشتراك",
+    "fr": "Date d’inscription et début de facturation"
+  },
+  "subscription.startHint": {
+    "ar": "يبدأ به حساب الأشهر، حتى لو كان الدفع في يوم آخر.",
+    "fr": "Les mois partent de cette date, même si le paiement intervient plus tard."
+  },
+  "subscription.registrationDate": {
+    "ar": "تاريخ التسجيل",
+    "fr": "Date d’inscription"
+  },
+  "subscription.fullMonths": {
+    "ar": "أشهر مدفوعة بالكامل",
+    "fr": "Mois entièrement payés"
+  },
+  "subscription.paidThrough": {
+    "ar": "مدفوع بشكل متصل حتى",
+    "fr": "Paiements continus jusqu’au"
+  },
+  "subscription.nextMonth": {
+    "ar": "بداية أول شهر غير مكتمل",
+    "fr": "Début du premier mois à compléter"
+  },
+  "subscription.nextDue": {
+    "ar": "تاريخ استحقاق الشهر",
+    "fr": "Date d’échéance du mois"
+  },
+  "subscription.registration": {
+    "ar": "رسوم التسجيل",
+    "fr": "Frais d’inscription"
+  },
+  "subscription.gilet": {
+    "ar": "الجيليه",
+    "fr": "Gilet"
+  },
+  "subscription.feePaid": {
+    "ar": "المدفوع {paid} من {price}",
+    "fr": "Payé : {paid} sur {price}"
+  },
+  "subscription.waived": {
+    "ar": "إسقاط {amount}",
+    "fr": "Remise : {amount}"
+  },
+  "subscription.remaining": {
+    "ar": "المتبقي",
+    "fr": "Reste"
+  },
+  "subscription.invalidStart": {
+    "ar": "بداية الاشتراك يجب أن تكون بين تاريخ ميلاد الطفل واليوم.",
+    "fr": "Le début de l’inscription doit se situer entre la naissance de l’élève et aujourd’hui."
+  },
+  "subscription.error.1404": {
+    "ar": "أدخل تاريخ بداية اشتراك صحيحًا.",
+    "fr": "Le début de l’inscription doit se situer entre la naissance de l’élève et aujourd’hui."
+  },
+  "subscription.details": {
+    "ar": "تفاصيل الرسوم والأشهر",
+    "fr": "Détail des frais et des mensualités"
+  },
+  "subscription.editHint": {
+    "ar": "يُصحّح مواعيد الأشهر، دون تغيير مبالغ الدفعات أو تواريخ قبضها.",
+    "fr": "Corrige les périodes facturées, sans modifier les montants ni les dates des paiements."
+  },
+  "subscription.partialPaid": {
+    "ar": "المدفوع من الشهر غير المكتمل",
+    "fr": "Montant payé pour le mois en cours de règlement"
+  },
+  "subscription.partialRemaining": {
+    "ar": "المتبقي لإكمال الشهر",
+    "fr": "Reste à régler pour ce mois"
+  },
+  "subscription.staleEdit": {
+    "ar": "تغيّر السجل منذ فتحه؛ حدّث الصفحة وراجع البيانات الجديدة قبل الحفظ.",
+    "fr": "Le dossier a changé depuis son ouverture. Actualisez la page et vérifiez les données avant d’enregistrer."
+  },
+  "subscription.afterDeparture": {
+    "ar": "بداية الاشتراك لا تكون بعد تاريخ مغادرة الطالب.",
+    "fr": "Le début de facturation ne peut pas être postérieur au départ de l’élève."
   }
 }

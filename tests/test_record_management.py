@@ -196,15 +196,16 @@ def test_asset_recalculation_and_invalid_dates_rollback(ledger):
     assert row(conn,'assets',ident)['archived_at'] is not None
 
 
-def test_account_correction_requires_resolving_dependent_receipts(ledger):
+def test_account_correction_preserves_receipts_and_requires_resolving_debt(ledger):
     from datetime import timedelta
     from account_records import change_account
     conn,marker=ledger
     F.update_tariffs(1000,2000,1000,'record QA fixture')
     sid=child(conn,marker,cash=4000) # creates three periods, including future credit
     anchor=F.today()-timedelta(days=3)
-    with pytest.raises(ValueError,match='ألغِ الوصولات'): change_account(sid,start_date=anchor,status='regular',actor='record QA',reason='تصحيح البداية')
-    assert row(conn,'monthly_accounts',sid)['start_date']==F.today()
+    change_account(sid,start_date=anchor,status='regular',actor='record QA',reason='تصحيح البداية')
+    assert row(conn,'monthly_accounts',sid)['start_date']==anchor
+    assert F.projection(conn,sid,materialize=False)['cash_paid']==4000
     rid=scalar(conn,"SELECT receipt_id FROM monthly_receipts WHERE student_id=%s AND state='active'",(sid,))
     F.cancel_receipt(rid,'إدخال خاطئ',actor='record QA')
     change_account(sid,start_date=anchor,status='regular',actor='record QA',reason='تصحيح البداية')

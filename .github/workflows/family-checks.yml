@@ -93,10 +93,16 @@ jobs:
         run: python -m tests.browser_french
       - name: Manual dates, calendar validation, drafts and bilingual mobile layout
         run: python -m tests.browser_date_entry
+      - name: Subscription anchor, deferred payments and cash dates
+        run: python -m tests.browser_subscription_anchor
+      - name: Intake dates, audited student-file edits and receipt cash dates
+        run: python -m tests.browser_subscription_file
       - name: Student portraits across lists, receipts, attendance and photo changes
         run: python -m tests.browser_student_portraits
       - name: Period reports, reconciled details, exports, filters and mobile
         run: python -m tests.browser_period_reports
+      - name: School period counts, attendance and family edit modal
+        run: python -m tests.browser_school_period
       - name: Synthetic Pages preview journeys and mobile screenshots
         run: python tests/browser_operator_preview.py
       - name: Record editing, cancellation, audit and mobile totals in Chromium
@@ -135,6 +141,8 @@ jobs:
           python -m tests.browser_people_live
           python -m tests.browser_french_live
           python -m tests.browser_reports_live
+          python -m tests.browser_school_live
+          python -m tests.browser_subscription_file_live
           python -m tests.browser_security_live
       - name: Start isolated QA previews
         shell: bash

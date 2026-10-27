@@ -37,9 +37,20 @@ function previewTable(table){
  return previewState.tables[table]||(previewState.tables[table]=[]);
 }
 function previewIssue(s,amount,kind=null,date=today,corrects_id=null){
- const a=previewAccount(s);let registration=kind==='gilet'?0:Math.min(amount,a.registration_due),gilet=kind==='registration'?0:Math.min(amount-registration,a.gilet_due);
+ const a=previewAccount(s);let registration=kind==='gilet'||kind==='monthly'?0:Math.min(amount,a.registration_due),gilet=kind==='registration'||kind==='monthly'?0:Math.min(amount-registration,a.gilet_due);
  if(kind==='registration')registration=amount;if(kind==='gilet')gilet=amount;
  const r={id:++previewState.sequence,student:s.id,amount,registration,gilet,monthly:amount-registration-gilet,date,cancelled:false,corrects_id,revision:++s.ledger_revision};previewState.receipts.push(r);previewBump(s);previewAudit('monthly_receipts',r.id,'created',null,r,'دفعة في المعاينة');return r;
+}
+function previewAnniversary(anchor,index){
+ const [year,month,day]=String(anchor).split('-').map(Number),start=new Date(0);start.setUTCHours(12,0,0,0);start.setUTCFullYear(year,month-1+index,1);
+ const end=new Date(start);end.setUTCMonth(end.getUTCMonth()+1,0);start.setUTCDate(Math.min(day,end.getUTCDate()));
+ return start.toISOString().slice(0,10);
+}
+function previewMonthAllocation(s,cash){
+ const price=previewAmount(previewState.prices.tuition),paid=previewState.receipts.filter(r=>r.student===s.id&&!r.cancelled).reduce((n,r)=>n+Number(r.monthly||0),0)+Number(s.waivedMonthly||0);
+ let index=Math.floor(paid/price),settled=paid%price,left=cash;const months=[];
+ while(left){if(index>=1200)throw Error(I18N.tr('payments.periodLimit'));const allocating=Math.min(price-settled,left);months.push({start:previewAnniversary(s.start,index),end:previewAnniversary(s.start,index+1),price,previously_paid:settled,allocating});left-=allocating;settled=0;index++;}
+ return months;
 }
 async function previewOperation(op,d={}){
  if(op==='login'){
@@ -57,12 +68,14 @@ async function previewOperation(op,d={}){
  if(d.request_token&&previewState.requests.has(d.request_token))return previewClone(previewState.requests.get(d.request_token));
  let result={ok:true};
  if(op==='students.create'){
-  if(!d.name||!(d.father&&d.fatherPhone||d.mother&&d.motherPhone))throw Error('أدخل اسم الطفل واسم وهاتف أحد الوالدين.');
+  const parent=d.existing_parent_id?previewState.students.find(s=>s.parent_id===d.existing_parent_id):null;
+  if(d.existing_parent_id){previewRequire('students.view');if(!parent)throw Error('ولي الأمر غير موجود.');}
+  if(!d.name||!parent&&!(d.father&&d.fatherPhone||d.mother&&d.motherPhone))throw Error('أدخل اسم الطفل واسم وهاتف أحد الوالدين.');
   if(d.birth>today)throw Error('تاريخ الميلاد لا يكون مستقبليًا.');
   const exempt=d.mode==='exempt',registration=exempt?0:d.registration?previewState.prices.registration:0,gilet=exempt?0:d.gilet?previewState.prices.gilet:0,cash=exempt?0:previewAmount(d.amount||0,true);
   if(cash&&cash<registration+gilet)throw Error('المبلغ لا يغطي الرسوم المختارة.');
-  const id='PAGES'+(++previewState.sequence),parent=d.existing_parent_id?previewState.students.find(s=>s.parent_id===d.existing_parent_id):null;
-  const s={id,name:d.name,birth:d.birth,gender:d.gender,class:'',parent_id:parent?.parent_id||'F'+id,parent:parent?.parent||d.father||d.mother,phone:parent?.phone||d.fatherPhone||d.motherPhone,fatherName:parent?.fatherName||d.father||'',fatherPhone:parent?.fatherPhone||d.fatherPhone||'',motherName:parent?.motherName||d.mother||'',motherPhone:parent?.motherPhone||d.motherPhone||'',place:d.place||'',address:d.address||'',health:d.health||'',allergy:'',notes:'',pickups:[],registration,gilet,exempt,start:today,monthlyOwed:0,waivedRegistration:0,waivedGilet:0,waivedMonthly:0,revision:'1',account_revision:'1',parent_revision:'1',ledger_revision:1,photo:{revision:d.photo?1:0,data:d.photo?'data:image/'+(d.photo.startsWith('/9j')?'jpeg':'png')+';base64,'+d.photo:null},cancelled:false};
+  const id='PAGES'+(++previewState.sequence);
+  const s={id,name:d.name,birth:d.birth,gender:d.gender,class:'',parent_id:parent?.parent_id||'F'+id,parent:parent?.parent||d.father||d.mother,phone:parent?.phone||d.fatherPhone||d.motherPhone,fatherName:parent?.fatherName||d.father||'',fatherPhone:parent?.fatherPhone||d.fatherPhone||'',motherName:parent?.motherName||d.mother||'',motherPhone:parent?.motherPhone||d.motherPhone||'',place:d.place||'',address:d.address||'',health:d.health||'',allergy:'',notes:'',pickups:[],registration,gilet,exempt,start:d.start_date||today,monthlyOwed:0,waivedRegistration:0,waivedGilet:0,waivedMonthly:0,revision:'1',account_revision:'1',parent_revision:'1',ledger_revision:1,photo:{revision:d.photo?1:0,data:d.photo?'data:image/'+(d.photo.startsWith('/9j')?'jpeg':'png')+';base64,'+d.photo:null},cancelled:false};
   previewState.students.push(s);if(cash)previewIssue(s,cash);previewAudit('students',id,'created',null,s,'تسجيل طفل');result={id,created:true};
  }else if(op==='students.restore'){
   const s=previewStudent(d.student);previewRevision(s,d.revision);if(!s.cancelled)throw Error('الملف مسترجع بالفعل.');s.cancelled=false;s.paused=true;previewBump(s);previewAudit('students',s.id,'updated',{cancelled:true},s,d.reason);
@@ -70,7 +83,13 @@ async function previewOperation(op,d={}){
   const s=previewStudent(d.student),a=previewAccount(s);if(s.cancelled||s.ledger_revision!==d.revision||a.due!==Number(d.due))throw Error('تغيّر الحساب؛ أعد فتح نافذة إسقاط الدين.');
   s.waivedRegistration+=a.registration_due;s.waivedGilet+=a.gilet_due;s.waivedMonthly+=a.due-a.registration_due-a.gilet_due;previewBump(s);previewAudit('monthly_waivers',s.id,'created',null,{name:s.name,amount:a.due},d.reason);result={waived:a.due,created:true};
  }else if(op==='students.edit'){
-  const s=previewStudent(d.id);previewRevision(s,d.revision);if(s.cancelled)throw Error('الملف مؤرشف.');const before=previewClone(s);for(const k of ['name','birth','gender','place','address','health','allergy','notes','pickups'])if(k in d.values)s[k]=d.values[k];previewBump(s);previewAudit('students',s.id,'updated',before,s,d.reason);result={id:s.id};
+  const s=previewStudent(d.id);previewRevision(s,d.revision);if(s.cancelled)throw Error('الملف مؤرشف.');
+  const parentKeys=['fatherName','fatherPhone','motherName','motherPhone'],editParent=parentKeys.some(k=>k in d.values),family=previewState.students.filter(x=>x.parent_id===s.parent_id);
+  const parentBefore=Object.fromEntries(parentKeys.map(k=>[k,s[k]||''])),parentAfter={...parentBefore};
+  if(editParent){previewRequire('parents.edit');if(String(d.parent_revision)!==String(s.parent_revision))throw Error('تغيّر السجل منذ فتحه؛ حدّث الصفحة وراجع البيانات الجديدة قبل الحفظ.');for(const k of parentKeys)if(k in d.values){const value=String(d.values[k]).trim();if(value.length>(k.endsWith('Phone')?20:100))throw Error('أكمل الحقول المطلوبة.');parentAfter[k]=value;}if(!!parentAfter.fatherName!==!!parentAfter.fatherPhone)throw Error('يرجى إدخال اسم الأب ورقم هاتفه معاً.');if(!!parentAfter.motherName!==!!parentAfter.motherPhone)throw Error('يرجى إدخال اسم الأم ورقم هاتفها معاً.');if(!parentAfter.fatherName&&!parentAfter.motherName)throw Error('يلزم اسم ورقم هاتف الأب أو الأم على الأقل.');}
+  const before=previewClone(s);for(const k of ['name','birth','gender','place','address','health','allergy','notes','pickups'])if(k in d.values)s[k]=d.values[k];
+  if(editParent&&JSON.stringify(parentBefore)!==JSON.stringify(parentAfter)){for(const child of family){Object.assign(child,parentAfter);child.parent=child.fatherName||child.motherName;child.phone=child.fatherPhone||child.motherPhone;child.parent_revision=String(Number(child.parent_revision)+1);}previewAudit('parents',s.parent_id,'updated',parentBefore,parentAfter,d.reason);}
+  previewBump(s);previewAudit('students',s.id,'updated',before,s,d.reason);result={id:s.id};
  }else if(op==='photos.save'){
   const s=previewStudent(d.student);if(s.photo.revision!==d.revision)throw Error('تغيّرت الصورة؛ أعد فتحها.');s.photo={revision:d.revision+1,data:d.remove?null:'data:image/'+(d.photo.startsWith('/9j')?'jpeg':'png')+';base64,'+d.photo};previewAudit('student_photos',s.id,d.remove?'deleted':'updated',null,{name:s.name,photo:d.remove?'بلا صورة':'صورة محفوظة'},d.reason);
  }else if(op==='departments.create'){
@@ -78,9 +97,9 @@ async function previewOperation(op,d={}){
  }else if(op==='departments.transfer'){
   const dep=previewState.departments.find(x=>x.id===d.department_id&&!x.cancelled);if(!dep)throw Error('القسم غير متاح.');for(const id of d.ids){const s=previewStudent(id);if(s.cancelled)throw Error('الطفل مؤرشف.');const old=s.class;s.class=dep.name;previewBump(s);previewAudit('student_departments',id,'updated',{class:old},{name:s.name,class:s.class},'نقل بين الأقسام');}
  }else if(op==='payments.preview'){
-  const s=previewStudent(d.student);if(s.cancelled||s.exempt)throw Error('الحساب مؤرشف أو معفي؛ لا يقبل دفعة جديدة.');result={amount:previewAmount(d.amount),revision:s.ledger_revision,tariff:previewState.prices.tuition,months:[{start:today,end:today,allocating:Number(d.amount)}]};
+  const s=previewStudent(d.student);if(s.cancelled||s.exempt)throw Error('الحساب مؤرشف أو معفي؛ لا يقبل دفعة جديدة.');const amount=previewAmount(d.amount);result={amount,revision:s.ledger_revision,tariff:previewState.prices.tuition,months:previewMonthAllocation(s,amount)};
  }else if(op==='payments.create'||op==='fees.collect'){
-  const s=previewStudent(d.student);if(s.cancelled||s.exempt)throw Error('الحساب مؤرشف أو معفي.');if(op==='payments.create'&&(d.revision!==s.ledger_revision||d.tariff!==previewState.prices.tuition))throw Error('تغيّر الحساب؛ أعد المعاينة.');const amount=op==='fees.collect'?previewAccount(s)[d.kind+'_due']:previewAmount(d.amount);const r=previewIssue(s,amount,d.kind||null,d.date||today);result={id:r.id,created:true};
+  const s=previewStudent(d.student);if(s.cancelled||s.exempt)throw Error('الحساب مؤرشف أو معفي.');if(op==='payments.create'&&(d.revision!==s.ledger_revision||d.tariff!==previewState.prices.tuition))throw Error('تغيّر الحساب؛ أعد المعاينة.');const amount=op==='fees.collect'?previewAccount(s)[d.kind+'_due']:previewAmount(d.amount);const r=previewIssue(s,amount,op==='payments.create'?'monthly':d.kind,d.date||today);result={id:r.id,created:true};
  }else if(op==='expenses.create'){
   const amount=previewAmount(d.amount),paid=previewAmount(d.paid,true);if(paid>amount)throw Error('المدفوع أكبر من إجمالي المصروف.');const e={...d,id:++previewState.sequence,amount,paid,revision:'1',cancelled:false,notes:d.notes||''};previewState.expenses.push(e);previewAudit('expenses',e.id,'created',null,e);result={id:e.id,created:true};
  }else if(op==='expenses.settle'){

@@ -50,6 +50,7 @@ async def main(origin, username, password):
             assert result['summary']['income'] == before['summary']['income'] + cash
             assert result['summary']['outgoing'] == before['summary']['outgoing'] + 200
             assert sum(r['amount'] for r in result['items'] if r['category'] != 'income') == result['summary']['outgoing']
+            await page.locator('[data-report-section=money][role=tab]').click()
             await page.locator('#fin-query').fill('live-report-QA')
             await expect(page.locator('.fin-screen-table tbody tr')).to_have_count(1)
             async with page.expect_download() as info:

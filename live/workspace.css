@@ -8,3 +8,10 @@
 @media print{aside,.topbar,footer,.page-receipt>.actions,.workspace-nav,button,#toast{display:none!important}main{margin:0!important;padding:0!important}.panel{border:0!important;box-shadow:none!important}.page-receipt{max-width:none}}
 
 .page-receipt .badge{color:var(--green);background:var(--soft);font-size:13px}.history-diff span{overflow-wrap:anywhere}
+.file-account-details{margin-top:18px;border-top:1px solid var(--border);padding-top:16px}.file-account-details>summary{color:var(--green);font-size:14px;cursor:pointer}.file-account-stats .account-date .stat-value{font-size:19px;direction:ltr;unicode-bidi:isolate}.account-fee-row{align-items:flex-start;font-size:14px}.account-fee-row>div{text-align:end}.account-fee-row small{display:block;color:var(--muted);margin-top:5px}.file-account-details .file-details{padding-bottom:14px}@media(max-width:600px){.file-account-stats .account-date .stat-value{font-size:17px}.account-fee-row{font-size:13px}}
+
+/* Child and parent details share one card, separated from the account above. */
+.file-info{margin-top:28px;gap:0;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow);overflow:hidden}
+.file-info>.panel{margin:0;border:0;border-radius:0;box-shadow:none;background:transparent}
+.file-info>.panel+.panel{border-inline-start:1px solid var(--border)}
+@media(max-width:1150px){.file-info>.panel+.panel{border-inline-start:0;border-top:1px solid var(--border)}}

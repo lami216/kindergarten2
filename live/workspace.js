@@ -117,8 +117,14 @@ const workspaceProfile=profile;
 profile=function(){
     const s=students.find(s=>s.id===profileId);let html=workspaceProfile();
     const template=document.createElement('template');template.innerHTML=html;
+    const financePanel=template.content.querySelector('#profile-receipts')?.closest('section');
+    if(financePanel&&s.start)financePanel.insertAdjacentHTML('beforeend',`<p class="muted body-space subscription-anchor-note">${I18N.tr('payments.subscriptionAnchor',{date:esc(I18N.date(s.start))})}</p>`);
     const form=template.content.querySelector('#profile-edit-child');
     if(form){form.dataset.revision=s.revision;form.dataset.parentRevision=s.parent_revision||'';form.insertAdjacentHTML('beforeend',`<fieldset class="body-space"><legend>${I18N.tr("ui.108b2e28b04d")}</legend><div id="pickup-fields">${pickupFields(s.pickups||[])}</div><button type="button" class="secondary small" data-add-pickup>${I18N.tr("ui.4cdf6e2b8128")}</button><p class="muted">${I18N.tr("ui.e0821e7da378")}</p></fieldset>`);}
+    if(form&&s.parent_id&&(demoActor.admin||liveSession.user.permissions.includes('parents.edit'))){
+        const fields=[['fatherName','ui.3c571949c936',100],['fatherPhone','ui.a84e401aadf5',20],['motherName','ui.529a1e93a7ba',100],['motherPhone','ui.faee701516d5',20]];
+        form.querySelector('.form-grid.body-space').insertAdjacentHTML('beforebegin',`<fieldset class="body-space profile-parents"><legend>${I18N.tr('ui.b3c275aa6ea2')}</legend><p class="muted">${I18N.tr('profile.parentsShared')}</p><div class="form-grid">${fields.map(([key,label,max])=>`<label>${I18N.tr(label)}<input name="${key}" maxlength="${max}" ${key.endsWith('Phone')?'type="tel" dir="ltr" autocomplete="tel"':''} value="${esc(s[key]||'')}"></label>`).join('')}</div></fieldset>`);
+    }
     if(s.pickups?.length)template.content.append(Object.assign(document.createElement('section'),{className:'panel',innerHTML:`<h2>${I18N.tr("ui.52167851614e")}</h2>${s.pickups.map(p=>'<div class="list-card"><strong>'+esc(p.name)+'</strong><span>'+esc(p.phone)+' · '+esc(p.relation||'')+'</span></div>').join('')}`}));
     html=template.innerHTML;
     let actions='';
@@ -266,7 +272,13 @@ liveSubmit=async function(form){
     const d=new FormData(form),get=k=>String(d.get(k)||'');
     if(form.id==='profile-edit-child'){
         const pickups=[...form.querySelectorAll('.pickup-row')].map(row=>({name:row.querySelector('[name="pickup-name"]').value,phone:row.querySelector('[name="pickup-phone"]').value,relation:row.querySelector('[name="pickup-relation"]').value}));
-        return liveSaved('students.edit',{id:profileId,revision:form.dataset.revision,parent_revision:form.dataset.parentRevision,values:{...Object.fromEntries([...d].filter(([k,v])=>typeof v==='string')),pickups},reason:`${I18N.tr("ui.4141b5d2b7ab")}`},form);
+        const values={...Object.fromEntries([...d].filter(([k,v])=>typeof v==='string')),pickups};
+        for(const key of ['fatherName','fatherPhone','motherName','motherPhone']){const input=form.elements[key];if(input&&input.value.trim()===input.defaultValue.trim())delete values[key];}
+        const start=form.elements.start_date;
+        if(start&&start.value===form.dataset.subscriptionStart)delete values.start_date;
+        return liveSaved('students.edit',{id:profileId,revision:form.dataset.revision,parent_revision:form.dataset.parentRevision,
+            account_revision:form.dataset.accountRevision,ledger_revision:form.dataset.ledgerRevision===undefined?undefined:Number(form.dataset.ledgerRevision),
+            values,reason:`${I18N.tr("ui.4141b5d2b7ab")}`},form);
     }
     if(form.id==='settlement-form')return liveSaved('expenses.settle',{id:Number(form.dataset.id),revision:form.dataset.revision,amount:get('amount'),date:get('date'),reason:get('reason'),confirmed:d.has('confirmed')},form);
     if(form.id==='account-setup-form')return liveSaved('accounts.setup',{student:form.dataset.student,start:get('start'),status:get('status'),confirmed:d.has('confirmed')},form);

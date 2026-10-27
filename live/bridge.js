@@ -113,6 +113,13 @@ demoMetrics=user=>{
         edits:activity.filter(a=>a.action==='updated').reduce((n,a)=>n+Number(a.events),0),
         cancellations:activity.filter(a=>['cancelled','deleted','archived'].includes(a.action)).reduce((n,a)=>n+Number(a.events),0)};
 };
+const anchoredPaymentBody=paymentBody;
+paymentBody=function(student){
+    const template=document.createElement('template');template.innerHTML=anchoredPaymentBody(student);
+    const title=template.content.querySelector('#payment-form .form-title');
+    if(title&&student.start)title.insertAdjacentHTML('afterend',`<p class="muted body-space subscription-anchor-note">${I18N.tr('payments.subscriptionAnchor',{date:esc(I18N.date(student.start))})}<br>${I18N.tr('payments.cashDateNote')}</p>`);
+    return template.innerHTML;
+};
 const liveRender=render;
 render=function(){
     if(!liveSession||!liveData)return;
@@ -173,7 +180,7 @@ async function liveSubmit(form){
     }
     if(!liveSession)throw Error(`${I18N.tr("ui.1d385745f642")}`);
     if(form.id==='student-form')return liveSaved('students.create',{
-        name:get('name'),birth:get('birth'),gender:get('gender'),place:get('place'),address:get('address'),
+        name:get('name'),birth:get('birth'),start_date:get('start_date')||undefined,gender:get('gender'),place:get('place'),address:get('address'),
         health:get('health'),father:get('father'),fatherPhone:get('fatherPhone'),mother:get('mother'),
         motherPhone:get('motherPhone'),existing_parent_id:get('existing_parent_id'),mode:get('mode'),registration:d.has('registration'),gilet:d.has('gilet'),
         amount:get('amount')||'0',photo:await liveFile(form.querySelector('[name="photo"]')?.files[0])},form);

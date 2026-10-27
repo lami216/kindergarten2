@@ -15,6 +15,8 @@ def change_account(student, *, actor, reason, start_date=None, status=None, canc
             import access_control as A
             actor=A.actor(c,'accounts.delete' if cancel else 'accounts.edit',actor)
             H.context(c,actor,reason)
+            c.execute('SELECT birth_date FROM students WHERE student_id=%s FOR KEY SHARE',(student,))
+            child=c.fetchone()
             old=R._lock(c,'monthly_accounts',student,expected)
             if old['archived_at']: raise ValueError('الحساب ملغى بالفعل.')
             if cancel:
@@ -27,12 +29,10 @@ def change_account(student, *, actor, reason, start_date=None, status=None, canc
                 if anchor>F.today() or anchor<date(1990,1,1): raise ValueError('اختر تاريخ بداية بين 1990 واليوم.')
                 if status not in ('regular','exempt'): raise ValueError('اختر حالة الرسوم.')
                 if anchor!=old['start_date']:
-                    c.execute("SELECT 1 FROM monthly_allocations a JOIN monthly_receipts r ON r.receipt_id=a.receipt_id WHERE r.student_id=%s AND a.active AND r.state='active' UNION ALL SELECT 1 FROM monthly_waivers WHERE student_id=%s LIMIT 1",(student,student))
-                    if c.fetchone(): raise ValueError('لتصحيح البداية، ألغِ الوصولات والإعفاءات المرتبطة أولًا ثم أعد تسجيل الصحيح؛ لا يُعاد تفسير دفعات قديمة بصمت.')
-                    c.execute('SELECT period_id,period_no FROM monthly_periods WHERE student_id=%s ORDER BY period_no FOR UPDATE',(student,))
-                    for period in c.fetchall():
-                        c.execute('UPDATE monthly_periods SET starts=%s,ends=%s WHERE period_id=%s',
-                                  (F.anniversary(anchor,period['period_no']),F.anniversary(anchor,period['period_no']+1),period['period_id']))
+                    from subscription_dates import correct_start
+                    correct_start(c,student,str(anchor),actor=actor,reason=reason,
+                        birth=child['birth_date'] if child else None,expected=R.revision(old),
+                        expected_ledger=F.receipt_revision(conn,student))
                 if old['status']=='regular' and status=='exempt':
                     import student_debt as D
                     F._due_started(c,student,{**old,'start_date':anchor})
