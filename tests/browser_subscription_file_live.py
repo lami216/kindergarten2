@@ -26,6 +26,7 @@ async def main(origin,username,password,dsn):
             await page.locator('#preview-enter').click();await expect(page.locator('#preview-login')).to_be_hidden()
             async def api(op,data=None):return await page.evaluate('async({op,data})=>liveCall(op,data===null?undefined:data)',dict(op=op,data=data))
             state=await api('snapshot');today=date.fromisoformat(state['today']);start=today-timedelta(days=20)
+            cash=int(state['prices']['registration'])+6*int(state['prices']['tuition'])
             dep=await api('departments.create',dict(name='Subscription QA '+uuid.uuid4().hex[:8]))
             await page.evaluate('async()=>{await liveLoad();render()}')
             await page.locator('nav [data-page=students]').click();await page.locator('#add-student').click()
@@ -34,7 +35,8 @@ async def main(origin,username,password,dsn):
             await page.locator('#student-form [name=department_id]').select_option(str(dep['id']))
             await fill_field(page.locator('#student-subscription-start'),str(start))
             await page.locator('[data-fee-mode=pay]').click();await page.locator('#student-form [name=gilet]').uncheck()
-            await page.locator('#student-form [name=amount]').fill('19000')
+            await page.locator('#student-form [name=registration]').check()
+            await page.locator('#student-form [name=amount]').fill(str(cash))
             await page.locator('#student-form .form-end button.primary').click()
             await expect(page.locator('#student-rows')).to_contain_text('Actual subscription student')
             state=await api('snapshot');s=next(s for s in state['students'] if s['name']=='Actual subscription student')
@@ -48,7 +50,7 @@ async def main(origin,username,password,dsn):
             await page.locator('#profile-edit-child .form-end button.primary').click()
             await expect(page.locator('#profile-edit-dialog')).not_to_be_visible()
             state=await api('snapshot');corrected=next(row for row in state['students'] if row['id']==s['id'])
-            assert corrected['start']==corrected['registered_on']==str(updated) and corrected['account']['paid']==19000
+            assert corrected['start']==corrected['registered_on']==str(updated) and corrected['account']['paid']==cash
             with psycopg2.connect(dsn) as conn:
                 with conn.cursor() as c:
                     c.execute("SELECT before_state->>'start_date',after_state->>'start_date',actor FROM record_changes WHERE table_name='monthly_accounts' AND record_key=%s ORDER BY change_id DESC LIMIT 1",(s['id'],))
@@ -63,7 +65,7 @@ async def main(origin,username,password,dsn):
             state=await api('snapshot');corrected=next(row for row in state['students'] if row['id']==s['id'])
             assert corrected['start']==str(updated) and corrected['account']['full']==6
             active=next(r for r in state['receipts'] if r['student']==s['id'] and not r['cancelled'])
-            assert active['date']==str(today-timedelta(days=2)) and active['amount']==19000
+            assert active['date']==str(today-timedelta(days=2)) and active['amount']==cash
             await page.evaluate("(id)=>{page='students';profileId=id;render()}",s['id'])
             await page.locator('.file-account').screenshot(path=str(out/'student-live.png'))
             assert not errors,errors
