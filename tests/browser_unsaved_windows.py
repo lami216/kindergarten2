@@ -80,6 +80,22 @@ async def main(origin=None):
             await expect(page.locator('.discard-box')).to_have_count(0)
             await close_clean()
             passed('external_programmatic_close_does_not_leak_warning')
+            await open_form()
+            late_close = await page.evaluate("""async () => {
+                const d=document.querySelector('#record-dialog');
+                const closed=new Promise(resolve=>d.addEventListener('close',resolve,{once:true}));
+                d.close();
+                openProtected('Synthetic reopened edit','<form><input name=probe value=original></form>');
+                d.querySelector('[name=probe]').value='changed';
+                d.querySelector('#workspace-close').click();
+                await closed;
+                return {open:d.open, warning:!!d.querySelector('.discard-box')};
+            }""")
+            assert late_close == {'open': True, 'warning': True}, late_close
+            await page.locator('[data-keep]').click()
+            await page.locator('[name=probe]').fill('original')
+            await close_clean()
+            passed('late_native_close_event_preserves_reopened_dirty_warning')
             assert not errors, errors
             await context.close()
         await browser.close()
