@@ -140,7 +140,8 @@ def change(conn,data,profile):
         else:raise ValueError('هذا ليس مستند راتب.')
     elif table=='monthly_accounts':
         import account_records as AR
-        AR.change_account(ident,actor=actor,reason=reason,start_date=values.get('start_date'),status=values.get('status'),cancel=mode=='cancel',expected=expected)
+        AR.change_account(ident,actor=actor,reason=reason,start_date=values.get('start_date'),status=values.get('status'),cancel=mode=='cancel',expected=expected,
+            token=request_token(data),expected_due=data.get('due'),expected_ledger=data.get('ledger_revision'),confirmed=data.get('confirmed') is True)
     elif table=='monthly_waivers':
         import account_records as AR
         AR.change_waiver(ident,actor=actor,reason=reason,new_amount=int(values['amount']) if mode=='edit' else None,

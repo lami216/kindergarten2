@@ -288,7 +288,7 @@ liveSubmit=async function(form){
         const config=liveData.tools.find(t=>t.key===form.dataset.table),values={};
         for(const f of config.fields)if(d.has(f.key))values[f.key]=get(f.key);
         toolRows=null;
-        const result=await liveSaved('tools.change',{table:form.dataset.table,id:form.dataset.id,mode:form.dataset.mode,revision:form.dataset.revision,values,reason:get('reason'),confirmed:d.has('confirmed')},form);
+        const result=await liveSaved('tools.change',{table:form.dataset.table,id:form.dataset.id,mode:form.dataset.mode,revision:form.dataset.revision,values,reason:get('reason'),confirmed:d.has('confirmed'),due:form.dataset.exemptionDue===undefined?undefined:Number(form.dataset.exemptionDue),ledger_revision:form.dataset.exemptionLedger===undefined?undefined:Number(form.dataset.exemptionLedger)},form);
         loadToolRows();return result;
     }
     if(form.id==='fees-edit-form'){await liveSaved('fees.save',{registration:get('registration'),gilet:get('gilet'),tuition:get('tuition'),revision:form.dataset.revision,reason:get('reason'),confirmed:d.has('confirmed')},form);feeDraft=await liveCall('fees.read');render();return;}

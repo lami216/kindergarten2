@@ -143,6 +143,16 @@ def receipt_impact(conn, receipt_id, *, new_amount=None,
         raise ValueError("اسم الدافع غير صالح.")
     student=row["student_id"]
     with conn.cursor() as c:
+        c.execute('SELECT gilet_sale_id FROM monthly_allocations WHERE receipt_id=%s AND gilet_sale_id IS NOT NULL',(receipt_id,))
+        garment=c.fetchone()
+    if garment:
+        if desired!=int(row['amount']):raise ValueError('لتغيير ثمن بيع الجيليه، ألغِ البيع ثم سجّل بيعًا صحيحًا.')
+        current=projection(conn,student,materialize=False)
+        return dict(revision=receipt_revision(conn,student),receipt=data,new_amount=desired,new_date=day,new_payer=payer,
+            cash_delta=0,currently_due=current['due_now'],projected_due=current['due_now'],
+            affected_periods=[receipt_line(i) for i in data['items']],
+            new_items=[dict(kind='gilet',label='الجيليه',start=None,price=desired,previously_paid=0,waived=0,amount=desired)])
+    with conn.cursor() as c:
         c.execute("""SELECT status,start_date,departure_on,due_at_period_end FROM monthly_accounts
                      WHERE student_id=%s""",(student,))
         account=c.fetchone()

@@ -18,7 +18,7 @@ ZERO = Decimal(0)
 LEDGER = '''WITH allocations AS (
  SELECT a.receipt_id,
  COALESCE(SUM(a.amount) FILTER(WHERE f.kind='registration'),0) AS registration,
- COALESCE(SUM(a.amount) FILTER(WHERE f.kind='gilet'),0) AS gilet,
+ COALESCE(SUM(a.amount) FILTER(WHERE f.kind='gilet' OR a.gilet_sale_id IS NOT NULL),0) AS gilet,
  COALESCE(SUM(a.amount) FILTER(WHERE a.period_id IS NOT NULL),0) AS monthly,
  COALESCE(SUM(a.amount) FILTER(WHERE p.starts>r.received_on),0) AS prepaid
  FROM monthly_allocations a JOIN monthly_receipts r USING(receipt_id)

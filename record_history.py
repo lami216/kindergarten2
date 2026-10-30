@@ -2,6 +2,7 @@
 from psycopg2 import sql
 
 TABLES = {
+    'gilet_sales':'sale_id','gilet_deliveries':'delivery_id','account_status_requests':'request_token',
     'student_attendance':'attendance_id','teacher_attendance':'attendance_id',
     'students': 'student_id', 'student_photos': 'student_id', 'parents': 'father_id', 'teachers': 'national_id',
     'school_departments': 'department_id', 'student_departments': 'student_id',

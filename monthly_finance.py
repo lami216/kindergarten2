@@ -380,6 +380,8 @@ def migrate(conn):
                 ON monthly_receipts(corrects_id);
         """)
         c.execute("INSERT INTO finance_schema_versions(version) VALUES(8) ON CONFLICT DO NOTHING")
+        import gilet_sales
+        gilet_sales.migrate(c)
         import receipt_snapshots
         receipt_snapshots.migrate(c)
 
@@ -884,10 +886,18 @@ def correct_receipt(receipt_id, new_amount, reason, *, actor="مديرة الر�
                     WHERE a.receipt_id=%s""",(receipt_id,))
                 kinds={x["kind"] for x in c.fetchall()}
             previous=_cancel_in_tx(c,account["student_id"],receipt_id,reason,actor)
-            new_id,_=_issue(c,account,new_amount,correct_payer,actor,token,fp,
-                 selected_registration="registration" in kinds,
-                 selected_gilet="gilet" in kinds,
-                 as_of=correct_date,corrects_id=receipt_id)
+            c.execute('SELECT gilet_sale_id FROM monthly_allocations WHERE receipt_id=%s AND gilet_sale_id IS NOT NULL',(receipt_id,))
+            garment=c.fetchone()
+            if garment:
+                if new_amount!=int(old['amount']):raise ValueError('لتغيير ثمن بيع الجيليه، ألغِ البيع ثم سجّل بيعًا صحيحًا.')
+                from gilet_sales import issue
+                new_id=issue(c,account,new_amount,correct_payer,actor,token,fp,correct_date,
+                    sale_id=garment['gilet_sale_id'],corrects_id=receipt_id)
+            else:
+                new_id,_=_issue(c,account,new_amount,correct_payer,actor,token,fp,
+                     selected_registration="registration" in kinds,
+                     selected_gilet="gilet" in kinds,
+                     as_of=correct_date,corrects_id=receipt_id)
             c.execute("""SELECT allocation_id,fee_id,period_id,amount
                          FROM monthly_allocations WHERE receipt_id=%s AND active
                          ORDER BY allocation_id""",(new_id,))
@@ -1221,6 +1231,10 @@ def financial_report(conn, start, end, *, materialize=True):
              GROUP BY f.kind""",(start,end))
         fees={r["kind"]:int(r["n"]) for r in c.fetchall()}
         c.execute("""SELECT COALESCE(SUM(a.amount),0) AS n FROM monthly_allocations a
+            JOIN monthly_receipts r USING(receipt_id) WHERE a.gilet_sale_id IS NOT NULL
+            AND a.active AND r.state='active' AND r.received_on BETWEEN %s AND %s""",(start,end))
+        fees['gilet']=fees.get('gilet',0)+int(c.fetchone()['n'])
+        c.execute("""SELECT COALESCE(SUM(a.amount),0) AS n FROM monthly_allocations a
              JOIN monthly_receipts r ON r.receipt_id=a.receipt_id
              JOIN monthly_periods p ON p.period_id=a.period_id
              WHERE a.active
@@ -1248,6 +1262,10 @@ def financial_report(conn, start, end, *, materialize=True):
         ) fully WHERE fully.completed_on BETWEEN %s AND %s GROUP BY fully.kind""",
                   (end,start,end))
         counts={r["kind"]:int(r["n"]) for r in c.fetchall()}
+        c.execute("""SELECT COUNT(*) AS n FROM monthly_allocations a JOIN monthly_receipts r USING(receipt_id)
+            WHERE a.gilet_sale_id IS NOT NULL AND a.active AND r.state='active'
+            AND r.received_on BETWEEN %s AND %s""",(start,end))
+        counts['gilet']=counts.get('gilet',0)+int(c.fetchone()['n'])
         c.execute("""SELECT COALESCE(SUM(x.amount+
                  COALESCE((SELECT SUM(am.delta) FROM expense_cash_amendments am
                            WHERE am.event_id=x.event_id),0)),0) AS n
