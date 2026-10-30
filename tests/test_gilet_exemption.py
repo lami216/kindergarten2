@@ -149,6 +149,11 @@ def test_no_debt_no_fake_waiver_and_archived_rejected(browser):
     D.archive_student(sid,actor='owner')
     r,_=exemption(client,session,sid);assert r.status_code==422
     r,_=sale(client,session,sid);assert r.status_code==422
+    # Legacy inconsistent flags must still refuse cash for the archived child.
+    with conn.cursor() as c:
+        A.require(c,'accounts.edit')
+        c.execute('UPDATE monthly_accounts SET archived_at=NULL,archived_by=NULL,departure_on=NULL WHERE student_id=%s',(sid,))
+    r,_=sale(client,session,sid);assert r.status_code==422
 
 
 def test_sale_date_correction_pdf_excel_and_price_revalidation(browser):

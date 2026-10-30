@@ -3,11 +3,6 @@
 const GE=k=>I18N.tr(`gilet.${k}`), EX=k=>I18N.tr(`exemption.${k}`);
 Object.assign(recordNames,{gilet_sales:GE('salesLog'),gilet_deliveries:GE('deliveriesLog'),account_status_requests:EX('confirmationsLog')});
 Object.assign(historyFields,{sale_id:GE('saleNumber'),fee_id:GE('legacyFee'),price:GE('price'),delivered_at:GE('deliveryTime'),waived:EX('waived')});
-const garmentRecordTitle=recordTitle;
-recordTitle=function(r,type){
- if(['gilet_sales','gilet_deliveries','account_status_requests'].includes(type))return students.find(s=>s.id===(r.student||r.student_id))?.name||String(r.sale_id||r.fee_id||'—');
- return garmentRecordTitle(r,type);
-};
 const garmentProfile=profile;
 profile=function(){
  const s=students.find(x=>x.id===profileId),t=document.createElement('template');t.innerHTML=garmentProfile();

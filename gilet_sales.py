@@ -77,6 +77,14 @@ def _day(value):
     return day
 
 
+def _child(c,student):
+    # Match archive's child -> account lock order, including legacy mixed states.
+    c.execute('SELECT archived_at FROM students WHERE student_id=%s FOR KEY SHARE',(student,))
+    child=c.fetchone()
+    if not child:raise ValueError('الطالب غير موجود.')
+    return child
+
+
 def issue(c,account,price,payer,actor,token,fingerprint,day,*,sale_id=None,corrects_id=None):
     """Caller owns account lock; only creates fully funded garment allocations."""
     H.context(c,actor,'تصحيح وصل جيليه' if corrects_id else 'بيع جيليه وتسليمها')
@@ -107,13 +115,14 @@ def sell(student,*,actor,price,tariff_revision,received_on,confirmed,token):
         with conn.cursor() as c:
             import access_control as A
             actor=A.actor(c,'payments.create',actor)
+            child=_child(c,student)
             account=F._lock(c,student,for_payment=False)
             c.execute('SELECT receipt_id,request_hash FROM monthly_receipts WHERE request_token=%s',(token,))
             old=c.fetchone()
             if old:
                 if old['request_hash']!=fingerprint:raise ValueError('تغيّرت بيانات طلب البيع؛ افتح نافذة جديدة.')
                 conn.commit();return old['receipt_id'],False
-            if account['archived_at'] or account.get('departure_on'):raise ValueError('الملف مؤرشف أو متوقف؛ لا تقبل مبيعات جديدة.')
+            if child['archived_at'] or account['archived_at'] or account.get('departure_on'):raise ValueError('الملف مؤرشف أو متوقف؛ لا تقبل مبيعات جديدة.')
             tariff=F._tariffs(c)
             if price!=tariff['gilet'] or tariff_revision!=F._hash(tariff):raise ValueError('تغيّر سعر الجيليه؛ راجع السعر الجديد.')
             rid=issue(c,account,price,'ولي الأمر',actor,token,fingerprint,day)
@@ -131,13 +140,14 @@ def deliver(student,fee,*,actor,reason,confirmed,token,expected_revision):
         with conn.cursor() as c:
             import access_control as A
             actor=A.actor(c,'payments.edit',actor)
+            child=_child(c,student)
             account=F._lock(c,student,for_payment=False)
             c.execute('SELECT request_hash FROM gilet_deliveries WHERE request_token=%s',(token,))
             old=c.fetchone()
             if old:
                 if old['request_hash']!=fingerprint:raise ValueError('تغيّرت بيانات تأكيد التسليم.')
                 conn.commit();return False
-            if account['archived_at']:raise ValueError('الملف مؤرشف؛ راجع الملف قبل التسليم.')
+            if child['archived_at'] or account['archived_at']:raise ValueError('الملف مؤرشف؛ راجع الملف قبل التسليم.')
             F._assert_receipt_revision(c,student,expected_revision)
             c.execute('SELECT * FROM monthly_fees WHERE fee_id=%s AND student_id=%s AND kind=\'gilet\' FOR UPDATE',(fee,student))
             row=c.fetchone()
