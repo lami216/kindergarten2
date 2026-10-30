@@ -110,6 +110,17 @@ def migrate(conn):
             END IF;
             -- One corrected receipt preserves/cancels the original and issues a replacement.
             IF TG_TABLE_NAME='monthly_receipts' AND permitted='payments.edit' THEN needed='payments.edit'; END IF;
+            -- Delivery of an already paid legacy fee creates evidence, not cash.
+            IF TG_TABLE_NAME='gilet_deliveries' AND TG_OP='INSERT' THEN
+                needed=CASE WHEN target->>'fee_id' IS NOT NULL THEN 'payments.edit' ELSE 'payments.create' END;
+            END IF;
+            -- Exemption confirmations are edits; accounts has no create action.
+            IF TG_TABLE_NAME='account_status_requests' AND TG_OP='INSERT' THEN
+                needed='accounts.edit';
+                IF (target->>'waived')::bigint>0 AND NOT(actor.permissions ? 'accounts.delete') THEN
+                    RAISE EXCEPTION 'Waiver permission required' USING ERRCODE='42501';
+                END IF;
+            END IF;
             IF TG_TABLE_NAME IN ('student_departments','department_transfers') THEN needed='departments.edit'; END IF;
             IF TG_TABLE_NAME='student_departments' AND TG_OP='INSERT' AND permitted='students.create' THEN needed=permitted; END IF;
             IF TG_TABLE_NAME='monthly_tariffs' THEN needed='fees.edit'; END IF;

@@ -324,3 +324,34 @@ def test_payment_racing_exemption_never_waives_unreviewed_debt(browser):
     assert after['cash_paid']==(100 if result['pay'] else 0)
     assert after['exempt']==result['exempt']
     if result['exempt']:assert after['due_now']==0
+
+
+@pytest.mark.parametrize('with_debt',[False,True])
+def test_authorized_worker_exemption_uses_edit_and_waiver_not_create_permission(browser,with_debt):
+    client,conn=browser;session=login(client)
+    sid=child(client,session,mode='pay',registration=True,amount='0' if with_debt else '4000')
+    permissions=['accounts.edit']+(['accounts.delete'] if with_debt else [])
+    A.save_user(employee_name='Authorized exemption worker',name='exemption_clerk',password=PASSWORD,permissions=permissions)
+    worker=login(client,'exemption_clerk')
+    r,_=exemption(client,worker,sid);assert r.status_code==200,r.text
+    owner=login(client);p=F.projection(conn,sid)
+    assert p['exempt'] and p['due_now']==0
+
+
+def test_delivery_worker_needs_edit_without_cash_creation_permission(browser):
+    client,conn=browser;session=login(client)
+    sid=child(client,session,mode='pay',gilet=True,registration=False,amount='2000')
+    A.save_user(employee_name='Delivery clerk',name='delivery_clerk',password=PASSWORD,permissions=['payments.view','payments.edit'])
+    worker=login(client,'delivery_clerk');p=preview(client,worker,sid)
+    data=dict(student=sid,fee=p['purchases'][0]['id'],ledger_revision=p['ledger_revision'],reason='Delivered to guardian',confirmed=True,request_token=str(uuid.uuid4()))
+    r=post(client,worker,'gilet.deliver',data);assert r.status_code==200,r.text
+    denied,_=sale(client,worker,sid);assert denied.status_code==403
+    assert preview(client,worker,sid)['purchases'][0]['delivered']
+
+
+def test_cashier_can_sell_without_gaining_delivery_correction_rights(browser):
+    client,conn=browser;session=login(client);sid=child(client,session,mode='exempt')
+    A.save_user(employee_name='Cashier',name='gilet_cashier',password=PASSWORD,permissions=['payments.view','payments.create'])
+    worker=login(client,'gilet_cashier');r,_=sale(client,worker,sid);assert r.status_code==200,r.text
+    metrics=client.get('/api/snapshot').json()['metrics']
+    assert next(iter(metrics.values()))['payments']['count']==1
