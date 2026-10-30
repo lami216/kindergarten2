@@ -5,8 +5,10 @@ function formSignature(dialog){
  ]));
 }
 function protectEditWindow(dialog,closeIds=[]){
+ const clearDiscard=()=>dialog.querySelectorAll('.discard-box').forEach(box=>box.remove());
+ clearDiscard();dialog.onclose=clearDiscard;
  const initial=formSignature(dialog);
- const close=()=>{dialog.close();if(dialog.id.startsWith('profile-')||dialog.id==='transfer-dialog')render();};
+ const close=()=>{clearDiscard();dialog.close();if(dialog.id.startsWith('profile-')||dialog.id==='transfer-dialog')render();};
  const requestClose=()=>{
   if(formSignature(dialog)===initial){close();return;}
   if(dialog.querySelector('.discard-box'))return;
