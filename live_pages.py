@@ -53,7 +53,7 @@ def index_html():
     html = (DESIGN_ROOT/'index.html').read_text(encoding='utf-8')
     html = html.replace('<script src="preview.js">','<script src="/live/runtime.js"></script>\n<script src="preview.js">')
     html=html.replace('</head>','<link rel="stylesheet" href="/live/workspace.css"><link rel="stylesheet" href="/live/people.css"><link rel="stylesheet" href="/live/reports.css"></head>')
-    return html.replace('</body>','<script src="/live/bridge.js"></script>\n<script src="/live/workspace.js"></script>\n<script src="/live/people.js"></script>\n<script src="/live/attendance-session.js"></script>\n<script src="/live/reports.js"></script>\n<script src="/live/subscriptions.js"></script>\n</body>')
+    return html.replace('</body>','<script src="/live/bridge.js"></script>\n<script src="/live/workspace.js"></script>\n<script src="/live/people.js"></script>\n<script src="/live/attendance-session.js"></script>\n<script src="/live/reports.js"></script>\n<script src="/live/subscriptions.js"></script>\n<script src="/live/gilet-exemption.js"></script>\n</body>')
 
 
 def json_ready(value):
@@ -184,7 +184,7 @@ def snapshot(conn, profile):
         result['receipts']=rows(conn,'''SELECT r.receipt_id AS id,r.student_id AS student,r.amount,
              r.received_on AS date,r.state<>'active' AS cancelled,r.payer,r.corrects_id,
              COALESCE(SUM(a.amount) FILTER(WHERE f.kind='registration'),0) AS registration,
-             COALESCE(SUM(a.amount) FILTER(WHERE f.kind='gilet'),0) AS gilet,
+             COALESCE(SUM(a.amount) FILTER(WHERE f.kind='gilet' OR a.gilet_sale_id IS NOT NULL),0) AS gilet,
              COALESCE(SUM(a.amount) FILTER(WHERE a.period_id IS NOT NULL),0) AS monthly
              FROM monthly_receipts r LEFT JOIN monthly_allocations a USING(receipt_id)
              LEFT JOIN monthly_fees f USING(fee_id) GROUP BY r.receipt_id ORDER BY r.receipt_id''')
@@ -291,6 +291,28 @@ def edit_student(conn, data, actor):
 
 def mutate(conn, operation, data, profile):
     actor=profile['username']
+    if operation in ('gilet.preview','gilet.sell','gilet.deliver'):
+        import gilet_sales as G
+        student=text(data,'student',20,True)
+        if operation=='gilet.preview':return G.preview(conn,student)
+        if operation=='gilet.sell':
+            ident,created=G.sell(student,actor=actor,price=whole_amount(data.get('price')),
+                tariff_revision=text(data,'tariff_revision',64,True),received_on=text(data,'date',10,True),
+                confirmed=data.get('confirmed'),token=request_token(data))
+            return dict(id=ident,created=created)
+        if type(data.get('ledger_revision')) is not int or type(data.get('fee')) is not int:raise ValueError('راجع حالة التسليم من جديد.')
+        return dict(created=G.deliver(student,data['fee'],actor=actor,reason=text(data,'reason',2000,True),
+            confirmed=data.get('confirmed'),token=request_token(data),expected_revision=data['ledger_revision']))
+    if operation in ('exemption.preview','exemption.apply'):
+        import account_records as AR
+        student=text(data,'student',20,True)
+        if operation=='exemption.preview':
+            result=AR.exemption_preview(conn,student);conn.commit();return result
+        if data.get('confirmed') is not True or type(data.get('ledger_revision')) is not int or type(data.get('due')) is not int:
+            raise ValueError('راجع مبلغ الدين وأكد إسقاطه مع التحويل إلى معفي.')
+        return AR.change_account(student,actor=actor,reason=text(data,'reason',2000,True),status='exempt',
+            expected=text(data,'revision',64,True),expected_ledger=data['ledger_revision'],expected_due=data['due'],
+            token=request_token(data),confirmed=True)
     if operation in ('reports.finance','reports.finance.export'):
         import finance_reports
         return finance_reports.read(data) if operation=='reports.finance' else finance_reports.export(data)
@@ -643,7 +665,7 @@ def make_app(dsn, public_origin, *, management=False, trusted_proxies=()):
     async def bridge(request): return Response((LIVE_ROOT/'bridge.js').read_bytes(),media_type='text/javascript')
     async def workspace_asset(request):
         name=request.path_params['name']
-        if name not in ('workspace.js','workspace.css','people.js','people.css','attendance-session.js','reports.js','reports.css','subscriptions.js'):return Response(status_code=404)
+        if name not in ('workspace.js','workspace.css','people.js','people.css','attendance-session.js','reports.js','reports.css','subscriptions.js','gilet-exemption.js'):return Response(status_code=404)
         return Response((LIVE_ROOT/name).read_bytes(),media_type='text/javascript' if name.endswith('.js') else 'text/css')
     async def catalog_asset(request):
         return Response('window.APP_MESSAGES='+json.dumps(L.CATALOG,ensure_ascii=False)+';',media_type='text/javascript')

@@ -20,6 +20,9 @@ def migrate(cursor):
             IF NEW.fee_id IS NOT NULL THEN
                 INSERT INTO monthly_allocation_snapshots(allocation_id,fee_kind,stored_fee_price,source)
                     SELECT NEW.allocation_id,kind,price,'issued' FROM monthly_fees WHERE fee_id=NEW.fee_id;
+            ELSIF NEW.gilet_sale_id IS NOT NULL THEN
+                INSERT INTO monthly_allocation_snapshots(allocation_id,fee_kind,stored_fee_price,source)
+                    SELECT NEW.allocation_id,'gilet',price,'issued' FROM gilet_sales WHERE sale_id=NEW.gilet_sale_id;
             ELSE
                 INSERT INTO monthly_allocation_snapshots(allocation_id,period_no,starts,ends,stored_fee_price,source)
                     SELECT NEW.allocation_id,period_no,starts,ends,price,'issued'
@@ -42,14 +45,15 @@ def migrate(cursor):
         -- and retain their provenance; do not claim an invented earlier history.
         INSERT INTO monthly_allocation_snapshots
             (allocation_id,fee_kind,period_no,starts,ends,stored_fee_price,source)
-        SELECT a.allocation_id,f.kind,p.period_no,
+        SELECT a.allocation_id,CASE WHEN g.sale_id IS NOT NULL THEN 'gilet' ELSE f.kind END,p.period_no,
             CASE WHEN h.anchor IS NOT NULL THEN (h.anchor+make_interval(months=>p.period_no))::date ELSE p.starts END,
             CASE WHEN h.anchor IS NOT NULL THEN (h.anchor+make_interval(months=>p.period_no+1))::date ELSE p.ends END,
-            COALESCE(f.price,p.price),
+            COALESCE(f.price,p.price,g.price),
             CASE WHEN h.anchor IS NOT NULL THEN 'account_audit' ELSE 'legacy_at_migration' END
         FROM monthly_allocations a JOIN monthly_receipts r ON r.receipt_id=a.receipt_id
         LEFT JOIN monthly_fees f ON f.fee_id=a.fee_id
         LEFT JOIN monthly_periods p ON p.period_id=a.period_id
+        LEFT JOIN gilet_sales g ON g.sale_id=a.gilet_sale_id
         LEFT JOIN LATERAL (
             SELECT (audit.before_state->>'start_date')::date AS anchor
             FROM monthly_audit audit WHERE audit.student_id=r.student_id

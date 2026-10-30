@@ -214,7 +214,8 @@ showHistory=function(){
     const value=(v,k)=>v===null||v===undefined?'—':typeof v==='object'?JSON.stringify(v):(['status','gender','payment_method','state','record_state'].includes(k)?I18N.enumLabel(v):String(v));
     const html=pageSlice('history',rows,rs=>rs.map(x=>{
         const before=x.before||{},after=x.after||{},fields=[...new Set([...Object.keys(before),...Object.keys(after)])].filter(k=>JSON.stringify(before[k])!==JSON.stringify(after[k])&&!['request_token','request_hash',...(x.type.endsWith('_attendance')?['attendance_id','person_id','department_id','revision','updated_at','cancelled_at']:[])].includes(k));
-        const title=after.full_name||after.name||after.category||after.item_name||before.full_name||before.name||before.category||x.key;
+        const person=['gilet_sales','gilet_deliveries','account_status_requests'].includes(x.type)?students.find(s=>s.id===(after.student||before.student||after.student_id||before.student_id)):null;
+        const title=person?.name||after.full_name||after.name||after.category||after.item_name||before.full_name||before.name||before.category||x.key;
         return `<details class="history-entry"><summary><span class="status">${esc(actionNames[x.action]||x.action)}</span> ${esc(recordNames[x.type]||x.type)} · ${esc(title)}</summary><p class="muted">${esc(x.time)} · ${esc(x.actor)}</p><p>${I18N.tr("ui.c7395544de8d",{p0:esc(x.reason||'—')})}</p><div class="history-diff">${fields.map(k=>'<div><strong>'+esc(I18N.fieldLabel(k,liveData.field_labels[k]||historyFields[k]||k))+'</strong><span>'+esc(value(before[k],k))+'</span><span>'+(I18N.lang==='fr'?'→':'←')+'</span><span>'+esc(value(after[k],k))+'</span></div>').join('')}</div></details>`;
     }).join(''));
     $('#history-rows').innerHTML=html+pager('history');
@@ -288,7 +289,7 @@ liveSubmit=async function(form){
         const config=liveData.tools.find(t=>t.key===form.dataset.table),values={};
         for(const f of config.fields)if(d.has(f.key))values[f.key]=get(f.key);
         toolRows=null;
-        const result=await liveSaved('tools.change',{table:form.dataset.table,id:form.dataset.id,mode:form.dataset.mode,revision:form.dataset.revision,values,reason:get('reason'),confirmed:d.has('confirmed')},form);
+        const result=await liveSaved('tools.change',{table:form.dataset.table,id:form.dataset.id,mode:form.dataset.mode,revision:form.dataset.revision,values,reason:get('reason'),confirmed:d.has('confirmed'),due:form.dataset.exemptionDue===undefined?undefined:Number(form.dataset.exemptionDue),ledger_revision:form.dataset.exemptionLedger===undefined?undefined:Number(form.dataset.exemptionLedger)},form);
         loadToolRows();return result;
     }
     if(form.id==='fees-edit-form'){await liveSaved('fees.save',{registration:get('registration'),gilet:get('gilet'),tuition:get('tuition'),revision:form.dataset.revision,reason:get('reason'),confirmed:d.has('confirmed')},form);feeDraft=await liveCall('fees.read');render();return;}

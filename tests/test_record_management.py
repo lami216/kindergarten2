@@ -210,7 +210,7 @@ def test_account_correction_preserves_receipts_and_requires_resolving_debt(ledge
     F.cancel_receipt(rid,'إدخال خاطئ',actor='record QA')
     change_account(sid,start_date=anchor,status='regular',actor='record QA',reason='تصحيح البداية')
     assert row(conn,'monthly_accounts',sid)['start_date']==anchor
-    with pytest.raises(ValueError,match='دين سابق'):
+    with pytest.raises(ValueError,match='راجع مبلغ الدين'):
         change_account(sid,start_date=anchor,status='exempt',actor='record QA',reason='الطفل معفي')
     import student_debt as SD
     SD.waive_debt(sid,'إعفاء صريح للدين',True,actor='record QA')

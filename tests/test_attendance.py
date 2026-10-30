@@ -162,7 +162,7 @@ def test_upgrade_from_15_adds_registers_without_touching_existing_cash(browser):
     with conn.cursor() as c:
         c.execute('DROP TABLE student_attendance,teacher_attendance')
         c.execute('ALTER TABLE teachers DROP COLUMN department_id')
-        c.execute('DELETE FROM app_schema_migrations WHERE version=16')
+        c.execute('DELETE FROM app_schema_migrations WHERE version>15')
         c.execute('INSERT INTO app_schema_migrations(version) VALUES(15) ON CONFLICT DO NOTHING')
     assert M.upgrade(conn)
     after=client.get('/api/snapshot').json()

@@ -5527,6 +5527,198 @@ window.APP_MESSAGES={
   "subscription.afterDeparture": {
     "ar": "بداية الاشتراك لا تكون بعد تاريخ مغادرة الطالب.",
     "fr": "Le début de facturation ne peut pas être postérieur au départ de l’élève."
+  },
+  "gilet.purchases": {
+    "ar": "الجيليه",
+    "fr": "Tenues scolaires"
+  },
+  "gilet.sell": {
+    "ar": "بيع جيليه",
+    "fr": "Vendre une tenue"
+  },
+  "gilet.one": {
+    "ar": "جيليه واحدة بالسعر الحالي",
+    "fr": "Une tenue au tarif actuel"
+  },
+  "gilet.date": {
+    "ar": "تاريخ قبض الثمن",
+    "fr": "Date d’encaissement"
+  },
+  "gilet.confirm": {
+    "ar": "أؤكد قبض الثمن وتسليم جيليه واحدة",
+    "fr": "Je confirme l’encaissement et la remise d’une tenue."
+  },
+  "gilet.submit": {
+    "ar": "تأكيد البيع وإصدار الوصل",
+    "fr": "Confirmer la vente et émettre le reçu"
+  },
+  "gilet.delivered": {
+    "ar": "تم تأكيد التسليم",
+    "fr": "Remise confirmée"
+  },
+  "gilet.cancelled": {
+    "ar": "البيع ملغى ماليًا",
+    "fr": "Vente annulée comptablement"
+  },
+  "gilet.noReturn": {
+    "ar": "إلغاء الوصل لا يثبت استرجاع الجيليه المسلّمة",
+    "fr": "L’annulation du reçu ne confirme pas le retour de la tenue remise."
+  },
+  "gilet.unpaid": {
+    "ar": "رسم سابق غير مسدد؛ سدّده من الدفعات",
+    "fr": "Frais antérieurs à régler dans les paiements"
+  },
+  "gilet.unknown": {
+    "ar": "مدفوعة؛ التسليم غير مؤكد",
+    "fr": "Payée ; remise non confirmée"
+  },
+  "gilet.none": {
+    "ar": "لا توجد مشتريات جيليه مسجلة",
+    "fr": "Aucun achat de tenue enregistré"
+  },
+  "gilet.receipt": {
+    "ar": "فتح الوصل",
+    "fr": "Ouvrir le reçu"
+  },
+  "gilet.deliver": {
+    "ar": "تأكيد تسليم الشراء السابق",
+    "fr": "Confirmer la remise de l’achat antérieur"
+  },
+  "gilet.deliveryOnly": {
+    "ar": "تأكيد تسليم الجيليه المدفوعة سابقًا، دون قبض أي مبلغ جديد.",
+    "fr": "Confirmez la remise de la tenue déjà payée, sans nouvel encaissement."
+  },
+  "gilet.setPrice": {
+    "ar": "حدّد سعرًا موجبًا للجيليه في إعدادات الرسوم أولًا.",
+    "fr": "Définissez d’abord un tarif supérieur à zéro dans les frais scolaires."
+  },
+  "exemption.action": {
+    "ar": "تحويل إلى معفي",
+    "fr": "Passer en exonération"
+  },
+  "exemption.confirm": {
+    "ar": "سيُسقط الدين المستحق الحالي وقدره {amount} MRO، وتتوقف الاستحقاقات اللاحقة أثناء الإعفاء. الدفعات المقبوضة سابقًا لن تُلغى.",
+    "fr": "Le solde actuellement dû de {amount} MRO sera remis et aucune nouvelle échéance ne sera due pendant l’exonération. Les paiements déjà encaissés seront conservés."
+  },
+  "exemption.permission": {
+    "ar": "يلزم إذن إسقاط الدين لإكمال الإعفاء؛ راجع المدير.",
+    "fr": "L’autorisation de remise de dette est nécessaire. Contactez la direction."
+  },
+  "gilet.error0": {
+    "ar": "أكد قبض الثمن وتسليم الجيليه.",
+    "fr": "Confirmez l’encaissement et la remise de la tenue."
+  },
+  "gilet.error1": {
+    "ar": "تاريخ القبض غير صالح أو مستقبلي.",
+    "fr": "La date d’encaissement est invalide ou future."
+  },
+  "gilet.error2": {
+    "ar": "تغيّرت بيانات طلب البيع؛ افتح نافذة جديدة.",
+    "fr": "Les données de la vente ont changé. Ouvrez une nouvelle fenêtre."
+  },
+  "gilet.error3": {
+    "ar": "الملف مؤرشف أو متوقف؛ لا تقبل مبيعات جديدة.",
+    "fr": "Le dossier est archivé ou suspendu ; aucune nouvelle vente n’est acceptée."
+  },
+  "gilet.error4": {
+    "ar": "تغيّر سعر الجيليه؛ راجع السعر الجديد.",
+    "fr": "Le tarif de la tenue a changé. Vérifiez le nouveau prix."
+  },
+  "gilet.error5": {
+    "ar": "أكد التسليم واكتب السبب.",
+    "fr": "Confirmez la remise et indiquez le motif."
+  },
+  "gilet.error6": {
+    "ar": "تغيّرت بيانات تأكيد التسليم.",
+    "fr": "Les données de confirmation de la remise ont changé."
+  },
+  "gilet.error7": {
+    "ar": "الملف مؤرشف؛ راجع الملف قبل التسليم.",
+    "fr": "Le dossier est archivé. Vérifiez-le avant la remise."
+  },
+  "gilet.error8": {
+    "ar": "يلزم رسم جيليه مدفوع بالكامل بوصل ساري لتأكيد التسليم.",
+    "fr": "La tenue doit être entièrement réglée avec un reçu valide avant de confirmer sa remise."
+  },
+  "gilet.error9": {
+    "ar": "سُجل تسليم هذه الجيليه بالفعل.",
+    "fr": "La remise de cette tenue est déjà enregistrée."
+  },
+  "gilet.error10": {
+    "ar": "تغيّرت بيانات طلب الإعفاء؛ افتح تأكيدًا جديدًا.",
+    "fr": "Les données de l’exonération ont changé. Demandez une nouvelle confirmation."
+  },
+  "gilet.error11": {
+    "ar": "صحح بداية الاشتراك أولًا ثم افتح تأكيد الإعفاء.",
+    "fr": "Corrigez d’abord la date d’inscription, puis confirmez l’exonération."
+  },
+  "gilet.error12": {
+    "ar": "تغيّر الدين؛ حدّث الملف وراجع المبلغ قبل إسقاطه.",
+    "fr": "Le solde dû a changé. Actualisez le dossier et vérifiez le montant avant la remise."
+  },
+  "gilet.error13": {
+    "ar": "راجع مبلغ الدين وأكد إسقاطه مع التحويل إلى معفي.",
+    "fr": "Vérifiez le solde dû et confirmez sa remise avec le passage en exonération."
+  },
+  "gilet.error14": {
+    "ar": "راجع حالة التسليم من جديد.",
+    "fr": "Vérifiez à nouveau l’état de la remise."
+  },
+  "gilet.error15": {
+    "ar": "لتغيير ثمن بيع الجيليه، ألغِ البيع ثم سجّل بيعًا صحيحًا.",
+    "fr": "Pour corriger le prix de la tenue, annulez la vente puis enregistrez une nouvelle vente."
+  },
+  "gilet.error16": {
+    "ar": "مبيعات الجيليه",
+    "fr": "Ventes de tenues"
+  },
+  "gilet.error17": {
+    "ar": "تسليم الجيليه",
+    "fr": "Remises de tenues"
+  },
+  "gilet.error18": {
+    "ar": "تأكيدات الإعفاء",
+    "fr": "Confirmations d’exonération"
+  },
+  "gilet.waived": {
+    "ar": "أُسقط الرسم دون قبض؛ التسليم غير مؤكد",
+    "fr": "Frais remis sans encaissement ; remise de la tenue non confirmée"
+  },
+  "gilet.noCash": {
+    "ar": "رسم سابق بلا قبض موثق؛ التسليم غير مؤكد",
+    "fr": "Frais antérieurs sans encaissement attesté ; remise non confirmée"
+  },
+  "gilet.salesLog": {
+    "ar": "مبيعات الجيليه",
+    "fr": "Ventes de tenues"
+  },
+  "gilet.deliveriesLog": {
+    "ar": "تسليم الجيليه",
+    "fr": "Remises de tenues"
+  },
+  "exemption.confirmationsLog": {
+    "ar": "تأكيدات الإعفاء",
+    "fr": "Confirmations d’exonération"
+  },
+  "gilet.saleNumber": {
+    "ar": "رقم الشراء",
+    "fr": "Numéro d’achat"
+  },
+  "gilet.legacyFee": {
+    "ar": "الرسم السابق",
+    "fr": "Frais antérieurs"
+  },
+  "gilet.price": {
+    "ar": "السعر وقت البيع",
+    "fr": "Prix lors de la vente"
+  },
+  "gilet.deliveryTime": {
+    "ar": "وقت تأكيد التسليم",
+    "fr": "Date de confirmation de la remise"
+  },
+  "exemption.waived": {
+    "ar": "الدين المسقط دون قبض",
+    "fr": "Dette remise sans encaissement"
   }
 }
 ;

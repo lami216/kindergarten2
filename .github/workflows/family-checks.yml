@@ -143,6 +143,7 @@ jobs:
           python -m tests.browser_reports_live
           python -m tests.browser_school_live
           python -m tests.browser_subscription_file_live
+          python -m tests.browser_gilet_exemption
           python -m tests.browser_security_live
       - name: Start isolated QA previews
         shell: bash

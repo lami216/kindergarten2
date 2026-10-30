@@ -55,6 +55,34 @@ def waiver_preview(conn, student, *, as_of=None):
     return result
 
 
+def waive_in_transaction(c, student, rows, *, actor, reason, token, fingerprint, day):
+    """Caller owns the canonical account lock and transaction; never records cash."""
+    total=sum(max(0,r["remaining"]) for r in rows)
+    if not total:return 0
+    if any(r['remaining']<0 for r in rows):raise ValueError('تجاوز التمويل قيمة الرسم.')
+    c.execute("""INSERT INTO monthly_waiver_batches
+        (request_token,student_id,request_hash,effective_on,actor,reason,gross_waived)
+        VALUES(%s,%s,%s,%s,%s,%s,%s)""",
+        (token,student,fingerprint,day,actor,reason,total))
+    for row in rows:
+        due=max(0,row["remaining"])
+        if not due: continue
+        item_key=("fee:"+str(row["ident"])) if row["ident"] else ("month:"+str(row["period_id"]))
+        item_token=str(uuid.uuid5(uuid.UUID(token),item_key))
+        before={"price":int(row["price"]),"paid":int(row["paid"]),
+                "previous_waived":int(row["waived"]),"remaining":due}
+        after={**before,"new_waived":int(row["waived"])+due,"remaining":0}
+        c.execute("""INSERT INTO monthly_waivers
+           (student_id,fee_id,period_id,amount,effective_on,request_token,
+            request_hash,actor,reason,before_state,after_state)
+           VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb,%s::jsonb)""",
+           (student,row["ident"],row["period_id"],due,day,item_token,fingerprint,
+            actor,reason,json.dumps(before),json.dumps(after)))
+    F._audit(c,student,None,"debt_waived_non_cash",actor,
+             {"gross_due":total},{"waived":total,"cash":0},reason)
+    return total
+
+
 def waive_debt(student, reason, confirmed, *, actor, token=None, effective_on=None,
                expected_revision=None, expected_due=None):
     """Explicitly void the *outstanding* part of each already issued obligation.
@@ -99,26 +127,8 @@ def waive_debt(student, reason, confirmed, *, actor, token=None, effective_on=No
                 raise ValueError("لا يوجد دين مستحق لإلغائه.")
             if any(r["remaining"]<0 for r in rows):
                 raise ValueError("تجاوز التمويل قيمة الرسم.")
-            c.execute("""INSERT INTO monthly_waiver_batches
-                (request_token,student_id,request_hash,effective_on,actor,reason,gross_waived)
-                VALUES(%s,%s,%s,%s,%s,%s,%s)""",
-                (token,student,fingerprint,day,actor,reason,total))
-            for row in rows:
-                due=max(0,row["remaining"])
-                if not due: continue
-                item_key=("fee:"+str(row["ident"])) if row["ident"] else ("month:"+str(row["period_id"]))
-                item_token=str(uuid.uuid5(uuid.UUID(token),item_key))
-                before={"price":int(row["price"]),"paid":int(row["paid"]),
-                        "previous_waived":int(row["waived"]),"remaining":due}
-                after={**before,"new_waived":int(row["waived"])+due,"remaining":0}
-                c.execute("""INSERT INTO monthly_waivers
-                   (student_id,fee_id,period_id,amount,effective_on,request_token,
-                    request_hash,actor,reason,before_state,after_state)
-                   VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb,%s::jsonb)""",
-                   (student,row["ident"],row["period_id"],due,day,item_token,fingerprint,
-                    actor,reason,json.dumps(before),json.dumps(after)))
-            F._audit(c,student,None,"debt_waived_non_cash",actor,
-                     {"gross_due":total},{"waived":total,"cash":0},reason)
+            waive_in_transaction(c,student,rows,actor=actor,reason=reason,token=token,
+                fingerprint=fingerprint,day=day)
         conn.commit()
         return total,True
     except Exception:

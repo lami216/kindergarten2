@@ -26,7 +26,7 @@ FIELDS = {
     'assets': ('purchase_date','item_name','category','quantity','unit_cost','condition_status','notes'),
     'registrations': ('student_id','class_id','year_id','status','registration_date','annual_tuition'),
 }
-LABELS = {'student_attendance':'حضور الطلاب','teacher_attendance':'حضور المعلمين','school_departments':'الأقسام','students':'الطلاب','student_photos':'صور الطلاب','parents':'أولياء الأمور',
+LABELS = {'gilet_sales':'مبيعات الجيليه','gilet_deliveries':'تسليم الجيليه','account_status_requests':'تأكيدات الإعفاء','student_attendance':'حضور الطلاب','teacher_attendance':'حضور المعلمين','school_departments':'الأقسام','students':'الطلاب','student_photos':'صور الطلاب','parents':'أولياء الأمور',
           'teachers':'المعلمين','classes':'الصفوف السابقة','academic_years':'السنوات الدراسية',
           'assets':'الأصول والمعدات','registrations':'التسجيلات السابقة','expenses':'المصروفات',
           'monthly_receipts':'الدفعات الشهرية','payments':'الدفعات السابقة',
