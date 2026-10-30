@@ -47,6 +47,14 @@ def migrate(conn):
             BEGIN
                 IF TG_OP <> 'INSERT' THEN previous=to_jsonb(OLD); END IF;
                 IF TG_OP <> 'DELETE' THEN following=to_jsonb(NEW); END IF;
+                IF TG_TABLE_NAME='gilet_deliveries' THEN
+                    SELECT COALESCE(g.student_id,f.student_id) INTO child_name
+                        FROM (SELECT 1) seed
+                        LEFT JOIN gilet_sales g ON g.sale_id=COALESCE(following->>'sale_id',previous->>'sale_id')::bigint
+                        LEFT JOIN monthly_fees f ON f.fee_id=COALESCE(following->>'fee_id',previous->>'fee_id')::bigint;
+                    IF previous IS NOT NULL THEN previous=previous||jsonb_build_object('student_id',child_name); END IF;
+                    IF following IS NOT NULL THEN following=following||jsonb_build_object('student_id',child_name); END IF;
+                END IF;
                 IF TG_OP='UPDATE' AND previous=following THEN RETURN NEW; END IF;
                 verb=CASE TG_OP WHEN 'INSERT' THEN 'created' WHEN 'DELETE' THEN 'deleted' ELSE 'updated' END;
                 IF TG_TABLE_NAME='student_photos' THEN

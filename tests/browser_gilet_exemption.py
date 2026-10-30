@@ -53,6 +53,9 @@ async def main(origin,username,password,dsn):
             await page.locator('#gilet-sale-form button.primary').click();await expect(page.locator('#receipt-page')).to_be_visible()
             state=await api('snapshot');s=next(s for s in state['students'] if s['id']==sid)
             assert s['exempt'] and s['account']['paid']==2*price
+            await page.evaluate('()=>navigate("history")')
+            await page.locator('#history-type').select_option('gilet_sales')
+            await expect(page.locator('#history-rows')).to_contain_text(name)
             assert await page.locator('html').get_attribute('dir')==('ltr' if lang=='fr' else 'rtl')
             assert not await page.evaluate('document.documentElement.scrollWidth>innerWidth+1')
             await context.close()

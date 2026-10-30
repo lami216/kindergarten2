@@ -7,6 +7,9 @@ from datetime import date
 from monthly_finance import today
 
 ACTION_LABELS = {
+    'gilet_sold':'بيع جيليه وتسليمها',
+    'gilet_sale_corrected':'تصحيح وصل جيليه',
+    'gilet_delivered':'تسليم جيليه — دون قبض',
     "receipt_issued":"قبض موثق",
     "receipt_cancelled":"إلغاء وصل",
     "receipt_corrected":"تصحيح وصل",

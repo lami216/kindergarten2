@@ -61,6 +61,10 @@ def test_independent_sales_replay_frozen_price_cancel_and_reports(browser):
     p=preview(client,session,sid)
     cancelled=next(x for x in p['purchases'] if x.get('receipt')==first)
     assert cancelled['delivered'] and cancelled['cancelled']
+    from data_export import build_export,verify_export
+    archive,_=build_export();manifest=verify_export(archive)
+    assert next(t for t in manifest['tables'] if t['name']=='gilet_sales')['rows']==2
+    assert next(t for t in manifest['tables'] if t['name']=='gilet_deliveries')['rows']==2
 
 
 def test_exempt_sale_and_legacy_paid_delivery_without_cash(browser):
@@ -291,3 +295,27 @@ def test_existing_exemption_is_noop_and_successful_receipts_survive_waiver(brows
     r,_=exemption(client,session,sid);assert r.status_code==200 and not r.json()['created']
     with conn.cursor() as c:
         c.execute('SELECT COUNT(*) n FROM monthly_audit WHERE student_id=%s',(sid,));assert c.fetchone()['n']==n
+
+
+def test_payment_racing_exemption_never_waives_unreviewed_debt(browser):
+    import account_records as AR
+    import web_runtime as W
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+    client,conn=browser;session=login(client);sid=child(client,session)
+    p=preview(client,session,sid,'exemption');auth=A.login('owner',PASSWORD);barrier=Barrier(2)
+    def run(kind):
+        with W.request_context(conn.dsn,{'auth_session':auth}):
+            barrier.wait(timeout=15)
+            try:
+                if kind=='pay':F.take_payment(sid,100,actor='owner')
+                else:AR.change_account(sid,actor='owner',reason='Concurrent exemption',status='exempt',
+                    expected=p['revision'],expected_due=p['due'],expected_ledger=p['ledger_revision'],confirmed=True,token=str(uuid.uuid4()))
+                return kind,True
+            except ValueError:return kind,False
+    with ThreadPoolExecutor(max_workers=2) as pool:result=dict(pool.map(run,['pay','exempt']))
+    assert sum(result.values())==1
+    after=F.projection(conn,sid)
+    assert after['cash_paid']==(100 if result['pay'] else 0)
+    assert after['exempt']==result['exempt']
+    if result['exempt']:assert after['due_now']==0

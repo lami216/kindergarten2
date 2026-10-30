@@ -1,6 +1,13 @@
 /* Garment sales and explicit, noncash exemption use the existing live ledger. */
 'use strict';
 const GE=k=>I18N.tr(`gilet.${k}`), EX=k=>I18N.tr(`exemption.${k}`);
+Object.assign(recordNames,{gilet_sales:GE('salesLog'),gilet_deliveries:GE('deliveriesLog'),account_status_requests:EX('confirmationsLog')});
+Object.assign(historyFields,{sale_id:GE('saleNumber'),fee_id:GE('legacyFee'),price:GE('price'),delivered_at:GE('deliveryTime'),waived:EX('waived')});
+const garmentRecordTitle=recordTitle;
+recordTitle=function(r,type){
+ if(['gilet_sales','gilet_deliveries','account_status_requests'].includes(type))return students.find(s=>s.id===(r.student||r.student_id))?.name||String(r.sale_id||r.fee_id||'—');
+ return garmentRecordTitle(r,type);
+};
 const garmentProfile=profile;
 profile=function(){
  const s=students.find(x=>x.id===profileId),t=document.createElement('template');t.innerHTML=garmentProfile();
@@ -16,7 +23,7 @@ profile=function(){
 function exemptionNote(p){return I18N.tr('exemption.confirm',{amount:money(p.due)});}
 async function garmentWindow(student){
  const p=await liveCall('gilet.preview',{student}),s=students.find(x=>x.id===student);
- openProtected(GE('purchases'),`<p class="muted">${esc(p.name)}</p>${p.purchases.map(x=>`<div class="list-card"><div><strong>${money(x.price)} MRO</strong><small>${GE(x.cancelled?'cancelled':x.delivered?'delivered':x.due?'unpaid':'unknown')}</small>${x.cancelled&&x.delivered?`<small>${GE('noReturn')}</small>`:''}</div><div class="actions">${x.receipt?`<button type="button" class="secondary small" data-gilet-receipt="${x.receipt}">${GE('receipt')}</button>`:''}${x.kind==='legacy'&&x.paid>=x.price&&x.price>0&&!x.delivered&&demoCan('receipts','edit')?`<button type="button" class="secondary small" data-gilet-deliver="${x.id}" data-student="${esc(student)}" data-ledger="${p.ledger_revision}">${GE('deliver')}</button>`:''}</div></div>`).join('')||`<p class="muted body-space">${GE('none')}</p>`}${demoCan('receipts','create')&&!s.paused?`<form id="gilet-sale-form" data-student="${esc(student)}" data-price="${p.price}" data-tariff="${p.tariff_revision}" class="body-space"><h3>${GE('sell')}</h3><p class="notice-box">${GE('one')} · <strong>${money(p.price)} MRO</strong></p><label>${GE('date')}<input type="date" name="date" value="${today}" min="1990-01-01" max="${today}" required></label><label class="check-row body-space"><input type="checkbox" name="confirmed" required>${GE('confirm')}</label><p class="error" role="alert"></p><button class="primary body-space" ${p.price>0?'':'disabled'}>${GE('submit')}</button>${p.price>0?'':`<p>${GE('setPrice')}</p>`}</form>`:''}`);
+ openProtected(GE('purchases'),`<p class="muted">${esc(p.name)}</p>${p.purchases.map(x=>`<div class="list-card"><div><strong>${money(x.price)} MRO</strong><small>${GE(x.cancelled?'cancelled':x.delivered?'delivered':x.due?'unpaid':x.paid<x.price?'waived':x.price===0?'noCash':'unknown')}</small>${x.cancelled&&x.delivered?`<small>${GE('noReturn')}</small>`:''}</div><div class="actions">${x.receipt?`<button type="button" class="secondary small" data-gilet-receipt="${x.receipt}">${GE('receipt')}</button>`:''}${x.kind==='legacy'&&x.paid>=x.price&&x.price>0&&!x.delivered&&demoCan('receipts','edit')?`<button type="button" class="secondary small" data-gilet-deliver="${x.id}" data-student="${esc(student)}" data-ledger="${p.ledger_revision}">${GE('deliver')}</button>`:''}</div></div>`).join('')||`<p class="muted body-space">${GE('none')}</p>`}${demoCan('receipts','create')&&!s.paused?`<form id="gilet-sale-form" data-student="${esc(student)}" data-price="${p.price}" data-tariff="${p.tariff_revision}" class="body-space"><h3>${GE('sell')}</h3><p class="notice-box">${GE('one')} · <strong>${money(p.price)} MRO</strong></p><label>${GE('date')}<input type="date" name="date" value="${today}" min="1990-01-01" max="${today}" required></label><label class="check-row body-space"><input type="checkbox" name="confirmed" required>${GE('confirm')}</label><p class="error" role="alert"></p><button class="primary body-space" ${p.price>0?'':'disabled'}>${GE('submit')}</button>${p.price>0?'':`<p>${GE('setPrice')}</p>`}</form>`:''}`);
 }
 async function exemptionWindow(student){
  const p=await liveCall('exemption.preview',{student});

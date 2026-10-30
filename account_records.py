@@ -86,7 +86,7 @@ def change_account(student, *, actor, reason, start_date=None, status=None, canc
                     c.execute("INSERT INTO monthly_fees(student_id,kind,price) VALUES(%s,'registration',%s) ON CONFLICT(student_id,kind) DO NOTHING",(student,settings['registration']))
                 if status=='regular': F._due_started(c,student,{**old,'start_date':anchor,'status':status})
             F._audit(c,student,None,'account_input_cancelled' if cancel else 'account_input_corrected',actor,old,
-                     {'status':status,'start_date':str(start_date),'cancelled':cancel,'waived':waived,'cash':0},reason)
+                     {'status':old['status'] if cancel else status,'start_date':str(old['start_date'] if cancel else anchor),'cancelled':cancel,'waived':waived,'cash':0},reason)
             if token:
                 c.execute('INSERT INTO account_status_requests(request_token,request_hash,student_id,waived,actor) VALUES(%s,%s,%s,%s,%s)',
                     (token,fingerprint,student,waived,actor))

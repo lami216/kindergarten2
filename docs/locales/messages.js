@@ -5679,6 +5679,46 @@ window.APP_MESSAGES={
   "gilet.error18": {
     "ar": "تأكيدات الإعفاء",
     "fr": "Confirmations d’exonération"
+  },
+  "gilet.waived": {
+    "ar": "أُسقط الرسم دون قبض؛ التسليم غير مؤكد",
+    "fr": "Frais remis sans encaissement ; remise de la tenue non confirmée"
+  },
+  "gilet.noCash": {
+    "ar": "رسم سابق بلا قبض موثق؛ التسليم غير مؤكد",
+    "fr": "Frais antérieurs sans encaissement attesté ; remise non confirmée"
+  },
+  "gilet.salesLog": {
+    "ar": "مبيعات الجيليه",
+    "fr": "Ventes de tenues"
+  },
+  "gilet.deliveriesLog": {
+    "ar": "تسليم الجيليه",
+    "fr": "Remises de tenues"
+  },
+  "exemption.confirmationsLog": {
+    "ar": "تأكيدات الإعفاء",
+    "fr": "Confirmations d’exonération"
+  },
+  "gilet.saleNumber": {
+    "ar": "رقم الشراء",
+    "fr": "Numéro d’achat"
+  },
+  "gilet.legacyFee": {
+    "ar": "الرسم السابق",
+    "fr": "Frais antérieurs"
+  },
+  "gilet.price": {
+    "ar": "السعر وقت البيع",
+    "fr": "Prix lors de la vente"
+  },
+  "gilet.deliveryTime": {
+    "ar": "وقت تأكيد التسليم",
+    "fr": "Date de confirmation de la remise"
+  },
+  "exemption.waived": {
+    "ar": "الدين المسقط دون قبض",
+    "fr": "Dette remise sans encaissement"
   }
 }
 ;
