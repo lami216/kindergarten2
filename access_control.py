@@ -31,7 +31,7 @@ RESOURCES={
 }
 ACTIONS={'view':'عرض','create':'إضافة','edit':'تعديل','delete':'إلغاء / حذف'}
 PERMISSIONS={f'{resource}.{action}' for resource,(_,actions) in RESOURCES.items() for action in actions}
-TABLE_RESOURCE={'gilet_sales':'payments','gilet_deliveries':'payments','account_status_requests':'accounts','student_attendance':'student_attendance','teacher_attendance':'teacher_attendance','students':'students','student_photos':'students','parents':'parents','school_departments':'departments',
+TABLE_RESOURCE={'monthly_gilet_cancellations':'accounts','gilet_sales':'payments','gilet_deliveries':'payments','account_status_requests':'accounts','student_attendance':'student_attendance','teacher_attendance':'teacher_attendance','students':'students','student_photos':'students','parents':'parents','school_departments':'departments',
     'student_departments':'departments','department_transfers':'departments','monthly_receipts':'payments',
     'payments':'payments','expenses':'expenses','assets':'assets','teachers':'teachers',
     'teacher_payments':'salaries','teacher_advances':'salaries','classes':'classes',
@@ -110,6 +110,9 @@ def migrate(conn):
             END IF;
             -- One corrected receipt preserves/cancels the original and issues a replacement.
             IF TG_TABLE_NAME='monthly_receipts' AND permitted='payments.edit' THEN needed='payments.edit'; END IF;
+            IF TG_TABLE_NAME='monthly_receipts' AND TG_OP='INSERT' AND permitted='payments.delete'
+                AND target->>'corrects_id' IS NOT NULL THEN needed='payments.delete'; END IF;
+            IF TG_TABLE_NAME='monthly_gilet_cancellations' THEN needed='accounts.delete'; END IF;
             -- Delivery of an already paid legacy fee creates evidence, not cash.
             IF TG_TABLE_NAME='gilet_deliveries' AND TG_OP='INSERT' THEN
                 needed=CASE WHEN target->>'fee_id' IS NOT NULL THEN 'payments.edit' ELSE 'payments.create' END;

@@ -2,6 +2,7 @@
 from psycopg2 import sql
 
 TABLES = {
+    'monthly_gilet_cancellations':'request_token',
     'gilet_sales':'sale_id','gilet_deliveries':'delivery_id','account_status_requests':'request_token',
     'student_attendance':'attendance_id','teacher_attendance':'attendance_id',
     'students': 'student_id', 'student_photos': 'student_id', 'parents': 'father_id', 'teachers': 'national_id',
@@ -52,6 +53,12 @@ def migrate(conn):
                         FROM (SELECT 1) seed
                         LEFT JOIN gilet_sales g ON g.sale_id=COALESCE(following->>'sale_id',previous->>'sale_id')::bigint
                         LEFT JOIN monthly_fees f ON f.fee_id=COALESCE(following->>'fee_id',previous->>'fee_id')::bigint;
+                    IF previous IS NOT NULL THEN previous=previous||jsonb_build_object('student_id',child_name); END IF;
+                    IF following IS NOT NULL THEN following=following||jsonb_build_object('student_id',child_name); END IF;
+                END IF;
+                IF TG_TABLE_NAME='monthly_gilet_cancellations' THEN
+                    SELECT student_id INTO child_name FROM monthly_receipts
+                        WHERE receipt_id=COALESCE(following->>'receipt_id',previous->>'receipt_id')::bigint;
                     IF previous IS NOT NULL THEN previous=previous||jsonb_build_object('student_id',child_name); END IF;
                     IF following IS NOT NULL THEN following=following||jsonb_build_object('student_id',child_name); END IF;
                 END IF;

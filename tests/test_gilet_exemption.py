@@ -261,7 +261,7 @@ def test_upgrade_from_v16_preserves_legacy_rows_and_unknown_delivery(browser):
         c.execute('ALTER TABLE monthly_allocations DROP COLUMN gilet_sale_id CASCADE')
         c.execute('ALTER TABLE monthly_allocations ADD CONSTRAINT monthly_allocations_check CHECK((fee_id IS NULL)<>(period_id IS NULL))')
         c.execute('DROP TABLE gilet_deliveries; DROP TABLE gilet_sales; DROP TABLE account_status_requests')
-        c.execute('DELETE FROM app_schema_migrations WHERE version=17')
+        c.execute('DELETE FROM app_schema_migrations WHERE version>16')
         c.execute('INSERT INTO app_schema_migrations(version) VALUES(16) ON CONFLICT DO NOTHING')
         before={}
         for table in tables:
@@ -275,7 +275,7 @@ def test_upgrade_from_v16_preserves_legacy_rows_and_unknown_delivery(browser):
             if table=='monthly_allocations':after=[{k:v for k,v in r.items() if k!='gilet_sale_id'} for r in after]
             assert after==before[table],table
         c.execute('SELECT COUNT(*) n FROM gilet_deliveries');assert c.fetchone()['n']==0
-        c.execute('SELECT MAX(version) v FROM app_schema_migrations');assert c.fetchone()['v']==17
+        c.execute('SELECT MAX(version) v FROM app_schema_migrations');assert c.fetchone()['v']==M.VERSION
     assert preview(client,session,sid)['purchases'][0]['delivery_unknown']
 
 

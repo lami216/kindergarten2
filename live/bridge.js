@@ -63,7 +63,7 @@ paymentBody=function(s){
     const template=document.createElement('template');template.innerHTML=livePaymentBody(s);
     const fees=template.content.querySelector('details p');
     if(fees&&s.account){
-        const label=(kind)=>s.account[kind+'_due']?`${I18N.tr("ui.d483582d2871",{p0:money(s.account[kind+'_due'])})}`:`${I18N.tr("ui.7d222428bc79")}`;
+        const label=(kind)=>kind==='gilet'&&s.account.gilet_cancelled?I18N.tr('mixedGilet.cancelledFee'):s.account[kind+'_due']?`${I18N.tr("ui.d483582d2871",{p0:money(s.account[kind+'_due'])})}`:`${I18N.tr("ui.7d222428bc79")}`;
         fees.textContent=`${I18N.tr("ui.946a9f4b4fa8",{p0:label('registration'),p1:label('gilet')})}`;
     }
     return template.innerHTML;

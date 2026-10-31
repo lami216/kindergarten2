@@ -41,9 +41,10 @@ def purchases(conn,student):
             COALESCE(SUM(a.amount) FILTER(WHERE a.active AND r.state='active'),0) AS paid,
             EXISTS(SELECT 1 FROM gilet_deliveries d WHERE d.fee_id=f.fee_id) AS delivered,
             NULL::bigint AS receipt,
-            COALESCE(SUM(a.amount) FILTER(WHERE a.active AND r.state='active'),0)<f.price
-                AND bool_or(r.state='cancelled') AS cancelled,
-            COALESCE((SELECT SUM(w.amount) FROM monthly_waivers w WHERE w.fee_id=f.fee_id),0) AS waived
+            (COALESCE(SUM(a.amount) FILTER(WHERE a.active AND r.state='active'),0)<f.price
+                AND bool_or(r.state='cancelled')) OR EXISTS(SELECT 1 FROM monthly_gilet_cancellations x WHERE x.fee_id=f.fee_id) AS cancelled,
+            COALESCE((SELECT SUM(w.amount) FROM monthly_waivers w WHERE w.fee_id=f.fee_id),0) AS waived,
+            COALESCE((SELECT x.amount FROM monthly_gilet_cancellations x WHERE x.fee_id=f.fee_id),0) AS cancelled_amount
             FROM monthly_fees f LEFT JOIN monthly_allocations a USING(fee_id)
             LEFT JOIN monthly_receipts r USING(receipt_id)
             WHERE f.student_id=%s AND f.kind='gilet' GROUP BY f.fee_id
@@ -51,11 +52,11 @@ def purchases(conn,student):
             SELECT s.sale_id,'sale',s.price,
                 COALESCE(SUM(a.amount) FILTER(WHERE a.active AND r.state='active'),0),
                 EXISTS(SELECT 1 FROM gilet_deliveries d WHERE d.sale_id=s.sale_id),
-                MAX(r.receipt_id),NOT bool_or(a.active AND r.state='active'),0
+                MAX(r.receipt_id),NOT bool_or(a.active AND r.state='active'),0,0
             FROM gilet_sales s JOIN monthly_allocations a ON a.gilet_sale_id=s.sale_id
             JOIN monthly_receipts r USING(receipt_id)
             WHERE s.student_id=%s GROUP BY s.sale_id ORDER BY kind,id''',(student,student))
-        return [dict(x,due=max(0,int(x['price'])-int(x['paid'])-int(x['waived'])) if x['kind']=='legacy' else 0,
+        return [dict(x,due=max(0,int(x['price'])-int(x['paid'])-int(x['waived'])-int(x['cancelled_amount'])) if x['kind']=='legacy' else 0,
                      delivery_unknown=x['kind']=='legacy' and not x['delivered']) for x in c.fetchall()]
 
 

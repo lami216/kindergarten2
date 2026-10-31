@@ -17,7 +17,22 @@ def migrate(cursor):
         CREATE OR REPLACE FUNCTION monthly_allocation_snapshot_capture() RETURNS trigger
         LANGUAGE plpgsql AS $$
         BEGIN
-            IF NEW.fee_id IS NOT NULL THEN
+            IF NEW.copied_from_id IS NOT NULL THEN
+                IF NOT EXISTS(SELECT 1 FROM monthly_allocations a
+                    JOIN monthly_receipts previous ON previous.receipt_id=a.receipt_id
+                    JOIN monthly_receipts replacement ON replacement.receipt_id=NEW.receipt_id
+                    WHERE a.allocation_id=NEW.copied_from_id AND replacement.corrects_id=previous.receipt_id
+                        AND replacement.student_id=previous.student_id AND a.amount=NEW.amount
+                        AND a.fee_id IS NOT DISTINCT FROM NEW.fee_id
+                        AND a.period_id IS NOT DISTINCT FROM NEW.period_id
+                        AND a.gilet_sale_id IS NOT DISTINCT FROM NEW.gilet_sale_id) THEN
+                    RAISE EXCEPTION 'Carried receipt allocation must match its exact predecessor';
+                END IF;
+                INSERT INTO monthly_allocation_snapshots(allocation_id,fee_kind,period_no,starts,ends,stored_fee_price,source)
+                    SELECT NEW.allocation_id,fee_kind,period_no,starts,ends,stored_fee_price,source
+                    FROM monthly_allocation_snapshots WHERE allocation_id=NEW.copied_from_id;
+                IF NOT FOUND THEN RAISE EXCEPTION 'Missing predecessor receipt description'; END IF;
+            ELSIF NEW.fee_id IS NOT NULL THEN
                 INSERT INTO monthly_allocation_snapshots(allocation_id,fee_kind,stored_fee_price,source)
                     SELECT NEW.allocation_id,kind,price,'issued' FROM monthly_fees WHERE fee_id=NEW.fee_id;
             ELSIF NEW.gilet_sale_id IS NOT NULL THEN

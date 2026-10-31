@@ -53,7 +53,7 @@ def index_html():
     html = (DESIGN_ROOT/'index.html').read_text(encoding='utf-8')
     html = html.replace('<script src="preview.js">','<script src="/live/runtime.js"></script>\n<script src="preview.js">')
     html=html.replace('</head>','<link rel="stylesheet" href="/live/workspace.css"><link rel="stylesheet" href="/live/people.css"><link rel="stylesheet" href="/live/reports.css"></head>')
-    return html.replace('</body>','<script src="/live/bridge.js"></script>\n<script src="/live/workspace.js"></script>\n<script src="/live/people.js"></script>\n<script src="/live/attendance-session.js"></script>\n<script src="/live/reports.js"></script>\n<script src="/live/subscriptions.js"></script>\n<script src="/live/gilet-exemption.js"></script>\n</body>')
+    return html.replace('</body>','<script src="/live/bridge.js"></script>\n<script src="/live/workspace.js"></script>\n<script src="/live/people.js"></script>\n<script src="/live/attendance-session.js"></script>\n<script src="/live/reports.js"></script>\n<script src="/live/subscriptions.js"></script>\n<script src="/live/gilet-exemption.js"></script>\n<script src="/live/mixed-gilet.js"></script>\n</body>')
 
 
 def json_ready(value):
@@ -178,7 +178,8 @@ def snapshot(conn, profile):
                         **profile_summary(p),
                         'monthPaid':sum(x['paid'] for x in p['periods']),
                         'registration_due':max(0,p['fees'].get('registration',{}).get('price',0)-p['fees'].get('registration',{}).get('paid',0)-p['fees'].get('registration',{}).get('waived',0)),
-                        'gilet_due':max(0,p['fees'].get('gilet',{}).get('price',0)-p['fees'].get('gilet',{}).get('paid',0)-p['fees'].get('gilet',{}).get('waived',0))}
+                        'gilet_due':max(0,p['fees'].get('gilet',{}).get('price',0)-p['fees'].get('gilet',{}).get('paid',0)-p['fees'].get('gilet',{}).get('waived',0)-p['fees'].get('gilet',{}).get('cancelled',0)),
+                        'gilet_cancelled':bool(p['fees'].get('gilet',{}).get('cancelled'))}
             result['students'].append(child)
     if A.can('payments.view'):
         result['receipts']=rows(conn,'''SELECT r.receipt_id AS id,r.student_id AS student,r.amount,
@@ -190,7 +191,17 @@ def snapshot(conn, profile):
              LEFT JOIN monthly_fees f USING(fee_id) GROUP BY r.receipt_id ORDER BY r.receipt_id''')
         revisions={r['student_id']:int(r['revision']) for r in rows(conn,
             'SELECT student_id,MAX(audit_id) AS revision FROM monthly_audit GROUP BY student_id')}
-        for r in result['receipts']: r['revision']=revisions.get(r['student'],0)
+        from receipt_item_cancellation import eligible_receipts
+        garment_cancellable=eligible_receipts(conn)
+        cancelled_items=rows(conn,'SELECT receipt_id,replacement_id,amount FROM monthly_gilet_cancellations')
+        cancellation_by_receipt={x['receipt_id']:x for x in cancelled_items}
+        inherited_cancellations={}
+        for r in result['receipts']:
+            correction=cancellation_by_receipt.get(r['id']) or inherited_cancellations.get(r.get('corrects_id'))
+            r['gilet_cancellation']=correction
+            inherited_cancellations[r['id']]=correction
+            r['revision']=revisions.get(r['student'],0)
+            r['gilet_item_eligible']=r['id'] in garment_cancellable
         for s in result['students']: s['ledger_revision']=revisions.get(s['id'],0)
     if A.can('expenses.view'):
         for e in rows(conn,'SELECT * FROM expenses WHERE teacher_payment_id IS NULL AND teacher_advance_id IS NULL ORDER BY expense_id'):
@@ -291,6 +302,12 @@ def edit_student(conn, data, actor):
 
 def mutate(conn, operation, data, profile):
     actor=profile['username']
+    if operation in ('receipts.gilet.preview','receipts.gilet.cancel'):
+        import receipt_item_cancellation as C
+        if type(data.get('id')) is not int:raise ValueError('رقم الوصل غير صالح.')
+        if operation=='receipts.gilet.preview':return C.preview(conn,data['id'])
+        return C.cancel(data['id'],actor=actor,reason=text(data,'reason',2000,True),confirmed=data.get('confirmed'),
+            token=request_token(data),expected_revision=data.get('revision'))
     if operation in ('gilet.preview','gilet.sell','gilet.deliver'):
         import gilet_sales as G
         student=text(data,'student',20,True)
@@ -665,7 +682,7 @@ def make_app(dsn, public_origin, *, management=False, trusted_proxies=()):
     async def bridge(request): return Response((LIVE_ROOT/'bridge.js').read_bytes(),media_type='text/javascript')
     async def workspace_asset(request):
         name=request.path_params['name']
-        if name not in ('workspace.js','workspace.css','people.js','people.css','attendance-session.js','reports.js','reports.css','subscriptions.js','gilet-exemption.js'):return Response(status_code=404)
+        if name not in ('workspace.js','workspace.css','people.js','people.css','attendance-session.js','reports.js','reports.css','subscriptions.js','gilet-exemption.js','mixed-gilet.js'):return Response(status_code=404)
         return Response((LIVE_ROOT/name).read_bytes(),media_type='text/javascript' if name.endswith('.js') else 'text/css')
     async def catalog_asset(request):
         return Response('window.APP_MESSAGES='+json.dumps(L.CATALOG,ensure_ascii=False)+';',media_type='text/javascript')

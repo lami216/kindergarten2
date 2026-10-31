@@ -40,7 +40,7 @@ def profile_summary(p):
     return dict(paid_through=p['paid_through'],next_unpaid=next_start,next_due=next_due,
         partial_period=dict(start=outstanding['start'],end=outstanding['end'],paid=outstanding['paid'],
             remaining=outstanding['price']-outstanding['paid']-outstanding.get('waived',0)) if outstanding and outstanding['paid'] else None,
-        fee_details={key:{**value,'remaining':max(0,value['price']-value['paid']-value.get('waived',0))} for key,value in p['fees'].items()})
+        fee_details={key:{**value,'remaining':max(0,value['price']-value['paid']-value.get('waived',0)-value.get('cancelled',0))} for key,value in p['fees'].items()})
 
 
 

@@ -11,7 +11,7 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 from psycopg2.extensions import TRANSACTION_STATUS_IDLE
 
-VERSION = 17
+VERSION = 18
 LOCK = 82416100
 
 
