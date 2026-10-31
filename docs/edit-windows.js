@@ -4,9 +4,14 @@ function formSignature(dialog){
   e.name||e.id,e.type==='checkbox'?e.checked:e.type==='file'?[...e.files].map(f=>[f.name,f.size,f.lastModified]):e.dataset.dateDraft??e.value
  ]));
 }
+const protectedWindowCloseListeners=new WeakSet();
 function protectEditWindow(dialog,closeIds=[]){
  const clearDiscard=()=>dialog.querySelectorAll('.discard-box').forEach(box=>box.remove());
- clearDiscard();dialog.onclose=()=>{if(!dialog.open)clearDiscard();};
+ clearDiscard();
+ if(!protectedWindowCloseListeners.has(dialog)){
+  dialog.addEventListener('close',()=>{if(!dialog.open)clearDiscard();});
+  protectedWindowCloseListeners.add(dialog);
+ }
  const initial=formSignature(dialog);
  const close=()=>{clearDiscard();dialog.close();if(dialog.id.startsWith('profile-')||dialog.id==='transfer-dialog')render();};
  const requestClose=()=>{

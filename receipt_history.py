@@ -7,6 +7,7 @@ from datetime import date
 from monthly_finance import today
 
 ACTION_LABELS = {
+    'gilet_item_cancelled':'إلغاء بند الجيليه من وصل مختلط',
     'gilet_sold':'بيع جيليه وتسليمها',
     'gilet_sale_corrected':'تصحيح وصل جيليه',
     'gilet_delivered':'تسليم جيليه — دون قبض',
@@ -145,6 +146,16 @@ def receipt_impact(conn, receipt_id, *, new_amount=None,
     if not payer or len(payer)>150:
         raise ValueError("اسم الدافع غير صالح.")
     student=row["student_id"]
+    with conn.cursor() as c:
+        c.execute('SELECT 1 FROM monthly_allocations WHERE receipt_id=%s AND copied_from_id IS NOT NULL LIMIT 1',(receipt_id,))
+        carried=c.fetchone()
+    if carried and desired==int(row['amount']):
+        current=projection(conn,student,materialize=False)
+        return dict(revision=receipt_revision(conn,student),receipt=data,new_amount=desired,new_date=day,new_payer=payer,
+            cash_delta=0,currently_due=current['due_now'],projected_due=current['due_now'],
+            affected_periods=[receipt_line(i) for i in data['items']],
+            new_items=[dict(kind=x['fee_kind'] or 'month',label=receipt_line(x),start=x['starts'],end=x['ends'],
+                price=x['stored_fee_price'],previously_paid=0,waived=0,amount=x['amount']) for x in data['items']])
     with conn.cursor() as c:
         c.execute('SELECT gilet_sale_id FROM monthly_allocations WHERE receipt_id=%s AND gilet_sale_id IS NOT NULL',(receipt_id,))
         garment=c.fetchone()

@@ -382,6 +382,8 @@ def migrate(conn):
         c.execute("INSERT INTO finance_schema_versions(version) VALUES(8) ON CONFLICT DO NOTHING")
         import gilet_sales
         gilet_sales.migrate(c)
+        import receipt_item_cancellation
+        receipt_item_cancellation.migrate(c)
         import receipt_snapshots
         receipt_snapshots.migrate(c)
 
@@ -491,7 +493,8 @@ def _fee(c, student, kind):
         COALESCE((SELECT SUM(a.amount) FROM monthly_allocations a
                   WHERE a.fee_id=f.fee_id AND a.active),0) AS paid,
         COALESCE((SELECT SUM(w.amount) FROM monthly_waivers w
-                  WHERE w.fee_id=f.fee_id),0) AS waived
+                  WHERE w.fee_id=f.fee_id),0) AS waived,
+        COALESCE((SELECT x.amount FROM monthly_gilet_cancellations x WHERE x.fee_id=f.fee_id),0) AS cancelled
         FROM monthly_fees f WHERE f.student_id=%s AND f.kind=%s FOR UPDATE""",
         (student,kind))
     return c.fetchone()
@@ -501,7 +504,7 @@ def _fund_fee(c, receipt, student, kind, budget):
     row = _fee(c,student,kind)
     if not row:
         raise ValueError("الرسم غير متاح لهذا الطفل.")
-    due = int(row["price"])-int(row["paid"])-int(row["waived"])
+    due = int(row["price"])-int(row["paid"])-int(row["waived"])-int(row.get("cancelled",0))
     if due < 0:
         raise ValueError("تجاوز في رصيد الرسم.")
     if due > budget:
@@ -755,7 +758,7 @@ def _cancel_in_tx(c, student, receipt_id, reason, actor):
     row=c.fetchone()
     if not row or row["state"]!="active":
         raise ValueError("هذا الوصل غير متاح للتعديل.")
-    c.execute("SELECT allocation_id,fee_id,period_id,amount FROM monthly_allocations "
+    c.execute("SELECT allocation_id,fee_id,period_id,gilet_sale_id,copied_from_id,amount FROM monthly_allocations "
               "WHERE receipt_id=%s AND active ORDER BY allocation_id",(receipt_id,))
     allocs=[dict(x) for x in c.fetchall()]
     c.execute("UPDATE monthly_allocations SET active=FALSE WHERE receipt_id=%s",(receipt_id,))
@@ -876,7 +879,7 @@ def correct_receipt(receipt_id, new_amount, reason, *, actor="مديرة الر�
             _assert_receipt_revision(c,account["student_id"],expected_revision)
             if old["state"] != "active":
                 raise ValueError("الوصل ملغى أو مصحح بالفعل؛ افتح الوصل الساري في سلسلة التصحيحات.")
-            c.execute("""SELECT allocation_id,fee_id,period_id,amount FROM monthly_allocations
+            c.execute("""SELECT allocation_id,fee_id,period_id,gilet_sale_id,copied_from_id,amount FROM monthly_allocations
                          WHERE receipt_id=%s AND active ORDER BY allocation_id""",(receipt_id,))
             original_allocations=[dict(x) for x in c.fetchall()]
             kinds=set()
@@ -888,7 +891,11 @@ def correct_receipt(receipt_id, new_amount, reason, *, actor="مديرة الر�
             previous=_cancel_in_tx(c,account["student_id"],receipt_id,reason,actor)
             c.execute('SELECT gilet_sale_id FROM monthly_allocations WHERE receipt_id=%s AND gilet_sale_id IS NOT NULL',(receipt_id,))
             garment=c.fetchone()
-            if garment:
+            carried=any(x.get('copied_from_id') for x in original_allocations)
+            if carried and new_amount==int(old['amount']):
+                from receipt_item_cancellation import carry_receipt
+                new_id=carry_receipt(c,old,original_allocations,actor=actor,token=token,fingerprint=fp,day=correct_date,payer=correct_payer)
+            elif garment:
                 if new_amount!=int(old['amount']):raise ValueError('لتغيير ثمن بيع الجيليه، ألغِ البيع ثم سجّل بيعًا صحيحًا.')
                 from gilet_sales import issue
                 new_id=issue(c,account,new_amount,correct_payer,actor,token,fp,correct_date,
@@ -952,13 +959,15 @@ def projection(conn, student, as_of=None, *, materialize=True):
             COALESCE(SUM(a.amount) FILTER (WHERE r.received_on<=%s
                AND a.active AND r.state='active'),0) AS paid,
             COALESCE((SELECT SUM(w.amount) FROM monthly_waivers w
-                      WHERE w.fee_id=f.fee_id AND w.effective_on<=%s),0) AS waived
+                      WHERE w.fee_id=f.fee_id AND w.effective_on<=%s),0) AS waived,
+            COALESCE((SELECT x.amount FROM monthly_gilet_cancellations x WHERE x.fee_id=f.fee_id),0) AS cancelled
             FROM monthly_fees f LEFT JOIN monthly_allocations a ON a.fee_id=f.fee_id
             LEFT JOIN monthly_receipts r ON r.receipt_id=a.receipt_id
             WHERE f.student_id=%s GROUP BY f.fee_id ORDER BY f.kind""",
             (day,day,student))
         fees={r["kind"]:{**{"price":int(r["price"]),"paid":int(r["paid"])},
-                         **({"waived":int(r.get("waived",0))} if int(r.get("waived",0)) else {})} for r in c.fetchall()}
+                         **({"waived":int(r.get("waived",0))} if int(r.get("waived",0)) else {}),
+                         **({"cancelled":int(r.get("cancelled",0))} if int(r.get("cancelled",0)) else {})} for r in c.fetchall()}
         c.execute("""SELECT p.period_no,p.starts,p.ends,p.price,
             COALESCE(SUM(a.amount) FILTER (WHERE r.received_on<=%s
                AND a.active AND r.state='active'),0) AS paid,
@@ -992,7 +1001,7 @@ def _project_account(account, fees, periods, receipts, day):
     currently_due=sum(max(0,p["price"]-p["paid"]-p.get("waived",0)) for p in periods
                       if (p["end"] if account.get("due_at_period_end") else p["start"])<=cutoff and charge_active)
     if charge_active:
-        currently_due+=sum(max(0,r["price"]-r["paid"]-r.get("waived",0)) for r in fees.values())
+        currently_due+=sum(max(0,r["price"]-r["paid"]-r.get("waived",0)-r.get("cancelled",0)) for r in fees.values())
     not_yet_due=sum(max(0,p["price"]-p["paid"]-p.get("waived",0)) for p in periods if (p["end"] if account.get("due_at_period_end") else p["start"])>cutoff)
     unpaid=next((p for p in periods if p["paid"]+p.get("waived",0)<p["price"]),None)
     next_start=(unpaid["start"] if unpaid else anniversary(account["start_date"],contiguous))
@@ -1022,7 +1031,8 @@ def projections(conn, as_of=None, *, materialize=True):
         c.execute('SELECT * FROM monthly_accounts ORDER BY student_id')
         accounts = [dict(r) for r in c.fetchall()]
         c.execute("""SELECT f.student_id,f.kind,f.price,
-            COALESCE(p.paid,0) AS paid,COALESCE(w.waived,0) AS waived
+            COALESCE(p.paid,0) AS paid,COALESCE(w.waived,0) AS waived,
+            COALESCE((SELECT x.amount FROM monthly_gilet_cancellations x WHERE x.fee_id=f.fee_id),0) AS cancelled
             FROM monthly_fees f
             LEFT JOIN (SELECT a.fee_id,SUM(a.amount) AS paid
                 FROM monthly_allocations a JOIN monthly_receipts r USING(receipt_id)
@@ -1035,6 +1045,7 @@ def projections(conn, as_of=None, *, materialize=True):
         for r in c.fetchall():
             entry = {'price':int(r['price']), 'paid':int(r['paid'])}
             if r['waived']: entry['waived'] = int(r['waived'])
+            if r['cancelled']: entry['cancelled']=int(r['cancelled'])
             fees.setdefault(r['student_id'], {})[r['kind']] = entry
         c.execute("""SELECT t.student_id,t.period_no,t.starts,t.ends,t.price,
             COALESCE(p.paid,0) AS paid,COALESCE(w.waived,0) AS waived
@@ -1185,6 +1196,7 @@ def _total_due(conn, day):
             SELECT 'fee' AS kind,f.fee_id AS id, f.price
             FROM monthly_fees f JOIN monthly_accounts a USING(student_id)
             WHERE a.start_date<=%(day)s
+                AND NOT EXISTS(SELECT 1 FROM monthly_gilet_cancellations x WHERE x.fee_id=f.fee_id)
             UNION ALL
             SELECT 'period',p.period_id,p.price
             FROM monthly_periods p JOIN monthly_accounts a USING(student_id)

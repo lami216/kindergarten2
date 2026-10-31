@@ -5719,6 +5719,118 @@ window.APP_MESSAGES={
   "exemption.waived": {
     "ar": "الدين المسقط دون قبض",
     "fr": "Dette remise sans encaissement"
+  },
+  "mixedGilet.action": {
+    "ar": "إلغاء الجيليه فقط",
+    "fr": "Annuler la tenue uniquement"
+  },
+  "mixedGilet.confirm": {
+    "ar": "تأكيد إلغاء الجيليه",
+    "fr": "Confirmer l’annulation de la tenue"
+  },
+  "mixedGilet.history": {
+    "ar": "إلغاء بند الجيليه",
+    "fr": "Annulation d’une tenue sur un reçu"
+  },
+  "mixedGilet.original": {
+    "ar": "الوصل الأصلي",
+    "fr": "Reçu d’origine"
+  },
+  "mixedGilet.replacement": {
+    "ar": "الوصل المصحح",
+    "fr": "Reçu corrigé"
+  },
+  "mixedGilet.time": {
+    "ar": "وقت الإلغاء",
+    "fr": "Date de l’annulation"
+  },
+  "mixedGilet.removed": {
+    "ar": "الجيليه التي ستُلغى",
+    "fr": "Tenue à annuler"
+  },
+  "mixedGilet.registration": {
+    "ar": "التسجيل الذي سيبقى",
+    "fr": "Inscription conservée"
+  },
+  "mixedGilet.monthly": {
+    "ar": "الشهرية التي ستبقى",
+    "fr": "Mensualités conservées"
+  },
+  "mixedGilet.remaining": {
+    "ar": "المقبوض الصحيح بعد التصحيح",
+    "fr": "Encaissement retenu après correction"
+  },
+  "mixedGilet.effect": {
+    "ar": "سيُلغى مبلغ الجيليه واستحقاقها وحدهما. يبقى التسجيل والشهرية كما هما. هذا تصحيح محاسبي؛ لا يسجل رد نقود أو استرجاع جيليه تلقائيًا.",
+    "fr": "Seuls le montant et les frais de la tenue seront annulés. L’inscription et les mensualités restent inchangées. Cette correction comptable n’enregistre ni remboursement ni retour de tenue."
+  },
+  "mixedGilet.permission": {
+    "ar": "إلغاء هذا البند يحتاج صلاحية إلغاء الدفعات وإلغاء الاستحقاق؛ راجع المدير.",
+    "fr": "Cette opération nécessite les autorisations d’annuler un paiement et de supprimer les frais. Contactez la direction."
+  },
+  "mixedGilet.unsupported": {
+    "ar": "هذا البند غير قابل للإلغاء وحده تلقائيًا: يجب أن تكون الجيليه مدفوعة بالكامل في هذا الوصل دون توزيع أو إسقاط سابق.",
+    "fr": "Cette annulation automatique exige une tenue entièrement payée dans ce reçu, sans règlement réparti ni remise antérieure."
+  },
+  "mixedGilet.cancelledFee": {
+    "ar": "استحقاق الجيليه ملغى — لا دين عليه",
+    "fr": "Frais de tenue annulés — aucun solde dû"
+  },
+  "mixedGilet.trace": {
+    "ar": "أُلغي بند جيليه بقيمة {amount} MRO في هذه السلسلة. أُبقي سجل التسليم؛ الإلغاء لا يثبت رد نقود أو استرجاع القطعة.",
+    "fr": "Une tenue de {amount} MRO a été annulée dans cette chaîne de reçus. La preuve de remise est conservée ; l’annulation ne confirme ni remboursement ni retour de la tenue."
+  },
+  "mixedGilet.error0": {
+    "ar": "الوصل ملغى أو مصحح؛ افتح آخر نسخة سارية.",
+    "fr": "Le reçu est annulé ou remplacé. Ouvrez la dernière version valide."
+  },
+  "mixedGilet.error1": {
+    "ar": "لا يوجد بند جيليه قابل للإلغاء في هذا الوصل.",
+    "fr": "Ce reçu ne contient aucune tenue pouvant être annulée."
+  },
+  "mixedGilet.error2": {
+    "ar": "بيع الجيليه المستقل يُلغى من إجراء إلغاء الوصل المعتاد.",
+    "fr": "Une vente de tenue indépendante s’annule avec l’action habituelle d’annulation du reçu."
+  },
+  "mixedGilet.error3": {
+    "ar": "تفصيل الوصل غير مكتمل؛ يلزم تدقيقه قبل التصحيح.",
+    "fr": "Le détail du reçu est incomplet. Vérifiez-le avant la correction."
+  },
+  "mixedGilet.error4": {
+    "ar": "بند الجيليه موزع على استحقاقات متعددة؛ يلزم تدقيقه أولًا.",
+    "fr": "La tenue est répartie entre plusieurs frais. Une vérification est nécessaire."
+  },
+  "mixedGilet.error5": {
+    "ar": "الوصل خاص بالجيليه وحدها؛ استخدم إجراء إلغاء الوصل المعتاد.",
+    "fr": "Ce reçu concerne uniquement une tenue. Utilisez l’annulation habituelle du reçu."
+  },
+  "mixedGilet.error6": {
+    "ar": "استحقاق الجيليه غير مطابق للطالب.",
+    "fr": "Les frais de tenue ne correspondent pas à cet élève."
+  },
+  "mixedGilet.error7": {
+    "ar": "بند الجيليه ملغى بالفعل.",
+    "fr": "La tenue est déjà annulée."
+  },
+  "mixedGilet.error8": {
+    "ar": "رسم الجيليه جزئي أو موزع على وصولات أو إسقاطات؛ لا يمكن إلغاء جزء منه تلقائيًا.",
+    "fr": "Les frais de tenue sont partiellement réglés, répartis entre des reçus ou remis en partie. L’annulation automatique est impossible."
+  },
+  "mixedGilet.error9": {
+    "ar": "اكتب سبب إلغاء الجيليه وأكد المبلغ بعد المعاينة.",
+    "fr": "Indiquez le motif et confirmez le montant après vérification."
+  },
+  "mixedGilet.error10": {
+    "ar": "تغيّرت بيانات طلب إلغاء الجيليه؛ افتح معاينة جديدة.",
+    "fr": "Les données de l’annulation ont changé. Ouvrez une nouvelle vérification."
+  },
+  "mixedGilet.error11": {
+    "ar": "رقم الوصل غير صالح.",
+    "fr": "Le numéro du reçu est invalide."
+  },
+  "mixedGilet.error12": {
+    "ar": "إلغاء بند الجيليه من وصل مختلط",
+    "fr": "Annulation d’une tenue sur un reçu mixte"
   }
 }
 ;

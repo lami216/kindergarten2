@@ -22,7 +22,7 @@ def _debt(c, student, when):
                 WHERE a.fee_id=f.fee_id AND a.active AND r.state='active'),0) AS paid,
               COALESCE((SELECT SUM(w.amount) FROM monthly_waivers w
                 WHERE w.fee_id=f.fee_id),0) AS waived
-        FROM monthly_fees f WHERE f.student_id=%s""",(student,))
+        FROM monthly_fees f WHERE f.student_id=%s AND NOT EXISTS(SELECT 1 FROM monthly_gilet_cancellations x WHERE x.fee_id=f.fee_id)""",(student,))
     fees=[dict(x) for x in c.fetchall()]
     c.execute("""SELECT NULL::bigint AS ident,p.period_id,p.period_no::text AS kind,
            p.price,
@@ -154,7 +154,7 @@ def pay_unpaid_fee(student, kind, *, actor, token=None, expected_due=None, as_of
             row=F._fee(c,student,kind)
             if not row:
                 raise ValueError("هذا الرسم غير مطلوب لهذا الطفل.")
-            due=int(row["price"])-int(row["paid"])-int(row["waived"])
+            due=int(row["price"])-int(row["paid"])-int(row["waived"])-int(row.get("cancelled",0))
             c.execute("""SELECT receipt_id,request_hash,amount,student_id,state
                          FROM monthly_receipts WHERE request_token=%s""",(token,))
             old=c.fetchone()

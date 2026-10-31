@@ -10,7 +10,7 @@ studentForm=function(){
 function subscriptionDetails(s){
  const a=s.account,day=v=>v?I18N.date(v):'—';
  const partial=a.partial_period?detailLine(ST('partialPaid'),money(a.partial_period.paid)) + detailLine(ST('partialRemaining'),money(a.partial_period.remaining)):'';
- const fees=Object.entries(a.fee_details||{}).map(([key,fee])=>`<div class="summary-line account-fee-row"><span>${ST(key)}</span><div><strong>${I18N.tr('subscription.feePaid',{paid:money(fee.paid),price:money(fee.price)})}</strong>${fee.waived?`<small>${I18N.tr('subscription.waived',{amount:money(fee.waived)})}</small>`:''}${fee.remaining?`<small>${ST('remaining')}: ${money(fee.remaining)}</small>`:''}</div></div>`).join('');
+ const fees=Object.entries(a.fee_details||{}).map(([key,fee])=>`<div class="summary-line account-fee-row"><span>${ST(key)}</span><div><strong>${I18N.tr('subscription.feePaid',{paid:money(fee.paid),price:money(fee.price)})}</strong>${fee.waived?`<small>${I18N.tr('subscription.waived',{amount:money(fee.waived)})}</small>`:''}${fee.cancelled?`<small>${I18N.tr('mixedGilet.cancelledFee')}</small>`:''}${fee.remaining?`<small>${ST('remaining')}: ${money(fee.remaining)}</small>`:''}</div></div>`).join('');
  return `<details class="file-account-details"><summary>${ST('details')}</summary>${fileFields([[ST('nextMonth'),day(a.next_unpaid)],[ST('nextDue'),day(a.next_due)]])}${partial}${fees}</details>`;
 }
 const subscriptionProfile=profile;
