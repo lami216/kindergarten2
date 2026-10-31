@@ -31,6 +31,9 @@ async def main():
             before=await snapshot();family=before['families'][0]
             await nav('students');await page.locator('#add-student').click()
             await page.locator('#student-form [name="name"]').fill('أخت مرتبطة بالأسرة الموجودة')
+            await page.locator('#student-form [data-date-part="day"]').first.fill('12')
+            await page.locator('#student-form [data-date-part="month"]').first.select_option('03')
+            await page.locator('#student-form [data-date-part="year"]').first.fill('22')
             await page.locator('#student-form [name="department_id"]').select_option(index=1)
             picker=page.locator('#student-form [name="existing_parent_id"]')
             await picker.select_option(family['id'])

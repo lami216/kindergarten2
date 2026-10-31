@@ -6,7 +6,7 @@ from datetime import datetime,timezone
 def build(output):
     root=Path(__file__).resolve().parents[1]
     output.mkdir(parents=True,exist_ok=True)
-    for name in ('index.html','i18n.js','i18n.css','date-entry.js','date-entry.css','preview.css','preview.js','access-preview.js','student-profile.js','edit-windows.js','school-logo.jpg','IBMPlexSansArabic-Regular.ttf','IBM_Plex_Sans_Arabic_OFL.txt','.nojekyll'):
+    for name in ('index.html','i18n.js','i18n.css','date-entry.js','date-entry.css','preview.css','preview.js','access-preview.js','student-profile.js','edit-windows.js','form-drafts.js','school-logo.jpg','IBMPlexSansArabic-Regular.ttf','IBM_Plex_Sans_Arabic_OFL.txt','.nojekyll'):
         shutil.copy2(root/'docs'/name,output/name)
     for name in ('workspace-runtime.js','people-runtime.js','workspace-entry.js','workspace-config.json','finance-runtime.js','subscription-runtime.js'):
         shutil.copy2(root/'preview'/name,output/name)
@@ -22,7 +22,7 @@ def build(output):
     js=js.replace("'2026-10-14'",repr(datetime.now(timezone.utc).date().isoformat()))
     (output/'preview.js').write_text(js,encoding='utf-8')
     version=os.environ.get('GITHUB_RUN_ID') or os.environ.get('GITHUB_SHA','local')[:12]
-    for name in ('locales/messages.js','i18n.js','i18n.css','date-entry.js','date-entry.css','preview.css','preview.js','access-preview.js','student-profile.js','edit-windows.js','workspace.css','workspace-runtime.js','live-bridge.js','workspace.js','workspace-entry.js','people.js','people.css','people-runtime.js','attendance-session.js','reports.js','reports.css','finance-runtime.js','subscriptions.js','subscription-runtime.js'):
+    for name in ('locales/messages.js','i18n.js','i18n.css','date-entry.js','date-entry.css','preview.css','preview.js','access-preview.js','student-profile.js','edit-windows.js','form-drafts.js','workspace.css','workspace-runtime.js','live-bridge.js','workspace.js','workspace-entry.js','people.js','people.css','people-runtime.js','attendance-session.js','reports.js','reports.css','finance-runtime.js','subscriptions.js','subscription-runtime.js'):
         html=html.replace('"'+name+'"','"'+name+'?v='+version+'"')
     (output/'index.html').write_text(html,encoding='utf-8')
     print('PAGES_PREVIEW_BUILT',version)

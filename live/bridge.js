@@ -16,14 +16,20 @@ function liveGrants(values,user){
     const visible=new Set(Object.entries(demoAreas).flatMap(([area])=>(['dashboard','history'].includes(area)?['view']:Object.keys(demoActions)).map(a=>livePermission(area+'.'+a))));
     return [...new Set(selected.concat((user?.serverPermissions||[]).filter(p=>!visible.has(p))))];
 }
+function liveResponseError(response,value,operation=''){
+    if(!liveSession&&(response.status===401||(response.status===403&&operation==='session')))liveLoginScreen();
+    const error=Error((value.language===I18N.lang?value.error:I18N.message(value.error))||`${I18N.tr("ui.f926c7fdd7e3")}`);
+    error.code=value.code;error.status=response.status;
+    if(liveSession&&(error.code==='session_expired'||error.status===401)&&typeof requestSessionRenewal==='function')requestSessionRenewal();
+    return error;
+}
 async function liveCall(operation, data){
     const init={credentials:'same-origin',headers:{'X-App-Language':I18N.lang}};
     if(data!==undefined){init.method='POST';init.headers={'X-App-Language':I18N.lang,'Content-Type':'application/json','X-CSRF-Token':liveSession?.csrf||''};init.body=JSON.stringify(data);}
     const response=await fetch('/api/'+operation,init);
     let value;try{value=await response.json();}catch{throw Error(`${I18N.tr("ui.5578f8d51f5b")}`);}
     if(!response.ok){
-        if(response.status===401||(response.status===403&&operation==='session'))liveLoginScreen();
-        throw Error((value.language===I18N.lang?value.error:I18N.message(value.error))||`${I18N.tr("ui.f926c7fdd7e3")}`);
+        throw liveResponseError(response,value,operation);
     }
     return value;
 }
@@ -265,8 +271,11 @@ const liveStudentForm=studentForm;
 studentForm=function(){
     const template=document.createElement('template');template.innerHTML=liveStudentForm();
     if(liveData?.families?.length){
+        const familyLabel=f=>[f.father,f.mother,f.fatherPhone||f.motherPhone].filter(Boolean).join(' · ');
         const options=liveData.families.map(f=>{
-            const label=[f.father||f.mother,f.fatherPhone||f.motherPhone,f.id].filter(Boolean).join(' · ');
+            const base=familyLabel(f),same=liveData.families.filter(other=>familyLabel(other)===base).sort((a,b)=>a.id.localeCompare(b.id));
+            const children=students.filter(s=>s.parent_id===f.id).map(s=>s.name).slice(0,2).join('، ');
+            const label=base+(same.length>1?' · '+(children||I18N.tr('family.number',{number:same.findIndex(other=>other.id===f.id)+1})): '');
             return '<option value="'+esc(f.id)+'">'+esc(label)+'</option>';
         }).join('');
         template.content.querySelectorAll('.student-section-title')[1].insertAdjacentHTML('afterend',

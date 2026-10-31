@@ -84,7 +84,7 @@ def test_teacher_asset_idempotence_payroll_corrections_and_plain_search(browser)
     retry=post(client,session,'tools.change',teacher);assert retry.status_code==200 and str(retry.json()['id'])==str(first.json()['id'])
     second=post(client,session,'tools.change',{**teacher,'values':{**teacher['values'],'national_id':'999999'},'request_token':str(uuid.uuid4())});assert second.status_code==200,second.text
     options=client.get('/api/teachers.options').json();assert len(options)==2 and len({r['id'] for r in options})==2
-    salary=dict(teacher=first.json()['id'],kind='salary',month=str(F.today())[:7],date=str(F.today()),base='2000',bonus='500',deductions='100',confirmed=True,request_token=str(uuid.uuid4()))
+    salary=dict(reason='صرف راتب الاختبار',teacher=first.json()['id'],kind='salary',month=str(F.today())[:7],date=str(F.today()),base='2000',bonus='500',deductions='100',confirmed=True,request_token=str(uuid.uuid4()))
     saved=post(client,session,'payroll.save',salary);assert saved.status_code==200,saved.text
     assert post(client,session,'payroll.save',salary).json()['created'] is False
     assert post(client,session,'tools.list',dict(table='teacher_payments',query='(')).status_code==200

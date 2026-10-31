@@ -4609,12 +4609,12 @@ window.APP_MESSAGES={
     "fr": "Impossible de charger l’aperçu."
   },
   "field.student_id": {
-    "ar": "رقم الطالب",
-    "fr": "Identifiant de l’élève"
+    "ar": "الطالب",
+    "fr": "Élève"
   },
   "field.father_id": {
-    "ar": "رقم الأسرة",
-    "fr": "Identifiant de la famille"
+    "ar": "الأسرة",
+    "fr": "Famille"
   },
   "field.birth_date": {
     "ar": "تاريخ الميلاد",
@@ -4629,24 +4629,24 @@ window.APP_MESSAGES={
     "fr": "Lieu de naissance"
   },
   "field.medical_details": {
-    "ar": "المعلومات الصحية",
+    "ar": "الملاحظات الصحية",
     "fr": "Informations de santé"
   },
   "field.has_medical_condition": {
-    "ar": "حالة صحية خاصة",
-    "fr": "État de santé particulier"
+    "ar": "وجود ملاحظة صحية",
+    "fr": "Information médicale signalée"
   },
   "field.allergies": {
     "ar": "الحساسية",
     "fr": "Allergies"
   },
   "field.general_notes": {
-    "ar": "الملاحظات",
-    "fr": "Observations"
+    "ar": "ملاحظات عامة",
+    "fr": "Observations générales"
   },
   "field.authorized_pickups": {
     "ar": "المخولون باستلام الطفل",
-    "fr": "Personnes autorisées à récupérer l’enfant"
+    "fr": "Personnes autorisées à récupérer l’élève"
   },
   "field.archived_at": {
     "ar": "تاريخ الأرشفة",
@@ -4677,12 +4677,12 @@ window.APP_MESSAGES={
     "fr": "Date de la dépense"
   },
   "field.amount_paid": {
-    "ar": "المدفوع",
-    "fr": "Montant payé"
+    "ar": "المدفوع فعليًا",
+    "fr": "Montant réglé"
   },
   "field.amount_total": {
-    "ar": "الإجمالي",
-    "fr": "Montant total"
+    "ar": "إجمالي المصروف",
+    "fr": "Montant total de la dépense"
   },
   "field.receipt_id": {
     "ar": "رقم الوصل",
@@ -4697,8 +4697,8 @@ window.APP_MESSAGES={
     "fr": "Payeur"
   },
   "field.state": {
-    "ar": "الحالة",
-    "fr": "Statut"
+    "ar": "حالة السجل",
+    "fr": "État de l’enregistrement"
   },
   "field.cancel_reason": {
     "ar": "سبب الإلغاء",
@@ -4713,8 +4713,8 @@ window.APP_MESSAGES={
     "fr": "Reçu corrigé"
   },
   "field.registration": {
-    "ar": "التسجيل",
-    "fr": "Inscription"
+    "ar": "رسوم التسجيل",
+    "fr": "Frais d’inscription"
   },
   "field.gilet": {
     "ar": "الجيليه",
@@ -4742,11 +4742,11 @@ window.APP_MESSAGES={
   },
   "field.record_state": {
     "ar": "حالة المستند",
-    "fr": "Statut du document"
+    "fr": "État du document"
   },
   "field.cash_amount": {
-    "ar": "النقد المدفوع",
-    "fr": "Montant décaissé"
+    "ar": "المدفوع نقدًا",
+    "fr": "Montant effectivement versé"
   },
   "field.payment_id": {
     "ar": "رقم الدفعة",
@@ -5831,6 +5831,98 @@ window.APP_MESSAGES={
   "mixedGilet.error12": {
     "ar": "إلغاء بند الجيليه من وصل مختلط",
     "fr": "Annulation d’une tenue sur un reçu mixte"
+  },
+  "payments.receivedOn": {
+    "ar": "تاريخ القبض",
+    "fr": "Date d’encaissement"
+  },
+  "draft.title": {
+    "ar": "بيانات غير محفوظة",
+    "fr": "Informations non enregistrées"
+  },
+  "session.title": {
+    "ar": "أعد تسجيل الدخول للمتابعة",
+    "fr": "Reconnectez-vous pour continuer"
+  },
+  "session.explanation": {
+    "ar": "انتهت جلسة الدخول. مدخلاتك باقية هنا؛ أعد الدخول ثم راجعها واحفظها بنفسك.",
+    "fr": "Votre session a expiré. Votre saisie est conservée ici : reconnectez-vous, vérifiez-la puis enregistrez-la."
+  },
+  "session.username": {
+    "ar": "اسم المستخدم",
+    "fr": "Nom d’utilisateur"
+  },
+  "session.password": {
+    "ar": "كلمة المرور",
+    "fr": "Mot de passe"
+  },
+  "session.resume": {
+    "ar": "تسجيل الدخول ومتابعة العمل",
+    "fr": "Se reconnecter et continuer"
+  },
+  "session.leave": {
+    "ar": "العودة للدخول وإلغاء المسودة",
+    "fr": "Quitter et abandonner la saisie"
+  },
+  "session.restored": {
+    "ar": "تم تجديد الدخول. راجع مدخلاتك ثم اضغط الحفظ؛ لم نُعِد تنفيذ العملية تلقائيًا.",
+    "fr": "Vous êtes reconnecté. Vérifiez votre saisie puis enregistrez-la ; aucune opération n’a été relancée automatiquement."
+  },
+  "session.permissionsChanged": {
+    "ar": "تغيرت صلاحيات الحساب. فتحنا النسخة المحدثة؛ أعد فتح النموذج حسب الصلاحيات المتاحة.",
+    "fr": "Les droits du compte ont changé. L’interface a été actualisée ; rouvrez le formulaire selon vos nouveaux droits."
+  },
+  "history.technical": {
+    "ar": "تفاصيل السجل التقنية",
+    "fr": "Détails techniques du journal"
+  },
+  "history.otherField": {
+    "ar": "بيانات إضافية",
+    "fr": "Autres informations"
+  },
+  "history.unavailableReference": {
+    "ar": "ملف سابق غير متاح",
+    "fr": "Ancien dossier indisponible"
+  },
+  "history.active": {
+    "ar": "ساري",
+    "fr": "Valide"
+  },
+  "history.cancelled": {
+    "ar": "ملغى",
+    "fr": "Annulé"
+  },
+  "history.yes": {
+    "ar": "نعم",
+    "fr": "Oui"
+  },
+  "history.no": {
+    "ar": "لا",
+    "fr": "Non"
+  },
+  "payroll.reasonRequired": {
+    "ar": "أدخل سبب الصرف، حتى 2000 حرف.",
+    "fr": "Indiquez le motif du versement, dans la limite de 2 000 caractères."
+  },
+  "field.advance": {
+    "ar": "السلفة المخصومة",
+    "fr": "Avance déduite"
+  },
+  "field.payment_status": {
+    "ar": "حالة الدفع",
+    "fr": "État du règlement"
+  },
+  "field.closed_on": {
+    "ar": "تاريخ إغلاق الحساب",
+    "fr": "Date de clôture du compte"
+  },
+  "field.national_id": {
+    "ar": "الهوية",
+    "fr": "Identité"
+  },
+  "family.number": {
+    "ar": "أسرة {number}",
+    "fr": "Famille {number}"
   }
 }
 ;

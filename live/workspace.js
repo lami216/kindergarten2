@@ -50,7 +50,7 @@ receiptRows=function(){
     }).slice().reverse();
     const html=pageSlice('receipts',rows,rs=>rs.map(r=>{
         const s=students.find(s=>s.id===r.student);
-        return `<div class="list-card" data-receipt-row="${r.id}"><div class="row-person">${studentAvatar(s)}<div><strong>${esc(s.name)}</strong><small>${I18N.tr("ui.bd9628ee2920",{p0:r.id,p1:esc(r.date),p2:s.cancelled?` ${I18N.tr("ui.f1a581eef6bf")}`:''})}</small></div></div><div class="actions"><span class="status ${r.cancelled?'amber':''}">${I18N.tr("ui.cb786d585e2d",{p0:money(r.amount),p1:r.cancelled?` ${I18N.tr("ui.0b82a8e63244")}`:''})}</span><button class="secondary small" data-receipt="${r.id}">${I18N.tr("ui.566dbcea7afa")}</button></div></div>`;
+        return `<div class="list-card" data-receipt-row="${r.id}"><div class="row-person">${studentAvatar(s)}<div><strong>${esc(s.name)}</strong><small>${I18N.tr("ui.bd9628ee2920",{p0:r.id,p1:esc(I18N.date(r.date)),p2:s.cancelled?` ${I18N.tr("ui.f1a581eef6bf")}`:''})}</small></div></div><div class="actions"><span class="status ${r.cancelled?'amber':''}">${I18N.tr("ui.cb786d585e2d",{p0:money(r.amount),p1:r.cancelled?` ${I18N.tr("ui.0b82a8e63244")}`:''})}</span><button class="secondary small" data-receipt="${r.id}">${I18N.tr("ui.566dbcea7afa")}</button></div></div>`;
     }).join('')||`<div class="empty">${I18N.tr("ui.e9325c1ddd94")}</div>`);
     return html+pager('receipts');
 };
@@ -61,7 +61,7 @@ openReceipt=function(id){receiptPageId=Number(id);page='receipt';render();pageTo
 function receiptScreen(){
     const r=receipts.find(r=>r.id===receiptPageId),s=r&&students.find(s=>s.id===r.student);
     if(!r||!s)return heading(`${I18N.tr("ui.5d24240aeff3")}`,`${I18N.tr("ui.765c140c65f9")}`,`<button class="secondary" data-return-receipts>${I18N.tr("ui.ceb9efa64a1f")}</button>`);
-    return `${heading(`${I18N.tr("ui.78ba4b68be77",{p0:r.id})}`,`${I18N.tr("ui.df3c75fa3c0e")}`,`<button class="secondary" data-return-receipts>${I18N.tr("ui.ceb9efa64a1f")}</button>`)}<section class="panel page-receipt" id="receipt-page"><span class="badge">${I18N.tr("ui.06aacc984eba")}</span>${r.cancelled?`<p class="notice-box">${I18N.tr("ui.5a65d9be6038")}</p>`:''}<div class="row-person body-space">${studentAvatar(s)}<div><h2>${esc(s.name)}</h2><p class="muted">${esc(s.parent)} · ${esc(s.phone)}</p></div></div><p>${I18N.tr("ui.a17de5e4aec4",{p0:esc(r.date)})}</p><div class="receipt-total">${money(r.amount)} <small>${I18N.tr("ui.894811c10b8d")}</small></div><div class="summary-detail">${detailLine(`${I18N.tr("ui.7dd297215d19")}`,r.registration)}${detailLine(`${I18N.tr("ui.c0a240e22598")}`,r.gilet)}${detailLine(`${I18N.tr("ui.e00922512362")}`,r.monthly)}</div><div class="actions"><a class="secondary" href="/api/receipt/${r.id}" target="_blank" rel="noopener">${I18N.tr("ui.47eb54fb2cf4")}</a>${recordActions('receipts',r.id,r.cancelled)}</div></section>`;
+    return `${heading(`${I18N.tr("ui.78ba4b68be77",{p0:r.id})}`,`${I18N.tr("ui.df3c75fa3c0e")}`,`<button class="secondary" data-return-receipts>${I18N.tr("ui.ceb9efa64a1f")}</button>`)}<section class="panel page-receipt" id="receipt-page"><span class="badge">${I18N.tr("ui.06aacc984eba")}</span>${r.cancelled?`<p class="notice-box">${I18N.tr("ui.5a65d9be6038")}</p>`:''}<div class="row-person body-space">${studentAvatar(s)}<div><h2>${esc(s.name)}</h2><p class="muted">${esc(s.parent)} · ${esc(s.phone)}</p></div></div><p>${I18N.tr("ui.a17de5e4aec4",{p0:esc(I18N.date(r.date))})}</p><div class="receipt-total">${money(r.amount)} <small>${I18N.tr("ui.894811c10b8d")}</small></div><div class="summary-detail">${detailLine(`${I18N.tr("ui.7dd297215d19")}`,r.registration)}${detailLine(`${I18N.tr("ui.c0a240e22598")}`,r.gilet)}${detailLine(`${I18N.tr("ui.e00922512362")}`,r.monthly)}</div><div class="actions"><a class="secondary" href="/api/receipt/${r.id}" target="_blank" rel="noopener">${I18N.tr("ui.47eb54fb2cf4")}</a>${recordActions('receipts',r.id,r.cancelled)}</div></section>`;
 }
 let expenseTerm='';
 const workspaceExpensePage=expensePage;
@@ -211,12 +211,28 @@ function reportHTML(){if(!reportData)return '';const items=reportData.items,keys
 showHistory=function(){
     const type=$('#history-type').value,action=$('#history-action').value,term=searchText($('#history-search').value);
     const rows=changes.filter(x=>(!type||x.type===type)&&(!action||x.action===action)&&searchText(JSON.stringify(x)).includes(term)).slice().reverse();
-    const value=(v,k)=>v===null||v===undefined?'—':typeof v==='object'?JSON.stringify(v):(['status','gender','payment_method','state','record_state'].includes(k)?I18N.enumLabel(v):String(v));
+    const hidden=new Set(['request_token','request_hash','request_fingerprint','image_data']);
+    const technical=new Set(['created_at','updated_at','cancelled_at','archived_at','entry_cancelled_at','payment_id','advance_id','receipt_id','sale_id','delivery_id','transfer_id','attendance_id','revision','image_sha256','sha256','actor_user_id','archived_by','cancelled_by','display_national_id','closed_after_period_no']);
+    const references=new Set(['student_id','father_id','national_id','teacher_id','department_id','person_id']);
+    const value=(v,k,labels={})=>{
+        if(v===null||v===undefined)return '—';
+        if(labels[k])return labels[k];
+        if(references.has(k))return I18N.tr('history.unavailableReference');
+        if(typeof v==='boolean')return I18N.tr(v?'history.yes':'history.no');
+        if(['state','record_state'].includes(k)&&['active','cancelled'].includes(v))return I18N.tr(v==='active'?'history.active':'history.cancelled');
+        if(typeof v==='object')return JSON.stringify(v);
+        return ['status','gender','payment_method'].includes(k)?I18N.enumLabel(v):I18N.date(String(v));
+    };
     const html=pageSlice('history',rows,rs=>rs.map(x=>{
-        const before=x.before||{},after=x.after||{},fields=[...new Set([...Object.keys(before),...Object.keys(after)])].filter(k=>JSON.stringify(before[k])!==JSON.stringify(after[k])&&!['request_token','request_hash',...(x.type.endsWith('_attendance')?['attendance_id','person_id','department_id','revision','updated_at','cancelled_at']:[])].includes(k));
+        const before=x.before||{},after=x.after||{},fields=[...new Set([...Object.keys(before),...Object.keys(after)])].filter(k=>JSON.stringify(before[k])!==JSON.stringify(after[k])&&!hidden.has(k));
+        // The bridge's convenient aliases must not duplicate the original audit fields.
+        const aliases={name:'full_name',amount:'amount_total',paid:'amount_paid',date:after.received_on||before.received_on?'received_on':'expense_date',student:'student_id'};
+        const visible=fields.filter(k=>!technical.has(k)&&!(aliases[k]&&fields.includes(aliases[k]))&&!(k==='cancelled'&&fields.some(f=>['state','archived_at','cancelled_at'].includes(f))));
         const person=['gilet_sales','gilet_deliveries','account_status_requests','monthly_gilet_cancellations'].includes(x.type)?students.find(s=>s.id===(after.student||before.student||after.student_id||before.student_id)):null;
-        const title=person?.name||after.full_name||after.name||after.category||after.item_name||before.full_name||before.name||before.category||x.key;
-        return `<details class="history-entry"><summary><span class="status">${esc(actionNames[x.action]||x.action)}</span> ${esc(recordNames[x.type]||x.type)} · ${esc(title)}</summary><p class="muted">${esc(x.time)} · ${esc(x.actor)}</p><p>${I18N.tr("ui.c7395544de8d",{p0:esc(x.reason||'—')})}</p><div class="history-diff">${fields.map(k=>'<div><strong>'+esc(I18N.fieldLabel(k,liveData.field_labels[k]||historyFields[k]||k))+'</strong><span>'+esc(value(before[k],k))+'</span><span>'+(I18N.lang==='fr'?'→':'←')+'</span><span>'+esc(value(after[k],k))+'</span></div>').join('')}</div></details>`;
+        const title=x.subject||person?.name||after.full_name||after.name||after.category||after.item_name||before.full_name||before.name||before.category||I18N.tr('history.unavailableReference');
+        const diff=(keys,raw=false)=>'<div class="history-diff">'+keys.map(k=>'<div><strong>'+esc(raw?k:I18N.fieldLabel(k,liveData.field_labels[k]||historyFields[k]||I18N.tr('history.otherField')))+'</strong><span>'+esc(value(before[k],k,x.before_labels))+'</span><span>'+(I18N.lang==='fr'?'→':'←')+'</span><span>'+esc(value(after[k],k,x.after_labels))+'</span></div>').join('')+'</div>';
+        const extra=fields.filter(k=>technical.has(k));
+        return `<details class="history-entry"><summary><span class="status">${esc(actionNames[x.action]||x.action)}</span> ${esc(recordNames[x.type]||x.type)} · ${esc(title)}</summary><p class="muted">${esc(x.time)} · ${esc(x.actor)}</p><p>${I18N.tr("ui.c7395544de8d",{p0:esc(x.reason||'—')})}</p>${diff(visible)}${extra.length?'<details class="body-space"><summary>'+I18N.tr('history.technical')+'</summary>'+diff(extra,true)+'</details>':''}</details>`;
     }).join(''));
     $('#history-rows').innerHTML=html+pager('history');
 };
@@ -293,7 +309,7 @@ liveSubmit=async function(form){
         loadToolRows();return result;
     }
     if(form.id==='fees-edit-form'){await liveSaved('fees.save',{registration:get('registration'),gilet:get('gilet'),tuition:get('tuition'),revision:form.dataset.revision,reason:get('reason'),confirmed:d.has('confirmed')},form);feeDraft=await liveCall('fees.read');render();return;}
-    if(form.id==='payroll-form')return liveSaved('payroll.save',{kind:form.dataset.kind,teacher:get('teacher'),month:get('month'),date:get('date'),base:get('base'),bonus:get('bonus')||'0',deductions:get('deductions')||'0',amount:get('amount'),notes:get('notes'),confirmed:d.has('confirmed')},form);
+    if(form.id==='payroll-form')return liveSaved('payroll.save',{kind:form.dataset.kind,teacher:get('teacher'),month:get('month'),date:get('date'),base:get('base'),bonus:get('bonus')||'0',deductions:get('deductions')||'0',amount:get('amount'),notes:get('notes'),reason:get('reason'),confirmed:d.has('confirmed')},form);
     if(form.id==='report-form'){
         const request={kind:get('kind'),start:get('start'),end:get('end'),teacher:get('teacher')};
         const result=await liveCall('reports.read',request);reportData=result;reportRequest=request;$('#report-output').innerHTML=reportHTML();toast(`${I18N.tr("ui.9872db2390a4")}`);return;
@@ -323,7 +339,7 @@ document.addEventListener('click',async e=>{
     if(target.id==='report-print'){handle();window.print();return;}
     if(target.id==='report-xlsx'){
         handle();target.disabled=true;
-        try{const response=await fetch('/api/reports.export',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':liveSession.csrf},body:JSON.stringify(reportRequest)});if(!response.ok)throw Error((await response.json()).error);const url=URL.createObjectURL(await response.blob()),a=document.createElement('a');a.href=url;a.download='report.xlsx';a.click();setTimeout(()=>URL.revokeObjectURL(url),10000);toast(`${I18N.tr("ui.712fbae77bc1")}`);}catch(error){toast(error.message,'error');}finally{target.disabled=false;}
+        try{const response=await fetch('/api/reports.export',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':liveSession.csrf},body:JSON.stringify(reportRequest)});if(!response.ok)throw liveResponseError(response,await response.json());const url=URL.createObjectURL(await response.blob()),a=document.createElement('a');a.href=url;a.download='report.xlsx';a.click();setTimeout(()=>URL.revokeObjectURL(url),10000);toast(`${I18N.tr("ui.712fbae77bc1")}`);}catch(error){toast(error.message,'error');}finally{target.disabled=false;}
     }
 },true);
 // Profile clicks from existing renderers also start the new screen at its top.
