@@ -44,7 +44,7 @@ DESIGN_ROOT = Path(__file__).resolve().parent / 'docs'
 LIVE_ROOT = Path(__file__).resolve().parent / 'live'
 COOKIE = '__Host-kg_session'
 MAX_BODY = 8 * 1024 * 1024
-ASSETS = {'i18n.js','i18n.css','date-entry.js','date-entry.css','preview.css','preview.js','access-preview.js','student-profile.js','edit-windows.js',
+ASSETS = {'i18n.js','i18n.css','date-entry.js','date-entry.css','preview.css','preview.js','access-preview.js','student-profile.js','edit-windows.js','form-drafts.js',
           'school-logo.jpg','IBMPlexSansArabic-Regular.ttf','IBM_Plex_Sans_Arabic_OFL.txt'}
 CONTENT_TYPES = {'.css':'text/css','.js':'text/javascript','.jpg':'image/jpeg','.ttf':'font/ttf','.txt':'text/plain'}
 
@@ -53,7 +53,7 @@ def index_html():
     html = (DESIGN_ROOT/'index.html').read_text(encoding='utf-8')
     html = html.replace('<script src="preview.js">','<script src="/live/runtime.js"></script>\n<script src="preview.js">')
     html=html.replace('</head>','<link rel="stylesheet" href="/live/workspace.css"><link rel="stylesheet" href="/live/people.css"><link rel="stylesheet" href="/live/reports.css"></head>')
-    return html.replace('</body>','<script src="/live/bridge.js"></script>\n<script src="/live/workspace.js"></script>\n<script src="/live/people.js"></script>\n<script src="/live/attendance-session.js"></script>\n<script src="/live/reports.js"></script>\n<script src="/live/subscriptions.js"></script>\n<script src="/live/gilet-exemption.js"></script>\n<script src="/live/mixed-gilet.js"></script>\n</body>')
+    return html.replace('</body>','<script src="/live/bridge.js"></script>\n<script src="/live/workspace.js"></script>\n<script src="/live/people.js"></script>\n<script src="/live/attendance-session.js"></script>\n<script src="/live/reports.js"></script>\n<script src="/live/subscriptions.js"></script>\n<script src="/live/gilet-exemption.js"></script>\n<script src="/live/mixed-gilet.js"></script>\n<script src="/live/session-recovery.js"></script>\n</body>')
 
 
 def json_ready(value):
@@ -224,6 +224,8 @@ def snapshot(conn, profile):
         result['changes']=rows(conn,'''SELECT change_id AS id,table_name AS type,record_key AS key,action,
             before_state AS before,after_state AS after,reason,actor,actor_user_id AS "actorId",happened_at AS time
             FROM record_changes ORDER BY change_id DESC LIMIT 500''')[::-1]
+        from history_presentation import decorate
+        result['changes']=decorate(conn,result['changes'])
     if profile['is_admin']:
         result['users']=A.list_users(conn)
         result['account_events']=A.access_history(conn)
@@ -372,16 +374,18 @@ def mutate(conn, operation, data, profile):
         return {'ok':True}
     if operation=='payroll.save':
         import payroll_finance as P
+        reason=text(data,'reason',2000)
+        if not reason:raise ValueError('أدخل سبب الصرف، حتى 2000 حرف.')
         payment_day=date.fromisoformat(text(data,'date',10,True))
         if not date(1990,1,1)<=payment_day<=F.today():raise ValueError('تاريخ الصرف غير صالح أو مستقبلي.')
         if data.get('confirmed') is not True:raise ValueError('أكد الصرف النقدي الفعلي.')
         if data.get('kind')=='advance':
             ident,created=P.save_advance(text(data,'teacher',20,True),text(data,'month',7,True),data.get('amount'),
-                notes=text(data,'notes'),actor=actor,token=request_token(data),on_date=date.fromisoformat(text(data,'date',10,True)))
+                notes=text(data,'notes'),actor=actor,token=request_token(data),on_date=date.fromisoformat(text(data,'date',10,True)),reason=reason)
         else:
             ident,created=P.save_salary(text(data,'teacher',20,True),text(data,'month',7,True),data.get('base'),
                 data.get('bonus',0),data.get('deductions',0),notes=text(data,'notes'),actor=actor,
-                token=request_token(data),on_date=date.fromisoformat(text(data,'date',10,True)))
+                token=request_token(data),on_date=date.fromisoformat(text(data,'date',10,True)),reason=reason)
         return {'id':ident,'created':created}
     if operation=='students.create':
         name=text(data,'name',100,True)
@@ -595,9 +599,11 @@ def make_app(dsn, public_origin, *, management=False, trusted_proxies=()):
                         FROM teachers ORDER BY full_name,national_id''')
                 conn.autocommit=False
                 return mutate(conn,operation,data,profile)
-    def error_response(request, value, status):
+    def error_response(request, value, status, code=None):
         with L.using_language(L.request_language(request)):
-            return JSONResponse({'error':L.message(value),'language':L.language()},status)
+            body={'error':L.message(value),'language':L.language()}
+            if code:body['code']=code
+            return JSONResponse(body,status)
     async def api(request: Request):
         operation=request.path_params['operation']
         expected_method='GET' if operation in ('session','snapshot','fees.read','teachers.options') else 'POST'
@@ -608,6 +614,7 @@ def make_app(dsn, public_origin, *, management=False, trusted_proxies=()):
         if request.method=='POST':
             if request.headers.get('origin')!=origin: return error_response(request,'مصدر الطلب غير مسموح.',403)
             if request.headers.get('content-type','').split(';')[0]!='application/json': return error_response(request,'صيغة الطلب غير مدعومة.',415)
+            if operation!='login' and not token:return error_response(request,'سجّل الدخول أولًا.',401,'session_expired')
             if operation!='login' and (not token or not hmac.compare_digest(request.headers.get('x-csrf-token',''),csrf(token))):
                 return error_response(request,'حدّث الصفحة ثم أعد المحاولة.',403)
             parts=[];size=0
@@ -632,7 +639,7 @@ def make_app(dsn, public_origin, *, management=False, trusted_proxies=()):
                 response=JSONResponse({'ok':True})
                 response.set_cookie(COOKIE,new_token,secure=True,httponly=True,samesite='strict',path='/')
                 return response
-            if not token: return error_response(request,'سجّل الدخول أولًا.',401)
+            if not token: return error_response(request,'سجّل الدخول أولًا.',401,'session_expired')
             result=await run_in_threadpool(execute,token,operation,data,L.request_language(request))
             if operation in ('reports.export','reports.finance.export'):
                 return Response(result,media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -642,8 +649,10 @@ def make_app(dsn, public_origin, *, management=False, trusted_proxies=()):
             return response
         except __import__('schema_migrations').SchemaNotReady:
             return error_response(request,'التطبيق قيد التحديث؛ أكمل ترحيل قاعدة البيانات أولًا.',503)
+        except A.SessionExpired:
+            return error_response(request,'انتهت جلسة الدخول؛ أعد تسجيل الدخول.',403 if token else 401,'session_expired')
         except A.AccessDenied:
-            return error_response(request,'انتهت الجلسة أو ليس لديك صلاحية لهذا الإجراء.',403 if token else 401)
+            return error_response(request,'ليس لديك صلاحية لتنفيذ هذا الإجراء.',403,'permission_denied')
         except __import__('psycopg2').errors.StringDataRightTruncation:
             return error_response(request,'أحد الحقول أطول من المسموح؛ قصّر القيمة وأعد الحفظ.',422)
         except __import__('psycopg2').errors.UniqueViolation:
@@ -655,7 +664,7 @@ def make_app(dsn, public_origin, *, management=False, trusted_proxies=()):
             return error_response(request,'تعذّر حفظ العملية. لم نعرض بيانات اتصال أو تفاصيل داخلية.',500)
     async def private_file(request):
         token=request.cookies.get(COOKIE,'')
-        if not token or len(token)>256: return error_response(request,'سجّل الدخول أولًا.',401)
+        if not token or len(token)>256: return error_response(request,'سجّل الدخول أولًا.',401,'session_expired')
         kind=request.path_params['kind'];ident=request.path_params['ident']
         if kind not in ('photo','attendance-photo','receipt','download'): return Response(status_code=404)
         if len(ident)>20: return Response(status_code=404)
@@ -666,7 +675,8 @@ def make_app(dsn, public_origin, *, management=False, trusted_proxies=()):
             headers={'Content-Disposition':'attachment; filename="kindergarten-data.zip"'} if kind=='download' else {'Content-Disposition':f'attachment; filename="receipt-{int(ident)}.pdf"'} if kind=='receipt' else {}
             return Response(value,media_type='application/zip' if kind=='download' else 'image/jpeg' if kind in ('photo','attendance-photo') else 'application/pdf',headers=headers)
         except __import__('schema_migrations').SchemaNotReady: return Response(status_code=503)
-        except A.AccessDenied: return Response(status_code=403)
+        except A.SessionExpired:return error_response(request,'انتهت جلسة الدخول؛ أعد تسجيل الدخول.',403,'session_expired')
+        except A.AccessDenied:return error_response(request,'ليس لديك صلاحية لتنفيذ هذا الإجراء.',403,'permission_denied')
         except (ValueError,TypeError): return Response(status_code=404)
     async def health(request):
         def ready():
@@ -682,7 +692,7 @@ def make_app(dsn, public_origin, *, management=False, trusted_proxies=()):
     async def bridge(request): return Response((LIVE_ROOT/'bridge.js').read_bytes(),media_type='text/javascript')
     async def workspace_asset(request):
         name=request.path_params['name']
-        if name not in ('workspace.js','workspace.css','people.js','people.css','attendance-session.js','reports.js','reports.css','subscriptions.js','gilet-exemption.js','mixed-gilet.js'):return Response(status_code=404)
+        if name not in ('workspace.js','workspace.css','people.js','people.css','attendance-session.js','reports.js','reports.css','subscriptions.js','gilet-exemption.js','mixed-gilet.js','session-recovery.js'):return Response(status_code=404)
         return Response((LIVE_ROOT/name).read_bytes(),media_type='text/javascript' if name.endswith('.js') else 'text/css')
     async def catalog_asset(request):
         return Response('window.APP_MESSAGES='+json.dumps(L.CATALOG,ensure_ascii=False)+';',media_type='text/javascript')

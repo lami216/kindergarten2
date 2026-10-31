@@ -49,20 +49,28 @@ def _month(text):
     return str(text)
 
 
-def _insert(table, national_id, args, *, token=None, actor):
+def _insert(table, national_id, args, *, token=None, actor, reason=None):
     who = _actor(actor)
+    if reason is not None and (not isinstance(reason,str) or not reason.strip() or len(reason)>2000):
+        raise ValueError('أدخل سبب الصرف، حتى 2000 حرف.')
+    why = reason.strip() if reason is not None else 'صرف نقدي فعلي'
     token = str(token or uuid.uuid4())
     try:
         token = str(uuid.UUID(token))
     except ValueError:
         raise ValueError("رمز طلب الحفظ غير صحيح.")
     payload = {"table":table,"national_id":national_id,**args}
+    # Keep the fingerprints of older callers stable; new callers bind the reason
+    # to the idempotent request as well as both audit records.
+    if reason is not None: payload['reason']=why
     fp = _fingerprint(payload)
     conn = db.new_transaction_connection()
     try:
         with conn.cursor() as c:
             import access_control as A
             who=A.actor(c,'salaries.create',who)
+            import record_history as H
+            H.context(c,who,why)
             # Transactional advisory lock serializes retries with identical IDs.
             c.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s,0))", (token,))
             c.execute(f"SELECT * FROM {table} WHERE request_token=%s", (token,))
@@ -94,7 +102,7 @@ def _insert(table, national_id, args, *, token=None, actor):
                      args["notes"],token,fp))
                 ident=c.fetchone()["advance_id"]
             c.execute(f"SELECT * FROM {table} WHERE "+("payment_id" if table=="teacher_payments" else "advance_id")+"=%s",(ident,))
-            _audit(c,table,ident,"cash_disbursed",who,"صرف نقدي فعلي",{},c.fetchone())
+            _audit(c,table,ident,"cash_disbursed",who,why,{},c.fetchone())
         conn.commit()
         return ident,True
     except Exception:
@@ -120,19 +128,19 @@ def salary_preview(base, bonus=0, deductions=0):
 
 
 def save_salary(national_id, month, base, bonus=0, deductions=0,
-                notes="", *, actor, token=None, on_date=None):
+                notes="", *, actor, token=None, on_date=None, reason=None):
     preview=salary_preview(base,bonus,deductions)
     base,bonus,deductions,total=(preview[k] for k in ('base','bonus','deductions','net'))
     return _insert("teacher_payments",str(national_id),
         {"amount":total,"date":str(on_date or business_today()),"month":_month(month),
          "base":base,"bonus":bonus,"deductions":deductions,"notes":str(notes or "")},
-        actor=actor,token=token)
+        actor=actor,token=token,reason=reason)
 
 
-def save_advance(national_id, month, cash, notes="", *, actor, token=None,on_date=None):
+def save_advance(national_id, month, cash, notes="", *, actor, token=None,on_date=None,reason=None):
     return _insert("teacher_advances",str(national_id),
         {"amount":_cash(cash),"date":str(on_date or business_today()),"month":_month(month),
-         "notes":str(notes or "")},actor=actor,token=token)
+         "notes":str(notes or "")},actor=actor,token=token,reason=reason)
 
 
 def amend(table, ident, *, actor, reason, cancel=False, month=None, notes=None, expected=None):

@@ -67,6 +67,9 @@ async def run():
                 # Intake with an optional image; removal above did not remove child.
                 await page.locator('#back-students').click();await page.locator('#add-student').click()
                 await page.locator('#student-form [name="name"]').fill('طفل صورة جديد')
+                await page.locator('#student-form [data-date-part="day"]').first.fill('12')
+                await page.locator('#student-form [data-date-part="month"]').first.select_option('03')
+                await page.locator('#student-form [data-date-part="year"]').first.fill('22')
                 await page.locator('#student-form [name="mother"]').fill('أم الطفل')
                 await page.locator('#student-form [name="motherPhone"]').fill('22334455')
                 await page.get_by_text('📷 صورة الطالب (اختياري)',exact=True).click()

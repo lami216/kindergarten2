@@ -50,6 +50,11 @@ class AccessDenied(ValueError):
     pass
 
 
+class SessionExpired(AccessDenied):
+    """Reauthentication is needed; distinct from a missing business permission."""
+    pass
+
+
 def migrate(conn):
     with conn.cursor() as c:
         c.execute('''CREATE TABLE IF NOT EXISTS app_users (
@@ -212,7 +217,7 @@ def validate_permissions(values):
 
 def current(cursor=None,*,lock=False):
     token=web_runtime.state().get('auth_session')
-    if not token: raise AccessDenied('انتهت جلسة الدخول؛ أعد تسجيل الدخول.')
+    if not token: raise SessionExpired('انتهت جلسة الدخول؛ أعد تسجيل الدخول.')
     connection=None
     try:
         if cursor is None:
@@ -223,7 +228,7 @@ def current(cursor=None,*,lock=False):
             AND s.expires_at>now() AND s.last_seen>now()-interval '30 minutes' '''+
             ('FOR SHARE OF u,s' if lock else ''),(hashlib.sha256(token.encode()).hexdigest(),))
         row=cursor.fetchone()
-        if not row: raise AccessDenied('انتهت الجلسة أو تغيرت صلاحيات الحساب؛ أعد تسجيل الدخول.')
+        if not row: raise SessionExpired('انتهت الجلسة أو تغيرت صلاحيات الحساب؛ أعد تسجيل الدخول.')
         return _public(row)
     finally:
         if connection: connection.close()

@@ -32,7 +32,7 @@ window.I18N = (() => {
     // Only error messages use this fallback. User content never passes here.
     return /[\u0600-\u06ff]/.test(value) ? tr('ui.0cacd3c2894a') : value;
   }
-  const fieldLabel = (key,fallback=key) => lang==='fr'&&catalog['field.'+key]?tr('field.'+key):sourceLabel(fallback);
+  const fieldLabel = (key,fallback=key) => catalog['field.'+key]?tr('field.'+key):sourceLabel(fallback);
   const enumLabel = value => sourceLabel(({regular:'دفع',exempt:'معفي',present:'حاضر',absent:'غائب',excused:'غائب بعذر'})[value] || value);
   document.documentElement.lang=lang;
   document.documentElement.dir=lang==='fr'?'ltr':'rtl';
