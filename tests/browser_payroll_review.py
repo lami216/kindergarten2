@@ -70,6 +70,9 @@ async def run():
         next_month=f'{year+(month==12):04d}-{month%12+1:02d}'
         await page.locator('.st-key-salary_month_v1 input').fill(next_month)
         await page.locator('.st-key-salary_month_v1 input').press('Tab')
+        # Wait for the widget rerun to clear the previous rejection before
+        # clicking; an old enabled button can still carry the previous quote.
+        await expect(page.get_by_text('المبلغ مع تسديد السلف يتجاوز المتبقي من راتب الشهر؛ لا تسجل الراتب مرة أخرى.',exact=True)).not_to_be_visible(timeout=20000)
         await expect(second).to_be_enabled(timeout=20000)
         await second.click()
         await expect(page.locator('.st-key-salary_month_v2 input')).to_be_visible(timeout=20000)
