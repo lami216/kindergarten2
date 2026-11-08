@@ -52,8 +52,8 @@ CONTENT_TYPES = {'.css':'text/css','.js':'text/javascript','.jpg':'image/jpeg','
 def index_html():
     html = (DESIGN_ROOT/'index.html').read_text(encoding='utf-8')
     html = html.replace('<script src="preview.js">','<script src="/live/runtime.js"></script>\n<script src="preview.js">')
-    html=html.replace('</head>','<link rel="stylesheet" href="/live/workspace.css"><link rel="stylesheet" href="/live/people.css"><link rel="stylesheet" href="/live/reports.css"></head>')
-    return html.replace('</body>','<script src="/live/bridge.js"></script>\n<script src="/live/workspace.js"></script>\n<script src="/live/people.js"></script>\n<script src="/live/attendance-session.js"></script>\n<script src="/live/reports.js"></script>\n<script src="/live/subscriptions.js"></script>\n<script src="/live/gilet-exemption.js"></script>\n<script src="/live/mixed-gilet.js"></script>\n<script src="/live/session-recovery.js"></script>\n</body>')
+    html=html.replace('</head>','<link rel="stylesheet" href="/live/workspace.css"><link rel="stylesheet" href="/live/people.css"><link rel="stylesheet" href="/live/reports.css"><link rel="stylesheet" href="/live/teacher-payroll.css"></head>')
+    return html.replace('</body>','<script src="/live/bridge.js"></script>\n<script src="/live/workspace.js"></script>\n<script src="/live/people.js"></script>\n<script src="/live/attendance-session.js"></script>\n<script src="/live/reports.js"></script>\n<script src="/live/subscriptions.js"></script>\n<script src="/live/gilet-exemption.js"></script>\n<script src="/live/mixed-gilet.js"></script>\n<script src="/live/teacher-payroll.js"></script>\n<script src="/live/session-recovery.js"></script>\n</body>')
 
 
 def json_ready(value):
@@ -341,6 +341,32 @@ def mutate(conn, operation, data, profile):
     if operation=='teachers.finance':
         import school_people
         return school_people.teacher_finance(conn,data)
+    if operation.startswith('payroll.') and operation!='payroll.save':
+        import teacher_payroll as TP
+        if operation=='payroll.quote':return TP.quote(conn,data)
+        if operation=='payroll.month':return TP.change_month(data,actor)
+        if operation=='payroll.reconcile':return TP.reconcile(data,actor)
+        if operation=='payroll.confirm-advance':return TP.confirm_advance(data,actor)
+        if operation=='payroll.legacy-status':return TP.legacy_status(data,actor)
+        if operation=='payroll.clear-unlinked':return TP.clear_unlinked(data,actor)
+        if operation=='payroll.pdf':
+            import payroll_pdf
+            return payroll_pdf.render(conn,data)
+        if operation=='payroll.correct':
+            import payroll_finance as P
+            kind=text(data,'kind',20,True)
+            if kind not in ('salary','advance'):raise ValueError('نوع العملية غير صحيح.')
+            ident=data.get('id')
+            if type(ident) is not int or ident<1:raise ValueError('عملية غير صحيحة.')
+            if data.get('confirmed') is not True:raise ValueError('راجع التصحيح وأكده.')
+            P.correct_cash_entry('teacher_payments' if kind=='salary' else 'teacher_advances',ident,
+              actor=actor,reason=text(data,'reason',2000,True),expected=text(data,'revision',64,True),
+              cancel=data.get('cancel') is True,month=data.get('month'),on_date=data.get('date'),
+              base=data.get('base',0),bonus=data.get('bonus',0),deductions=data.get('deductions',0),amount=data.get('amount'),
+              notes=text(data,'notes'),payment_cash=data.get('payment_cash'),settlements=data.get('settlements'),
+              account_revision=text(data,'account_revision',64,True),managed=kind=='salary')
+            return {'ok':True}
+        raise ValueError('إجراء الرواتب غير متاح.')
     if operation=='tools.list':
         import live_tools
         return live_tools.list_rows(conn,data)
@@ -383,9 +409,12 @@ def mutate(conn, operation, data, profile):
             ident,created=P.save_advance(text(data,'teacher',20,True),text(data,'month',7,True),data.get('amount'),
                 notes=text(data,'notes'),actor=actor,token=request_token(data),on_date=date.fromisoformat(text(data,'date',10,True)),reason=reason)
         else:
+            managed=data.get('managed') is True
             ident,created=P.save_salary(text(data,'teacher',20,True),text(data,'month',7,True),data.get('base'),
                 data.get('bonus',0),data.get('deductions',0),notes=text(data,'notes'),actor=actor,
-                token=request_token(data),on_date=date.fromisoformat(text(data,'date',10,True)),reason=reason)
+                token=request_token(data),on_date=date.fromisoformat(text(data,'date',10,True)),reason=reason,
+                managed=managed,payment_cash=data.get('payment_cash'),settlements=data.get('settlements'),
+                account_revision=text(data,'account_revision',64,True) if managed else None)
         return {'id':ident,'created':created}
     if operation=='students.create':
         name=text(data,'name',100,True)
@@ -641,6 +670,8 @@ def make_app(dsn, public_origin, *, management=False, trusted_proxies=()):
                 return response
             if not token: return error_response(request,'سجّل الدخول أولًا.',401,'session_expired')
             result=await run_in_threadpool(execute,token,operation,data,L.request_language(request))
+            if operation=='payroll.pdf':
+                return Response(result,media_type='application/pdf',headers={'Content-Disposition':'attachment; filename="salary-slip.pdf"'})
             if operation in ('reports.export','reports.finance.export'):
                 return Response(result,media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                     headers={'Content-Disposition':'attachment; filename="report.xlsx"'})
@@ -692,7 +723,7 @@ def make_app(dsn, public_origin, *, management=False, trusted_proxies=()):
     async def bridge(request): return Response((LIVE_ROOT/'bridge.js').read_bytes(),media_type='text/javascript')
     async def workspace_asset(request):
         name=request.path_params['name']
-        if name not in ('workspace.js','workspace.css','people.js','people.css','attendance-session.js','reports.js','reports.css','subscriptions.js','gilet-exemption.js','mixed-gilet.js','session-recovery.js'):return Response(status_code=404)
+        if name not in ('workspace.js','workspace.css','people.js','people.css','attendance-session.js','reports.js','reports.css','subscriptions.js','gilet-exemption.js','mixed-gilet.js','teacher-payroll.js','teacher-payroll.css','session-recovery.js'):return Response(status_code=404)
         return Response((LIVE_ROOT/name).read_bytes(),media_type='text/javascript' if name.endswith('.js') else 'text/css')
     async def catalog_asset(request):
         return Response('window.APP_MESSAGES='+json.dumps(L.CATALOG,ensure_ascii=False)+';',media_type='text/javascript')

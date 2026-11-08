@@ -27,24 +27,12 @@ def teachers(conn):
     import records as R
     with conn.cursor() as c:
         c.execute('SELECT * FROM teachers ORDER BY full_name,national_id')
+        show_salary=any(A.can(p) for p in ('salaries.view','teachers.edit','teachers.create'))
         return [dict(id=r['national_id'],name=r['full_name'],identity=r['display_national_id'] or r['national_id'],
-            salary=r['salary'],phone=r['mobile'] or '',department_id=r['department_id'],hire_date=r['hire_date'],
-            cancelled=bool(r['archived_at']),revision=R.revision(r),values={k:r.get(k) for k in R.FIELDS['teachers']}) for r in c.fetchall()]
+            salary=r['salary'] if show_salary else None,phone=r['mobile'] or '',department_id=r['department_id'],hire_date=r['hire_date'],
+            cancelled=bool(r['archived_at']),revision=R.revision(r),values={k:r.get(k) for k in R.FIELDS['teachers'] if k!='salary' or show_salary}) for r in c.fetchall()]
 
 
 def teacher_finance(conn,data):
-    import records as R
-    from live_pages import text
-    from psycopg2 import sql
-    with conn.cursor() as c:A.require(c,'salaries.view')
-    ident=text(data,'teacher',20,True)
-    page=data.get('page',1)
-    if type(page) is not int or not 1<=page<=100000:raise ValueError('صفحة غير صحيحة.')
-    result={'page':page,'pages':1}
-    for table,key,title in (('teacher_payments','payment_id','salaries'),('teacher_advances','advance_id','advances')):
-        with conn.cursor() as c:
-            c.execute(sql.SQL('SELECT COUNT(*) AS n FROM {} WHERE national_id=%s').format(sql.Identifier(table)),(ident,))
-            result['pages']=max(result['pages'],(c.fetchone()['n']+19)//20)
-            c.execute(sql.SQL('SELECT * FROM {} WHERE national_id=%s ORDER BY {} DESC LIMIT 20 OFFSET %s').format(sql.Identifier(table),sql.Identifier(key)),(ident,(page-1)*20))
-            result[title]=[dict(**r,id=r[key],revision=R.revision(r)) for r in c.fetchall()]
-    return result
+    import teacher_payroll
+    return teacher_payroll.account(conn,data)

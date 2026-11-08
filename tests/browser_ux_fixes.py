@@ -116,7 +116,13 @@ async def main(state):
                 assert current['health']=='Newer health note' and current['address']=='Draft after expiry'
                 await page.locator('#profile-edit-close').click();await page.locator('#profile-edit-dialog [data-discard]').click()
                 await other_context.close();passed(lang+':renewal_does_not_refresh_stale_editor_revision')
-                await nav('teachers');teacher=(await data())['teachers'][0]
+                await nav('teachers');await page.locator('#add-teacher').click()
+                teacher_name='UX payroll '+lang+' '+uuid.uuid4().hex[:6]
+                for key,value in {'full_name':teacher_name,'national_id':uuid.uuid4().hex,'salary':'2000'}.items():await page.locator('#teacher-form [name="'+key+'"]').fill(value)
+                await page.locator('#teacher-form [name=department_id]').select_option(index=1)
+                await page.locator('#teacher-form [name=reason]').fill('UX payroll fixture');await page.locator('#teacher-form [name=confirmed]').check();await page.locator('#teacher-form button.primary').click()
+                await expect(page.locator('#teacher-roster')).to_contain_text(teacher_name)
+                teacher=next(t for t in (await data())['teachers'] if t['name']==teacher_name)
                 await page.locator('[data-teacher-profile="'+teacher['id']+'"]').click();await page.locator('[data-teacher-salary=salary]').click()
                 reason='UX salary '+lang
                 await page.locator('#payroll-form [name=base]').fill('2000');await page.locator('#payroll-form [name=bonus]').fill('500');await page.locator('#payroll-form [name=deductions]').fill('100')

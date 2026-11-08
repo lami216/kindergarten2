@@ -31,7 +31,7 @@ RESOURCES={
 }
 ACTIONS={'view':'عرض','create':'إضافة','edit':'تعديل','delete':'إلغاء / حذف'}
 PERMISSIONS={f'{resource}.{action}' for resource,(_,actions) in RESOURCES.items() for action in actions}
-TABLE_RESOURCE={'monthly_gilet_cancellations':'accounts','gilet_sales':'payments','gilet_deliveries':'payments','account_status_requests':'accounts','student_attendance':'student_attendance','teacher_attendance':'teacher_attendance','students':'students','student_photos':'students','parents':'parents','school_departments':'departments',
+TABLE_RESOURCE={'teacher_salary_months':'salaries','teacher_advance_settlements':'salaries','monthly_gilet_cancellations':'accounts','gilet_sales':'payments','gilet_deliveries':'payments','account_status_requests':'accounts','student_attendance':'student_attendance','teacher_attendance':'teacher_attendance','students':'students','student_photos':'students','parents':'parents','school_departments':'departments',
     'student_departments':'departments','department_transfers':'departments','monthly_receipts':'payments',
     'payments':'payments','expenses':'expenses','assets':'assets','teachers':'teachers',
     'teacher_payments':'salaries','teacher_advances':'salaries','classes':'classes',
@@ -134,6 +134,9 @@ def migrate(conn):
             IF TG_TABLE_NAME='monthly_tariffs' THEN needed='fees.edit'; END IF;
             IF TG_TABLE_NAME='monthly_waivers' AND permitted='accounts.delete' THEN needed='accounts.delete'; END IF;
             IF TG_TABLE_NAME IN ('teacher_payments','teacher_advances') AND permitted='salaries.delete' THEN needed=permitted; END IF;
+            IF TG_TABLE_NAME='teacher_advances' AND TG_OP='UPDATE' AND permitted='salaries.create'
+                AND to_jsonb(OLD)-'is_deducted'=to_jsonb(NEW)-'is_deducted' THEN needed=permitted; END IF;
+            IF TG_TABLE_NAME IN ('teacher_salary_months','teacher_advance_settlements') AND permitted IN ('salaries.create','salaries.edit','salaries.delete','teachers.edit') THEN needed=permitted; END IF;
             IF TG_TABLE_NAME='parents' AND TG_OP='INSERT' THEN needed='students.create'; END IF;
             IF TG_TABLE_NAME='monthly_accounts' AND TG_OP='INSERT' AND permitted='students.create' THEN
                 needed='students.create';

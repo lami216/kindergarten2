@@ -2,6 +2,7 @@
 from psycopg2 import sql
 
 TABLES = {
+    'teacher_salary_months':'month_id','teacher_advance_settlements':'settlement_id',
     'monthly_gilet_cancellations':'request_token',
     'gilet_sales':'sale_id','gilet_deliveries':'delivery_id','account_status_requests':'request_token',
     'student_attendance':'attendance_id','teacher_attendance':'attendance_id',
@@ -88,6 +89,7 @@ def migrate(conn):
                     (following->>'archived_at' IS NOT NULL AND previous->>'archived_at' IS NULL)
                     OR (following->>'cancelled_at' IS NOT NULL AND previous->>'cancelled_at' IS NULL)
                     OR (following->>'state'='cancelled' AND previous->>'state'='active')
+                    OR (TG_TABLE_NAME='teacher_advance_settlements' AND previous->>'active'='true' AND following->>'active'='false')
                     OR (following->>'record_state'='cancelled' AND previous->>'record_state'='active')) THEN
                     verb='cancelled';
                 END IF;

@@ -26,7 +26,7 @@ FIELDS = {
     'assets': ('purchase_date','item_name','category','quantity','unit_cost','condition_status','notes'),
     'registrations': ('student_id','class_id','year_id','status','registration_date','annual_tuition'),
 }
-LABELS = {'monthly_gilet_cancellations':'إلغاء بند الجيليه','gilet_sales':'مبيعات الجيليه','gilet_deliveries':'تسليم الجيليه','account_status_requests':'تأكيدات الإعفاء','student_attendance':'حضور الطلاب','teacher_attendance':'حضور المعلمين','school_departments':'الأقسام','students':'الطلاب','student_photos':'صور الطلاب','parents':'أولياء الأمور',
+LABELS = {'teacher_salary_months':'استحقاق رواتب المعلمين','teacher_advance_settlements':'تسديد سلف المعلمين','monthly_gilet_cancellations':'إلغاء بند الجيليه','gilet_sales':'مبيعات الجيليه','gilet_deliveries':'تسليم الجيليه','account_status_requests':'تأكيدات الإعفاء','student_attendance':'حضور الطلاب','teacher_attendance':'حضور المعلمين','school_departments':'الأقسام','students':'الطلاب','student_photos':'صور الطلاب','parents':'أولياء الأمور',
           'teachers':'المعلمين','classes':'الصفوف السابقة','academic_years':'السنوات الدراسية',
           'assets':'الأصول والمعدات','registrations':'التسجيلات السابقة','expenses':'المصروفات',
           'monthly_receipts':'الدفعات الشهرية','payments':'الدفعات السابقة',
@@ -60,6 +60,8 @@ def migrate(conn):
             ALTER TABLE classes DROP CONSTRAINT IF EXISTS classes_class_type_section_key;
             CREATE UNIQUE INDEX IF NOT EXISTS class_active_type_section_unique
                 ON classes(class_type,section) WHERE archived_at IS NULL;''')
+    import teacher_payroll
+    teacher_payroll.migrate(conn)
     H.migrate(conn)
 
 
@@ -133,6 +135,12 @@ def edit(table, ident, updates, *, actor, reason, expected=None, clear_legacy_me
             if old.get('archived_at'): raise ValueError('السجل محذوف؛ اعرضه في سجل التغييرات.')
             updates={key:(value.strip() or None) if isinstance(value,str) else value for key,value in updates.items()}
             _validate(c,table,old,updates)
+            if table=='teachers' and 'salary' in updates and updates['salary']!=old.get('salary'):
+                import teacher_payroll
+                teacher_payroll.freeze_elapsed(c,old)
+            if table=='teachers' and 'hire_date' in updates and updates['hire_date']!=old.get('hire_date'):
+                import teacher_payroll
+                teacher_payroll.adjust_start(c,old,updates['hire_date'])
             if table=='students' and clear_legacy_medical:
                 updates['has_medical_condition']=int(bool(str(updates.get('medical_details',old.get('medical_details')) or '').strip()))
             identity={'teachers':('national_id','display_national_id'),'academic_years':('year_id','display_year_id')}.get(table)

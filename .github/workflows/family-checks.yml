@@ -148,6 +148,22 @@ jobs:
           python -m tests.browser_unsaved_windows
           python -m tests.browser_ux_fixes
           python -m tests.browser_security_live
+      - name: Monthly payroll, teacher file and reversible advances on isolated TLS/PostgreSQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          qa=/tmp/kg-teacher-payroll-qa
+          python -m tests.qa_teacher_payroll setup --directory "$qa"
+          python -m tests.qa_teacher_payroll serve --directory "$qa" > /tmp/kg-teacher-payroll.log 2>&1 &
+          api_pid=$!
+          trap 'kill "$api_pid" 2>/dev/null || true; wait "$api_pid" 2>/dev/null || true; python -m tests.qa_teacher_payroll cleanup --directory "$qa"' EXIT
+          ready=0
+          for n in $(seq 1 60); do
+            if curl -fsS --cacert "$qa/tls.crt" https://127.0.0.1:8530/api/health >/dev/null; then ready=1; break; fi
+            sleep 1
+          done
+          if [ "$ready" != 1 ]; then cat /tmp/kg-teacher-payroll.log; exit 1; fi
+          KG_TEACHER_PAYROLL_STATE="$qa/state.json" python -m tests.browser_teacher_payroll
       - name: Start isolated QA previews
         shell: bash
         run: |

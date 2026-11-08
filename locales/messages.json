@@ -5922,5 +5922,617 @@
   "family.number": {
     "ar": "أسرة {number}",
     "fr": "Famille {number}"
+  },
+  "payroll.currency": {
+    "ar": "أوقية",
+    "fr": "MRO"
+  },
+  "payroll.file": {
+    "ar": "ملف المعلم",
+    "fr": "Fiche de l’enseignant"
+  },
+  "payroll.fileIntro": {
+    "ar": "بياناته ورواتبه وحضوره في مكان واحد.",
+    "fr": "Coordonnées, salaires et présence au même endroit."
+  },
+  "payroll.back": {
+    "ar": "العودة للمعلمين",
+    "fr": "Retour aux enseignants"
+  },
+  "payroll.active": {
+    "ar": "ملف نشط",
+    "fr": "Dossier actif"
+  },
+  "payroll.archived": {
+    "ar": "مؤرشف",
+    "fr": "Archivé"
+  },
+  "payroll.editInfo": {
+    "ar": "تعديل البيانات",
+    "fr": "Modifier les coordonnées"
+  },
+  "payroll.identity": {
+    "ar": "الهوية",
+    "fr": "Identité"
+  },
+  "payroll.phone": {
+    "ar": "الهاتف",
+    "fr": "Téléphone"
+  },
+  "payroll.hireDate": {
+    "ar": "بداية العمل",
+    "fr": "Date d’embauche"
+  },
+  "payroll.monthlySalary": {
+    "ar": "الراتب الشهري الحالي",
+    "fr": "Salaire mensuel actuel"
+  },
+  "payroll.noDepartment": {
+    "ar": "دون قسم",
+    "fr": "Sans classe"
+  },
+  "payroll.archiveFile": {
+    "ar": "أرشفة ملف المعلم",
+    "fr": "Archiver le dossier"
+  },
+  "payroll.account": {
+    "ar": "الرواتب والسلف",
+    "fr": "Salaires et avances"
+  },
+  "payroll.paySalary": {
+    "ar": "صرف راتب",
+    "fr": "Verser un salaire"
+  },
+  "payroll.payAdvance": {
+    "ar": "صرف سلفة",
+    "fr": "Verser une avance"
+  },
+  "payroll.loading": {
+    "ar": "جارٍ تحميل الحساب…",
+    "fr": "Chargement du compte…"
+  },
+  "payroll.paidMonths": {
+    "ar": "أشهر مسددة بالكامل",
+    "fr": "Mois entièrement réglés"
+  },
+  "payroll.partialCount": {
+    "ar": "{count} شهر مسدد جزئيًا",
+    "fr": "{count} mois partiellement réglés"
+  },
+  "payroll.completeOnly": {
+    "ar": "بحسب استحقاق كل شهر",
+    "fr": "Selon le montant dû pour chaque mois"
+  },
+  "payroll.advanceBalance": {
+    "ar": "السلف المتبقية",
+    "fr": "Avances restant à rembourser"
+  },
+  "payroll.reviewAdvanceCount": {
+    "ar": "{count} سلفة قديمة تحتاج مراجعة",
+    "fr": "{count} avance(s) ancienne(s) à vérifier"
+  },
+  "payroll.knownAdvances": {
+    "ar": "بعد خصم التسديدات المرتبطة",
+    "fr": "Après les remboursements enregistrés"
+  },
+  "payroll.dueSalary": {
+    "ar": "رواتب مستحقة لم تسدد",
+    "fr": "Salaires échus restant à régler"
+  },
+  "payroll.dueAtMonthEnd": {
+    "ar": "الاستحقاق في نهاية الشهر",
+    "fr": "Échéance à la fin du mois"
+  },
+  "payroll.cashPaid": {
+    "ar": "الرواتب المصروفة نقدًا",
+    "fr": "Salaires versés en espèces"
+  },
+  "payroll.cashOnly": {
+    "ar": "تسديد السلف يظهر منفصلًا",
+    "fr": "Les remboursements d’avances sont séparés"
+  },
+  "payroll.legacyNotice": {
+    "ar": "توجد سجلات سابقة تحتاج مراجعة. لن نعتبر السلف القديمة مستحقة مرة أخرى أو نخمن الأشهر المسددة.",
+    "fr": "Certains anciens enregistrements sont à vérifier. Les avances ne seront pas déduites une seconde fois sans vérification."
+  },
+  "payroll.months": {
+    "ar": "الأشهر",
+    "fr": "Mois"
+  },
+  "payroll.advances": {
+    "ar": "السلف",
+    "fr": "Avances"
+  },
+  "payroll.movements": {
+    "ar": "الدفعات",
+    "fr": "Paiements"
+  },
+  "payroll.year": {
+    "ar": "السنة",
+    "fr": "Année"
+  },
+  "payroll.status.review": {
+    "ar": "يحتاج مراجعة",
+    "fr": "À vérifier"
+  },
+  "payroll.status.paid": {
+    "ar": "مسدد",
+    "fr": "À jour"
+  },
+  "payroll.status.partial": {
+    "ar": "جزئي",
+    "fr": "Partiel"
+  },
+  "payroll.status.due": {
+    "ar": "غير مسدد",
+    "fr": "À régler"
+  },
+  "payroll.status.current": {
+    "ar": "الشهر الجاري",
+    "fr": "Mois en cours"
+  },
+  "payroll.settledOf": {
+    "ar": "سُدد {paid} من {total}",
+    "fr": "{paid} réglés sur {total}"
+  },
+  "payroll.remainingAmount": {
+    "ar": "المتبقي {amount}",
+    "fr": "Reste : {amount}"
+  },
+  "payroll.complete": {
+    "ar": "اكتمل استحقاق الشهر",
+    "fr": "Salaire du mois entièrement réglé"
+  },
+  "payroll.noMonths": {
+    "ar": "لا توجد أشهر في هذه السنة.",
+    "fr": "Aucun mois pour cette année."
+  },
+  "payroll.cancelled": {
+    "ar": "إدخال ملغى",
+    "fr": "Saisie annulée"
+  },
+  "payroll.reviewLoan": {
+    "ar": "تسوية سابقة غير مؤكدة",
+    "fr": "Remboursement antérieur à vérifier"
+  },
+  "payroll.loanOutstanding": {
+    "ar": "متبقية",
+    "fr": "À rembourser"
+  },
+  "payroll.loanSettled": {
+    "ar": "مسددة",
+    "fr": "Remboursée"
+  },
+  "payroll.noAdvances": {
+    "ar": "لم تسجل سلف لهذا المعلم.",
+    "fr": "Aucune avance pour cet enseignant."
+  },
+  "payroll.noPayments": {
+    "ar": "لا توجد دفعات مسجلة.",
+    "fr": "Aucun versement enregistré."
+  },
+  "payroll.cashDate": {
+    "ar": "تاريخ الصرف",
+    "fr": "Date de versement"
+  },
+  "payroll.voidCashRetained": {
+    "ar": "مستند ملغى والنقد باقٍ",
+    "fr": "Document annulé, versement maintenu"
+  },
+  "payroll.cashPayment": {
+    "ar": "المبلغ المصروف نقدًا",
+    "fr": "Montant versé en espèces"
+  },
+  "payroll.recoveryAmount": {
+    "ar": "تسديد سلف {amount}",
+    "fr": "Remboursement d’avances : {amount}"
+  },
+  "payroll.retry": {
+    "ar": "إعادة المحاولة",
+    "fr": "Réessayer"
+  },
+  "payroll.base": {
+    "ar": "الراتب الأساسي للشهر",
+    "fr": "Salaire de base du mois"
+  },
+  "payroll.bonus": {
+    "ar": "المكافأة",
+    "fr": "Prime"
+  },
+  "payroll.otherDeductions": {
+    "ar": "خصومات أخرى",
+    "fr": "Autres retenues"
+  },
+  "payroll.advanceRecovery": {
+    "ar": "تسديد السلف",
+    "fr": "Remboursement des avances"
+  },
+  "payroll.remaining": {
+    "ar": "المتبقي",
+    "fr": "Reste"
+  },
+  "payroll.reviewMonthNotice": {
+    "ar": "راجع استحقاق هذا الشهر القديم قبل صرف مبلغ إضافي. الدفعات السابقة ستبقى محفوظة.",
+    "fr": "Vérifiez le montant dû pour cet ancien mois avant tout nouveau versement. Les versements existants sont conservés."
+  },
+  "payroll.payRemaining": {
+    "ar": "صرف المتبقي",
+    "fr": "Verser le solde"
+  },
+  "payroll.editEntitlement": {
+    "ar": "تعديل استحقاق الشهر",
+    "fr": "Modifier le salaire dû"
+  },
+  "payroll.monthPayments": {
+    "ar": "دفعات هذا الشهر",
+    "fr": "Versements de ce mois"
+  },
+  "payroll.entitlementHint": {
+    "ar": "هذا التعديل يخص هذا الشهر فقط، ولا يغير النقد المصروف أو رواتب الأشهر الأخرى.",
+    "fr": "Cette modification concerne uniquement ce mois. Elle ne change ni les versements effectués ni les autres mois."
+  },
+  "payroll.monthNet": {
+    "ar": "استحقاق الشهر: {amount}",
+    "fr": "Salaire dû : {amount}"
+  },
+  "payroll.editPayment": {
+    "ar": "تصحيح الدفعة",
+    "fr": "Corriger le versement"
+  },
+  "payroll.teacher": {
+    "ar": "المعلم",
+    "fr": "Enseignant"
+  },
+  "payroll.salaryMonth": {
+    "ar": "الراتب عن شهر",
+    "fr": "Salaire du mois de"
+  },
+  "payroll.recoveryMonth": {
+    "ar": "تبدأ تسويتها من شهر",
+    "fr": "À rembourser à partir de"
+  },
+  "payroll.notes": {
+    "ar": "ملاحظات",
+    "fr": "Observations"
+  },
+  "payroll.chooseTeacher": {
+    "ar": "اختر المعلم وشهر الراتب.",
+    "fr": "Choisissez l’enseignant et le mois."
+  },
+  "payroll.archivedNoPay": {
+    "ar": "الملف مؤرشف؛ لا يمكن صرف مبلغ جديد.",
+    "fr": "Dossier archivé : aucun nouveau versement possible."
+  },
+  "payroll.advanceAmount": {
+    "ar": "مبلغ السلفة",
+    "fr": "Montant de l’avance"
+  },
+  "payroll.advanceHint": {
+    "ar": "ستظهر السلفة في الحساب، ويُربط تسديدها بدفعات الرواتب دون تسجيل مصروف ثانٍ.",
+    "fr": "L’avance figurera dans le compte. Son remboursement sera lié aux versements de salaire, sans nouvelle dépense."
+  },
+  "payroll.remainingSalary": {
+    "ar": "المتبقي من استحقاق الشهر",
+    "fr": "Solde du salaire à régler"
+  },
+  "payroll.loanBalance": {
+    "ar": "رصيد السلفة {amount}",
+    "fr": "Solde de l’avance : {amount}"
+  },
+  "payroll.recoveryFor": {
+    "ar": "تسديد سلفة {date}",
+    "fr": "Remboursement de l’avance du {date}"
+  },
+  "payroll.cashToPay": {
+    "ar": "المبلغ الذي ستصرفه الآن",
+    "fr": "Montant à verser maintenant"
+  },
+  "payroll.oldLoanNotAuto": {
+    "ar": "السلف القديمة غير المؤكدة لم تُخصم تلقائيًا؛ راجعها من قائمة السلف.",
+    "fr": "Les anciennes avances non vérifiées ne sont pas déduites automatiquement. Vérifiez-les dans l’onglet Avances."
+  },
+  "payroll.paymentPreview": {
+    "ar": "نقد الآن: {cash} · تسديد سلف: {recovery} · يبقى للشهر: {remaining}",
+    "fr": "Versement : {cash} · Avances remboursées : {recovery} · Solde du mois : {remaining}"
+  },
+  "payroll.loanRepaid": {
+    "ar": "المسدّد من السلفة",
+    "fr": "Montant remboursé"
+  },
+  "payroll.voidHint": {
+    "ar": "هذا يلغي المستند فقط. النقد المصروف وتسديد السلف وحالة الشهر تبقى كما هي.",
+    "fr": "Cette action annule uniquement le document. Le versement, les remboursements d’avances et le solde du mois restent inchangés."
+  },
+  "payroll.cancelEntry": {
+    "ar": "إلغاء الإدخال المالي",
+    "fr": "Annuler la saisie financière"
+  },
+  "payroll.voidDocument": {
+    "ar": "إلغاء المستند فقط",
+    "fr": "Annuler le document uniquement"
+  },
+  "payroll.downloadSlip": {
+    "ar": "تنزيل قسيمة الراتب",
+    "fr": "Télécharger le bulletin"
+  },
+  "payroll.reviewLoanHint": {
+    "ar": "هل سُددت هذه السلفة بخصم سابق؟ اربطها بذلك الخصم. إن كانت لم تسدد، أكد رصيدها قبل خصمها من راتب جديد.",
+    "fr": "Cette avance a-t-elle déjà été retenue sur un salaire ? Associez-la à la retenue existante. Sinon, confirmez le solde avant toute nouvelle retenue."
+  },
+  "payroll.linkOldDeduction": {
+    "ar": "ربط بخصم سابق",
+    "fr": "Associer à une retenue existante"
+  },
+  "payroll.confirmUnpaid": {
+    "ar": "تأكيد أنها لم تسدد",
+    "fr": "Confirmer le solde non remboursé"
+  },
+  "payroll.advanceDetails": {
+    "ar": "تفاصيل السلفة",
+    "fr": "Détail de l’avance"
+  },
+  "payroll.salaryDetails": {
+    "ar": "قسيمة الراتب",
+    "fr": "Bulletin de versement du salaire"
+  },
+  "payroll.cancelSalaryHint": {
+    "ar": "سيزال النقد المسجل لهذه الدفعة، وتعود تسديداتها إلى رصيد السلف ويعاد حساب المتبقي من الشهر. الإلغاء وسببه محفوظان في السجل.",
+    "fr": "Le versement sera retiré des comptes. Les remboursements liés seront rétablis dans les soldes des avances et le solde du mois sera recalculé. L’annulation restera dans l’historique."
+  },
+  "payroll.cancelAdvanceHint": {
+    "ar": "سيزال مبلغ السلفة من المصروفات. إن سبق خصمها من راتب، سيعود مبلغ الخصم إلى مستحقات المعلم دون تغيير النقد الذي استلمه من الراتب.",
+    "fr": "L’avance sera retirée des dépenses. Les retenues déjà effectuées redeviendront dues à l’enseignant, sans modifier les salaires effectivement versés."
+  },
+  "payroll.confirmUnpaidHint": {
+    "ar": "أكد أن هذا المبلغ لم يُخصم أو يُسدد سابقًا. لن يحدث صرف جديد؛ سيصبح الرصيد متاحًا للتسديد من الرواتب.",
+    "fr": "Confirmez que cette somme n’a pas déjà été retenue ou remboursée. Aucun nouveau versement ne sera créé ; le solde pourra être remboursé sur les prochains salaires."
+  },
+  "payroll.linkOldHint": {
+    "ar": "هذه تسوية لخصم تم بالفعل: نعيد تصنيفه من الخصومات الأخرى إلى تسديد سلفة، ويبقى النقد المصروف كما هو.",
+    "fr": "Cette opération concerne une retenue déjà effectuée : elle sera reclassée en remboursement d’avance, sans modifier le montant versé."
+  },
+  "payroll.existingPayment": {
+    "ar": "الراتب الذي خُصمت منه",
+    "fr": "Versement portant la retenue"
+  },
+  "payroll.choosePayment": {
+    "ar": "اختر دفعة الراتب…",
+    "fr": "Choisir un versement…"
+  },
+  "payroll.reconcileAmount": {
+    "ar": "المبلغ الذي سدد سابقًا",
+    "fr": "Montant déjà remboursé"
+  },
+  "payroll.state": {
+    "ar": "الحالة",
+    "fr": "Statut"
+  },
+  "payroll.validation.0": {
+    "ar": "شهر الراتب خارج النطاق المسموح.",
+    "fr": "Le mois du salaire est hors de la période autorisée."
+  },
+  "payroll.validation.1": {
+    "ar": "ملف المعلم غير موجود.",
+    "fr": "Le dossier de l’enseignant est introuvable."
+  },
+  "payroll.validation.2": {
+    "ar": "تغيّر حساب المعلم منذ فتح النافذة؛ أعد فتحها وراجع المبالغ الجديدة.",
+    "fr": "Le compte a changé depuis l’ouverture. Rouvrez la fenêtre et vérifiez les montants."
+  },
+  "payroll.validation.3": {
+    "ar": "شهر الراتب أو تاريخ الصرف يسبق بداية عمل المعلم؛ صحح التاريخ أولًا.",
+    "fr": "Le mois ou la date de versement précède le début du contrat. Corrigez la date."
+  },
+  "payroll.validation.4": {
+    "ar": "توزيع تسديد السلف غير صحيح.",
+    "fr": "La répartition du remboursement des avances est incorrecte."
+  },
+  "payroll.validation.5": {
+    "ar": "السلفة غير متاحة للتسديد أو تحتاج ربطها بخصم قديم.",
+    "fr": "Cette avance ne peut pas être remboursée ou doit être associée à une ancienne retenue."
+  },
+  "payroll.validation.6": {
+    "ar": "لا يمكن خصم سلفة قبل تاريخ صرفها أو شهر تسديدها.",
+    "fr": "Une avance ne peut pas être retenue avant son versement ou le mois prévu pour son remboursement."
+  },
+  "payroll.validation.7": {
+    "ar": "مبلغ تسديد السلفة أكبر من رصيدها المتبقي؛ حدّث النافذة.",
+    "fr": "Le remboursement dépasse le solde de l’avance. Actualisez la fenêtre."
+  },
+  "payroll.validation.8": {
+    "ar": "أدخل مبلغ صرف أو تسديد سلفة أكبر من صفر.",
+    "fr": "Saisissez un versement ou un remboursement d’avance supérieur à zéro."
+  },
+  "payroll.validation.9": {
+    "ar": "المبلغ مع تسديد السلف يتجاوز المتبقي من راتب الشهر؛ لا تسجل الراتب مرة أخرى.",
+    "fr": "Le versement et les remboursements dépassent le solde du mois. Ne versez pas le salaire une seconde fois."
+  },
+  "payroll.validation.10": {
+    "ar": "راجع استحقاق هذا الشهر القديم قبل تسجيل صرف جديد.",
+    "fr": "Vérifiez le salaire dû pour cet ancien mois avant un nouveau versement."
+  },
+  "payroll.validation.11": {
+    "ar": "عملية الراتب غير موجودة.",
+    "fr": "Le versement de salaire est introuvable."
+  },
+  "payroll.validation.12": {
+    "ar": "السنة غير صحيحة.",
+    "fr": "L’année est incorrecte."
+  },
+  "payroll.validation.13": {
+    "ar": "راجع الاستحقاق وأكد التعديل.",
+    "fr": "Vérifiez le salaire dû et confirmez la modification."
+  },
+  "payroll.validation.14": {
+    "ar": "الخصومات أكبر من الراتب والمكافأة.",
+    "fr": "Les retenues dépassent le salaire et la prime."
+  },
+  "payroll.validation.15": {
+    "ar": "الاستحقاق أقل مما سُدد بالفعل؛ صحح الدفعات أو تسديد السلف أولًا.",
+    "fr": "Le salaire dû est inférieur au montant déjà réglé. Corrigez d’abord les versements ou les remboursements d’avances."
+  },
+  "payroll.validation.16": {
+    "ar": "أدخل مبلغ التسوية وأكد أنه خصم سابق، دون صرف جديد.",
+    "fr": "Saisissez le montant et confirmez qu’il s’agit d’une retenue existante, sans nouveau versement."
+  },
+  "payroll.validation.17": {
+    "ar": "اختر خصمًا سابقًا لنفس المعلم يغطي مبلغ التسوية.",
+    "fr": "Choisissez une retenue existante du même enseignant couvrant ce montant."
+  },
+  "payroll.validation.18": {
+    "ar": "الخصم يسبق صرف السلفة.",
+    "fr": "La retenue précède le versement de l’avance."
+  },
+  "payroll.validation.19": {
+    "ar": "راجع خصومات استحقاق الشهر أولًا؛ التسوية لا تغيّر النقد.",
+    "fr": "Vérifiez d’abord les retenues du mois. Cette opération ne modifie pas le versement."
+  },
+  "payroll.validation.20": {
+    "ar": "أكد أن السلفة لم تسدد سابقًا.",
+    "fr": "Confirmez que cette avance n’a pas déjà été remboursée."
+  },
+  "payroll.validation.21": {
+    "ar": "السلفة غير موجودة.",
+    "fr": "L’avance est introuvable."
+  },
+  "payroll.validation.22": {
+    "ar": "نوع العملية غير صحيح.",
+    "fr": "Le type d’opération est incorrect."
+  },
+  "payroll.validation.23": {
+    "ar": "عملية غير صحيحة.",
+    "fr": "L’opération est incorrecte."
+  },
+  "payroll.validation.24": {
+    "ar": "راجع التصحيح وأكده.",
+    "fr": "Vérifiez et confirmez la correction."
+  },
+  "payroll.validation.25": {
+    "ar": "إجراء الرواتب غير متاح.",
+    "fr": "Cette opération de paie est indisponible."
+  },
+  "payroll.validation.26": {
+    "ar": "العملية غير موجودة.",
+    "fr": "L’opération est introuvable."
+  },
+  "payroll.validation.27": {
+    "ar": "لا تنقل راتبًا بين حسابين؛ صحح ملف المعلم من مصدره.",
+    "fr": "Ne transférez pas un salaire entre deux comptes. Corrigez le dossier d’origine."
+  },
+  "payroll.history.teacher_salary_months": {
+    "ar": "استحقاق رواتب المعلمين",
+    "fr": "Salaires mensuels dus"
+  },
+  "payroll.history.teacher_advance_settlements": {
+    "ar": "تسديد سلف المعلمين",
+    "fr": "Remboursements des avances"
+  },
+  "payroll.validation.recovery_date": {
+    "ar": "توجد تسديدات تسبق التاريخ الجديد للسلفة؛ صحح دفعاتها المرتبطة أولًا.",
+    "fr": "Des remboursements précèdent la nouvelle date de l’avance. Corrigez d’abord les versements liés."
+  },
+  "payroll.validation.old_recovery": {
+    "ar": "راجع تسديدات هذه الدفعة القديمة قبل ربط خصم آخر.",
+    "fr": "Vérifiez les remboursements de cet ancien versement avant d’associer une autre retenue."
+  },
+  "payroll.status.none": {
+    "ar": "دون استحقاق",
+    "fr": "Aucun salaire dû"
+  },
+  "payroll.field.review": {
+    "ar": "يحتاج مراجعة",
+    "fr": "À vérifier"
+  },
+  "payroll.field.legacyRepaid": {
+    "ar": "تسديد سابق مؤكد",
+    "fr": "Remboursement antérieur confirmé"
+  },
+  "payroll.field.source": {
+    "ar": "المصدر",
+    "fr": "Origine"
+  },
+  "payroll.thisPayment": {
+    "ar": "إجمالي ما سُدد بهذه الدفعة",
+    "fr": "Total réglé par ce versement"
+  },
+  "payroll.salaryRateHint": {
+    "ar": "استحقاق الشهر المسجل يُعدّل من قسم الرواتب؛ تغيير الراتب الحالي يحافظ على الأشهر السابقة.",
+    "fr": "Modifiez le salaire d’un mois déjà enregistré dans la rubrique Salaires. Le salaire actuel ne modifie pas les mois précédents."
+  },
+  "payroll.validation.edit_managed": {
+    "ar": "صحح هذه الدفعة من ملف المعلم للحفاظ على تسديد السلف والدفعات الجزئية.",
+    "fr": "Corrigez ce versement depuis le dossier de l’enseignant pour préserver les remboursements d’avances et les paiements partiels."
+  },
+  "payroll.validation.after_archive": {
+    "ar": "هذا الشهر بعد أرشفة ملف المعلم؛ راجع تاريخ العملية.",
+    "fr": "Ce mois est postérieur à l’archivage du dossier. Vérifiez la date de l’opération."
+  },
+  "payroll.reopenAmount": {
+    "ar": "سيعود {amount} إلى مستحقات المعلم، دون تغيير نقد الرواتب المصروف سابقًا.",
+    "fr": "{amount} redeviendront dus à l’enseignant, sans modifier les salaires déjà versés."
+  },
+  "payroll.recoveredThrough": {
+    "ar": "سُددت من دفعات الرواتب",
+    "fr": "Remboursée sur les versements suivants"
+  },
+  "payroll.editLegacyStatus": {
+    "ar": "تصحيح حالة تسديد قديمة",
+    "fr": "Corriger un remboursement ancien"
+  },
+  "payroll.previouslyRepaid": {
+    "ar": "المسدّد سابقًا دون دفعة مرتبطة",
+    "fr": "Remboursement ancien sans versement associé"
+  },
+  "payroll.legacyStatusHint": {
+    "ar": "هذا يصحح حالة تسديد قديمة غير مرتبطة براتب. لا يغير النقد أو أي راتب؛ اذكر السبب والمبلغ الذي ثبت تسديده فقط.",
+    "fr": "Cette correction concerne un remboursement ancien sans lien avec un salaire. Elle ne modifie ni les versements ni les salaires. Indiquez uniquement le montant dont le remboursement est confirmé et le motif."
+  },
+  "payroll.validation.legacy.0": {
+    "ar": "قيمة التسديد السابق أكبر من رصيد السلفة.",
+    "fr": "Le remboursement ancien dépasse le solde de l’avance."
+  },
+  "payroll.validation.legacy.1": {
+    "ar": "اربط التسديد القديم بدفعة الراتب أولًا، أو صحح حالته السابقة؛ لن نخمن الشهر المتأثر.",
+    "fr": "Associez d’abord le remboursement ancien à un salaire ou corrigez son état. Le mois concerné ne sera pas déduit automatiquement."
+  },
+  "payroll.validation.legacy.2": {
+    "ar": "اربط تسديد السلفة القديم بمصدره أولًا قبل تصحيح هذه الدفعة أو إلغائها.",
+    "fr": "Associez d’abord l’ancien remboursement d’avance à son origine avant de corriger ou d’annuler ce versement."
+  },
+  "payroll.unlinkedHint": {
+    "ar": "يوجد تسديد قديم غير مربوط بقيمة {amount}. اربطه بسلفته من قائمة السلف. إن كان إدخالًا خاطئًا، صححه دون تغيير النقد.",
+    "fr": "Un ancien remboursement de {amount} n’est associé à aucune avance. Associez-le depuis l’onglet Avances, ou corrigez-le s’il est erroné, sans modifier le versement."
+  },
+  "payroll.correctUnlinked": {
+    "ar": "تصحيح تسديد غير مربوط",
+    "fr": "Corriger un remboursement non associé"
+  },
+  "payroll.clearUnlinkedHint": {
+    "ar": "أزل فقط مبلغ التسديد القديم الذي ثبت أنه خطأ. سيعود إلى مستحقات الشهر دون تغيير النقد، ودون افتراض السلفة التي كان يخصها.",
+    "fr": "Retirez uniquement le montant d’un ancien remboursement reconnu comme erroné. Il redeviendra dû pour ce mois, sans modifier le versement ni supposer l’avance concernée."
+  },
+  "payroll.wrongRecovery": {
+    "ar": "مبلغ التسديد الخاطئ المراد إزالته",
+    "fr": "Montant du remboursement erroné à retirer"
+  },
+  "payroll.validation.unlinked": {
+    "ar": "مبلغ التصحيح أكبر من التسديد القديم غير المرتبط.",
+    "fr": "La correction dépasse le remboursement ancien non associé."
+  },
+  "payroll.overpaidAmount": {
+    "ar": "زيادة صرف {amount} تحتاج مراجعة",
+    "fr": "Versement excédentaire de {amount} à vérifier"
+  },
+  "payroll.invalidMonthHint": {
+    "ar": "شهر هذا السجل القديم غير واضح؛ اختر الشهر الصحيح من نافذة التصحيح. لن نفترض شهرًا بدلًا منه.",
+    "fr": "Le mois de cet ancien enregistrement est invalide. Choisissez le bon mois dans la fenêtre de correction ; aucun mois ne sera supposé."
+  },
+  "payroll.chooseEntitlement": {
+    "ar": "اختيار استحقاق شهر",
+    "fr": "Choisir le salaire mensuel à modifier"
+  },
+  "payroll.openEntitlement": {
+    "ar": "فتح استحقاق الشهر",
+    "fr": "Ouvrir le salaire du mois"
   }
 }

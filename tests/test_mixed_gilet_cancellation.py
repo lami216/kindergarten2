@@ -234,7 +234,7 @@ def test_cancellation_historical_totals_and_return_to_paying_do_not_restore_obli
     assert F.projection(conn,sid)['fees']['gilet']['cancelled']==2000
 
 
-def test_upgrade_17_to_18_preserves_existing_cash_frozen_receipts_photos_and_access(browser):
+def test_upgrade_17_to_current_preserves_existing_cash_frozen_receipts_photos_and_access(browser):
     import base64,db,schema_migrations as M
     from tests.test_student_photos import picture
     client,conn=browser;session=login(client)
@@ -261,7 +261,7 @@ def test_upgrade_17_to_18_preserves_existing_cash_frozen_receipts_photos_and_acc
             if table=='monthly_allocations':after=[{k:v for k,v in r.items() if k!='copied_from_id'} for r in after]
             assert after==before[table],table
         c.execute('SELECT COUNT(*) n FROM monthly_gilet_cancellations');assert c.fetchone()['n']==0
-        c.execute('SELECT MAX(version) v FROM app_schema_migrations');assert c.fetchone()['v']==18
+        c.execute('SELECT MAX(version) v FROM app_schema_migrations');assert c.fetchone()['v']==M.VERSION
 
 
 @pytest.mark.parametrize('state',['exempt','archived'])

@@ -9,7 +9,7 @@ import record_history as H
 import monthly_finance as F
 import db
 
-LABELS={
+LABELS={'advance':'تسديد السلف','review_required':'يحتاج مراجعة','legacy_repaid':'تسديد سابق مؤكد','active':'ساري','source':'المصدر',
  'on_date':'يوم الحضور','excuse':'عذر الغياب','department_name':'القسم وقت التسجيل','person_id':'الملف','department_id':'القسم','father_name':'اسم الأب','father_mobile':'هاتف الأب','mother_name':'اسم الأم','mother_mobile':'هاتف الأم',
  'contact_email':'البريد','full_name':'الاسم','national_id':'الهوية','salary':'الراتب','mobile':'الهاتف',
  'address':'العنوان','hire_date':'تاريخ التوظيف','experience_years':'سنوات الخبرة','degree':'المؤهل','specialization':'التخصص',
@@ -47,6 +47,7 @@ def catalog():
         if not A.can(resource+'.view'):continue
         fields=[]
         for key in keys:
+            if table=='teachers' and key=='salary' and not any(A.can(p) for p in ('salaries.view','teachers.edit','teachers.create')):continue
             choices=['regular','exempt'] if table=='monthly_accounts' and key=='status' else []
             fields.append(dict(key=key,label=LABELS.get(key,key),type='select' if choices else
                 'date' if key in DATES else 'number' if key in NUMBERS else 'month' if key=='salary_month' else 'text',
@@ -88,10 +89,10 @@ def list_rows(conn,data):
     output=[]
     for r in items:
         title=r.get('full_name') or r.get('item_name') or r.get('father_name') or r.get('mother_name') or names.get(r.get('student_id') or r.get('national_id')) or r.get('class_name') or r.get('display_year_id') or str(r[pk])
-        values={k:r.get(k) for k in TABLES[table][1]}
+        values={k:r.get(k) for k in TABLES[table][1] if not(table=='teachers' and k=='salary' and not any(A.can(p) for p in ('salaries.view','teachers.edit','teachers.create')))}
         if table=='teachers':values['national_id']=r.get('display_national_id') or r['national_id']
         output.append(dict(id=r[pk],title=title,values=values,revision=R.revision(r),cancelled=bool(r.get(state)),
-            cash=r.get('cash_amount'),document=r.get('record_state'),student=r.get('student_id')))
+            cash=r.get('cash_amount'),document=r.get('record_state'),student=r.get('student_id'),teacher=r.get('national_id')))
     return dict(items=output,total=count,page=page,pages=max(1,(count+19)//20))
 
 def change(conn,data,profile):
