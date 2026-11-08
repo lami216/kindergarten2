@@ -212,7 +212,7 @@ showHistory=function(){
     const type=$('#history-type').value,action=$('#history-action').value,term=searchText($('#history-search').value);
     const rows=changes.filter(x=>(!type||x.type===type)&&(!action||x.action===action)&&searchText(JSON.stringify(x)).includes(term)).slice().reverse();
     const hidden=new Set(['request_token','request_hash','request_fingerprint','image_data']);
-    const technical=new Set(['created_at','updated_at','cancelled_at','archived_at','entry_cancelled_at','payment_id','advance_id','receipt_id','sale_id','delivery_id','transfer_id','attendance_id','revision','image_sha256','sha256','actor_user_id','archived_by','cancelled_by','display_national_id','closed_after_period_no']);
+    const technical=new Set(['month_id','settlement_id','managed_month','source','created_at','updated_at','cancelled_at','archived_at','entry_cancelled_at','payment_id','advance_id','receipt_id','sale_id','delivery_id','transfer_id','attendance_id','revision','image_sha256','sha256','actor_user_id','archived_by','cancelled_by','display_national_id','closed_after_period_no']);
     const references=new Set(['student_id','father_id','national_id','teacher_id','department_id','person_id']);
     const value=(v,k,labels={})=>{
         if(v===null||v===undefined)return '—';
