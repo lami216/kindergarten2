@@ -118,7 +118,7 @@ async def main(state):
                 await other_context.close();passed(lang+':renewal_does_not_refresh_stale_editor_revision')
                 await nav('teachers');await page.locator('#add-teacher').click()
                 teacher_name='UX payroll '+lang+' '+uuid.uuid4().hex[:6]
-                for key,value in {'full_name':teacher_name,'national_id':uuid.uuid4().hex,'salary':'2000'}.items():await page.locator('#teacher-form [name="'+key+'"]').fill(value)
+                for key,value in {'full_name':teacher_name,'national_id':'UX-'+uuid.uuid4().hex[:12],'salary':'2000'}.items():await page.locator('#teacher-form [name="'+key+'"]').fill(value)
                 await page.locator('#teacher-form [name=department_id]').select_option(index=1)
                 await page.locator('#teacher-form [name=reason]').fill('UX payroll fixture');await page.locator('#teacher-form [name=confirmed]').check();await page.locator('#teacher-form button.primary').click()
                 await expect(page.locator('#teacher-roster')).to_contain_text(teacher_name)
@@ -203,3 +203,4 @@ if __name__=='__main__':
     path=Path(os.environ['KG_UX_STATE']) if os.getenv('KG_UX_STATE') else Path(os.environ['KG_LIVE_QA_DIR'])/'state.json'
     state=json.loads(path.read_text(encoding='utf-8'))
     asyncio.run(main(state))
+
