@@ -55,18 +55,26 @@ async def run():
         await page.screenshot(path=str(OUT/"payroll_form_390_filled.png"),full_page=True)
         await button.dblclick()
         await expect(page.get_by_text(re.compile("تم صرف الراتب وحفظ القسيمة|هذه القسيمة محفوظة سابقاً"))).to_be_visible(timeout=20000)
-        slips=sql("SELECT payment_id,amount,request_token FROM teacher_payments WHERE national_id=%s",(tid,))
+        slips=sql("SELECT payment_id,amount,request_token,salary_month FROM teacher_payments WHERE national_id=%s",(tid,))
         assert len(slips)==1,slips
         await expect(page.locator(".st-key-salary_month_v1 input")).to_be_visible(timeout=15000)
-        # A separate consciously initiated payment is still permitted.
-        # Wait for the new button, not a stale success message / button from
-        # the first streamed rerun. Version 2 proves the second commit finished.
+        # A new request token must not bypass the month's remaining balance.
         second=page.locator('.st-key-salary_save_v1 button')
         await expect(second).to_be_enabled(timeout=20000)
         await second.click()
+        await expect(page.get_by_text('المبلغ مع تسديد السلف يتجاوز المتبقي من راتب الشهر؛ لا تسجل الراتب مرة أخرى.',exact=True)).to_be_visible(timeout=20000)
+        assert len(sql("SELECT payment_id FROM teacher_payments WHERE national_id=%s",(tid,)))==1
+        await expect(page.locator('.st-key-salary_month_v1 input')).to_be_visible()
+        # A consciously initiated payment for a DIFFERENT month remains valid.
+        year,month=map(int,slips[0]['salary_month'].split('-'))
+        next_month=f'{year+(month==12):04d}-{month%12+1:02d}'
+        await page.locator('.st-key-salary_month_v1 input').fill(next_month)
+        await page.locator('.st-key-salary_month_v1 input').press('Tab')
+        await expect(second).to_be_enabled(timeout=20000)
+        await second.click()
         await expect(page.locator('.st-key-salary_month_v2 input')).to_be_visible(timeout=20000)
-        saved=sql("SELECT payment_id FROM teacher_payments WHERE national_id=%s",(tid,))
-        assert len(saved)==2,saved
+        saved=sql("SELECT payment_id,salary_month FROM teacher_payments WHERE national_id=%s",(tid,))
+        assert len(saved)==2 and {r['salary_month'] for r in saved}=={slips[0]['salary_month'],next_month},saved
 
         await page.get_by_role("tab",name="💰 سلف المعلمات").click()
         await select_teacher(page,".st-key-advance_teacher_v0",name)
@@ -79,8 +87,9 @@ async def run():
         await page.screenshot(path=str(OUT/"payroll_advance_390_success.png"),full_page=True)
         await ctx.close()
         await browser.close()
-    print("Chromium salary double-click created one slip, separate save permitted, advance double-click one.")
+    print("Chromium salary double-click created one slip; full-month repeat refused; different month saved; advance double-click one.")
 
 
 if __name__=="__main__":
     asyncio.run(run())
+
