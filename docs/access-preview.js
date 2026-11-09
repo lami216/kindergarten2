@@ -45,7 +45,7 @@ render=()=>{
  if(page==='admin'){$('#crumb').textContent=`${I18N.tr("ui.acb8b7ffe341")}`;$('#content').innerHTML=demoAdmin();demoBindAdmin();return;}
  if(page==='dashboard'&&!demoActor.admin&&!demoCan('dashboard')){const m=demoMetrics(demoActor);$('#crumb').textContent=`${I18N.tr("ui.bfcf48307970")}`;$('#content').innerHTML=`${heading(`${I18N.tr("ui.9e8ef149c554",{p0:demoActor.name})}`,`${I18N.tr("ui.c1cc4fe19bad")}`)}<div class="panel"><p>${I18N.tr("ui.8b7ba38e1fd4")}</p><div class="stats">${demoCan('students','create')?stat('🎒','طلاب سجلتهم',m.students):''}${demoCan('expenses','create')?stat('📦','مصروفات سجلتها',m.expenses):''}</div></div>`;return;}
  if(page==='students'&&!demoCan('students')&&demoCan('students','create')){profileId=null;studentMode='add';}
- if(page==='payments'&&!demoCan('receipts','create'))financeTab='receipts';
+ if(page==='payments'&&financeTab==='payment'&&!demoCan('receipts','create'))financeTab='receipts';
  demoBaseRender();
  if(demoActor.admin)return;
  if(!demoCan('students','create'))$('#add-student')?.remove();

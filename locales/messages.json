@@ -6534,5 +6534,237 @@
   "payroll.openEntitlement": {
     "ar": "فتح استحقاق الشهر",
     "fr": "Ouvrir le salaire du mois"
+  },
+  "followup.title": {
+    "ar": "متابعة المستحقات",
+    "fr": "Suivi des paiements"
+  },
+  "followup.subtitle": {
+    "ar": "طلاب يحتاجون متابعة، وتنبيه مبكر قبل استحقاق الشهر.",
+    "fr": "Les familles à relancer et les prochaines mensualités à prévoir."
+  },
+  "followup.currency": {
+    "ar": "أوقية قديمة",
+    "fr": "anciennes ouguiyas (MRO)"
+  },
+  "followup.dueStudents": {
+    "ar": "طلاب عليهم مستحقات",
+    "fr": "Élèves avec un solde dû"
+  },
+  "followup.dueTotal": {
+    "ar": "المستحق الآن",
+    "fr": "Montant dû aujourd’hui"
+  },
+  "followup.earlyStudents": {
+    "ar": "تنبيه مبكر",
+    "fr": "Échéances à venir"
+  },
+  "followup.noDepartment": {
+    "ar": "دون قسم",
+    "fr": "Sans classe"
+  },
+  "followup.dueSince": {
+    "ar": "مستحق من {date}",
+    "fr": "Dû depuis le {date}"
+  },
+  "followup.dueOn": {
+    "ar": "يستحق يوم {date}",
+    "fr": "À régler le {date}"
+  },
+  "followup.feesDue": {
+    "ar": "رسوم مستحقة",
+    "fr": "Frais restant à régler"
+  },
+  "followup.due": {
+    "ar": "مستحق",
+    "fr": "À régler"
+  },
+  "followup.upcoming": {
+    "ar": "قريبًا",
+    "fr": "À venir"
+  },
+  "followup.dueNow": {
+    "ar": "عليه الآن",
+    "fr": "Solde dû"
+  },
+  "followup.nextInstalment": {
+    "ar": "القسط المنتظر",
+    "fr": "Prochaine mensualité"
+  },
+  "followup.breakdown": {
+    "ar": "تفاصيل المبلغ",
+    "fr": "Détail du montant"
+  },
+  "followup.monthlyDebt": {
+    "ar": "الشهرية",
+    "fr": "Mensualité"
+  },
+  "followup.feesDebt": {
+    "ar": "التسجيل والجيليه",
+    "fr": "Inscription et tenue scolaire"
+  },
+  "followup.notDebtYet": {
+    "ar": "تذكير مبكر؛ لم يصبح هذا القسط دينًا بعد.",
+    "fr": "Rappel anticipé : cette mensualité n’est pas encore due."
+  },
+  "followup.nextDueOn": {
+    "ar": "القسط التالي يستحق يوم {date}",
+    "fr": "Prochaine mensualité le {date}"
+  },
+  "followup.profile": {
+    "ar": "ملف الطالب",
+    "fr": "Dossier de l’élève"
+  },
+  "followup.pay": {
+    "ar": "تسجيل دفعة",
+    "fr": "Enregistrer un paiement"
+  },
+  "followup.noMatches": {
+    "ar": "لا توجد نتائج لهذا البحث",
+    "fr": "Aucun élève ne correspond à la recherche"
+  },
+  "followup.changeSearch": {
+    "ar": "جرّب اسمًا آخر أو غيّر القسم.",
+    "fr": "Essayez un autre nom ou une autre classe."
+  },
+  "followup.emptyTitle": {
+    "ar": "لا توجد مستحقات للمتابعة هنا",
+    "fr": "Aucun paiement à suivre ici"
+  },
+  "followup.emptyHint": {
+    "ar": "يظهر الطلاب تلقائيًا عند حلول موعد التذكير، ويختفون بعد التسديد.",
+    "fr": "Les élèves apparaissent à la date de rappel et quittent cette liste une fois le solde réglé."
+  },
+  "followup.studentsCount": {
+    "ar": "{count} طالب",
+    "fr": "{count} élève(s)"
+  },
+  "followup.amountsCurrent": {
+    "ar": "الأرصدة حسب آخر تحديث",
+    "fr": "Soldes à la dernière actualisation"
+  },
+  "followup.previous": {
+    "ar": "السابق",
+    "fr": "Précédent"
+  },
+  "followup.next": {
+    "ar": "التالي",
+    "fr": "Suivant"
+  },
+  "followup.loading": {
+    "ar": "جارٍ مراجعة المستحقات…",
+    "fr": "Actualisation des échéances…"
+  },
+  "followup.retry": {
+    "ar": "إعادة المحاولة",
+    "fr": "Réessayer"
+  },
+  "followup.batchDay": {
+    "ar": "يوم التذكير: {day} من كل شهر",
+    "fr": "Jour de rappel : le {day} de chaque mois"
+  },
+  "followup.ruleHint": {
+    "ar": "يجمع الاستحقاقات السابقة، وينبه للأقساط التي تستحق خلال {days} أيام بعده.",
+    "fr": "Il regroupe les échéances précédentes et anticipe celles des {days} jours suivants."
+  },
+  "followup.show": {
+    "ar": "عرض المستحقات",
+    "fr": "Afficher les échéances"
+  },
+  "followup.all": {
+    "ar": "الكل",
+    "fr": "Tous"
+  },
+  "followup.search": {
+    "ar": "بحث عن طالب",
+    "fr": "Rechercher un élève"
+  },
+  "followup.searchHint": {
+    "ar": "اسم الطالب أو رقم أحد والديه",
+    "fr": "Nom de l’élève ou téléphone d’un parent"
+  },
+  "followup.department": {
+    "ar": "القسم",
+    "fr": "Classe"
+  },
+  "followup.allDepartments": {
+    "ar": "كل الأقسام",
+    "fr": "Toutes les classes"
+  },
+  "followup.carryHint": {
+    "ar": "يبقى المستحق غير المسدد ظاهرًا حتى تسويته. موعد التذكير لا يغيّر تاريخ الاشتراك أو حساب الدين.",
+    "fr": "Un solde impayé reste affiché jusqu’à sa régularisation. La date de rappel ne modifie ni l’inscription ni le calcul des sommes dues."
+  },
+  "followup.refresh": {
+    "ar": "تحديث",
+    "fr": "Actualiser"
+  },
+  "followup.settings": {
+    "ar": "موعد التذكير",
+    "fr": "Date de rappel"
+  },
+  "followup.reminderDay": {
+    "ar": "يوم التذكير الشهري (1–31)",
+    "fr": "Jour de rappel mensuel (1–31)"
+  },
+  "followup.settingsHint": {
+    "ar": "قبل الاستحقاق بأسبوع كحد أقصى. تغيير اليوم يؤثر في التذكير فقط، وفي الأشهر القصيرة يُعتمد آخر يوم متاح.",
+    "fr": "Les rappels anticipés ne dépassent pas une semaine. Ce réglage agit seulement sur les rappels ; pour les mois plus courts, le dernier jour du mois est retenu."
+  },
+  "followup.changedStudent": {
+    "ar": "تغيّر وضع الطالب. راجع القائمة المحدثة قبل المتابعة.",
+    "fr": "La situation de l’élève a changé. Consultez la liste actualisée avant de continuer."
+  },
+  "followup.validation.0": {
+    "ar": "اختر يوم تذكير بين 1 و31.",
+    "fr": "Choisissez un jour de rappel entre 1 et 31."
+  },
+  "followup.validation.1": {
+    "ar": "اكتب سبب تعديل يوم التذكير.",
+    "fr": "Indiquez la raison du changement de jour de rappel."
+  },
+  "followup.validation.2": {
+    "ar": "أكّد تعديل يوم التذكير.",
+    "fr": "Confirmez le changement du jour de rappel."
+  },
+  "followup.validation.3": {
+    "ar": "إعداد يوم التذكير متاح للمدير فقط.",
+    "fr": "Seule la direction peut modifier le jour de rappel."
+  },
+  "followup.validation.4": {
+    "ar": "اضبط الرسوم أولًا قبل تعديل يوم التذكير.",
+    "fr": "Configurez les tarifs avant de modifier le jour de rappel."
+  },
+  "followup.validation.5": {
+    "ar": "تغيّر يوم التذكير؛ حدّث الصفحة ثم أعد المحاولة.",
+    "fr": "Le jour de rappel a changé. Actualisez la page et réessayez."
+  },
+  "followup.validation.6": {
+    "ar": "يوم التذكير",
+    "fr": "Jour de rappel"
+  },
+  "followup.money": {
+    "ar": "{value} أوقية قديمة",
+    "fr": "{value} MRO"
+  },
+  "followup.detailsTitle": {
+    "ar": "تفاصيل المبلغ · {name}",
+    "fr": "Détail du montant · {name}"
+  },
+  "followup.currentDebt": {
+    "ar": "إجمالي المستحق الآن",
+    "fr": "Total dû aujourd’hui"
+  },
+  "followup.dueSinceLabel": {
+    "ar": "مستحق منذ",
+    "fr": "Dû depuis le"
+  },
+  "followup.dueDate": {
+    "ar": "تاريخ الاستحقاق",
+    "fr": "Date d’échéance"
+  },
+  "followup.reminderAppears": {
+    "ar": "موعد ظهور التذكير",
+    "fr": "Date du rappel"
   }
 }

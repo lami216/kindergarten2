@@ -164,6 +164,34 @@ jobs:
           done
           if [ "$ready" != 1 ]; then cat /tmp/kg-teacher-payroll.log; exit 1; fi
           KG_TEACHER_PAYROLL_STATE="$qa/state.json" python -m tests.browser_teacher_payroll
+      - name: Compact financial follow-up, reminder calendar and midnight refresh on isolated TLS/PostgreSQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check live/student-followup.js
+          node --check docs/access-preview.js
+          qa=/tmp/kg-student-followup-qa
+          api_pid=''
+          cleanup_followup() {
+            if [ -n "$api_pid" ]; then
+              kill "$api_pid" 2>/dev/null || true
+              wait "$api_pid" 2>/dev/null || true
+            fi
+            if [ -f "$qa/state.json" ]; then
+              python -m tests.qa_student_followup cleanup --directory "$qa"
+            fi
+          }
+          trap cleanup_followup EXIT
+          python -m tests.qa_student_followup setup --directory "$qa"
+          python -m tests.qa_student_followup serve --directory "$qa" > /tmp/kg-student-followup.log 2>&1 &
+          api_pid=$!
+          ready=0
+          for n in $(seq 1 60); do
+            if curl -fsS --cacert "$qa/tls.crt" https://127.0.0.1:8531/api/health >/dev/null; then ready=1; break; fi
+            sleep 1
+          done
+          if [ "$ready" != 1 ]; then cat /tmp/kg-student-followup.log; exit 1; fi
+          KG_FOLLOWUP_STATE="$qa/state.json" python -m tests.browser_student_followup
       - name: Start isolated QA previews
         shell: bash
         run: |
