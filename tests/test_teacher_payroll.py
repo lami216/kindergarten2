@@ -165,7 +165,7 @@ def test_upgrade_preserves_historic_cash_and_flags_ambiguous_legacy_deductions(b
         q.execute('''DROP TABLE teacher_advance_settlements; DROP TABLE teacher_salary_months;
           ALTER TABLE teacher_payments DROP COLUMN managed_month;
           ALTER TABLE teacher_advances DROP COLUMN legacy_repaid,DROP COLUMN review_required;
-          DELETE FROM app_schema_migrations WHERE version=19;
+          DELETE FROM app_schema_migrations WHERE version>=19;
           INSERT INTO app_schema_migrations(version) VALUES(18) ON CONFLICT DO NOTHING''')
     migration=access[1]();assert M.upgrade(migration);assert not M.upgrade(migration);migration.close()
     a=account(c,s,t);assert a['salaries'][0]['cash_amount']==1500 and a['advances'][0]['cash_amount']==500

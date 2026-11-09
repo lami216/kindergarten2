@@ -448,6 +448,8 @@ def _apply_schema(conn):
     # independent versioned monthly finance tables.
     import monthly_finance
     monthly_finance.migrate(conn)
+    import followup_settings
+    followup_settings.migrate(conn)
     import school_departments
     school_departments.migrate(conn)
     import attendance

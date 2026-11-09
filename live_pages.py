@@ -52,8 +52,8 @@ CONTENT_TYPES = {'.css':'text/css','.js':'text/javascript','.jpg':'image/jpeg','
 def index_html():
     html = (DESIGN_ROOT/'index.html').read_text(encoding='utf-8')
     html = html.replace('<script src="preview.js">','<script src="/live/runtime.js"></script>\n<script src="preview.js">')
-    html=html.replace('</head>','<link rel="stylesheet" href="/live/workspace.css"><link rel="stylesheet" href="/live/people.css"><link rel="stylesheet" href="/live/reports.css"><link rel="stylesheet" href="/live/teacher-payroll.css"></head>')
-    return html.replace('</body>','<script src="/live/bridge.js"></script>\n<script src="/live/workspace.js"></script>\n<script src="/live/people.js"></script>\n<script src="/live/attendance-session.js"></script>\n<script src="/live/reports.js"></script>\n<script src="/live/subscriptions.js"></script>\n<script src="/live/gilet-exemption.js"></script>\n<script src="/live/mixed-gilet.js"></script>\n<script src="/live/teacher-payroll.js"></script>\n<script src="/live/session-recovery.js"></script>\n</body>')
+    html=html.replace('</head>','<link rel="stylesheet" href="/live/workspace.css"><link rel="stylesheet" href="/live/people.css"><link rel="stylesheet" href="/live/reports.css"><link rel="stylesheet" href="/live/teacher-payroll.css"><link rel="stylesheet" href="/live/student-followup.css"></head>')
+    return html.replace('</body>','<script src="/live/bridge.js"></script>\n<script src="/live/workspace.js"></script>\n<script src="/live/people.js"></script>\n<script src="/live/attendance-session.js"></script>\n<script src="/live/reports.js"></script>\n<script src="/live/subscriptions.js"></script>\n<script src="/live/gilet-exemption.js"></script>\n<script src="/live/mixed-gilet.js"></script>\n<script src="/live/teacher-payroll.js"></script>\n<script src="/live/student-followup.js"></script>\n<script src="/live/session-recovery.js"></script>\n</body>')
 
 
 def json_ready(value):
@@ -304,6 +304,9 @@ def edit_student(conn, data, actor):
 
 def mutate(conn, operation, data, profile):
     actor=profile['username']
+    if operation=='followup.settings':
+        import followup_settings
+        return followup_settings.save(conn,data)
     if operation in ('receipts.gilet.preview','receipts.gilet.cancel'):
         import receipt_item_cancellation as C
         if type(data.get('id')) is not int:raise ValueError('رقم الوصل غير صالح.')
@@ -601,6 +604,9 @@ def make_app(dsn, public_origin, *, management=False, trusted_proxies=()):
                 db.assert_schema_ready(conn)
                 if operation=='session': return {'user':profile,'csrf':csrf(token),'management':False}
                 if operation=='snapshot': return snapshot(conn,profile)
+                if operation=='followup.read':
+                    import student_followup
+                    return student_followup.read(conn)
                 if operation=='logout': A.revoke_current();return {'ok':True}
                 if operation=='pdf':
                     require(conn,'payments.view')
@@ -723,7 +729,7 @@ def make_app(dsn, public_origin, *, management=False, trusted_proxies=()):
     async def bridge(request): return Response((LIVE_ROOT/'bridge.js').read_bytes(),media_type='text/javascript')
     async def workspace_asset(request):
         name=request.path_params['name']
-        if name not in ('workspace.js','workspace.css','people.js','people.css','attendance-session.js','reports.js','reports.css','subscriptions.js','gilet-exemption.js','mixed-gilet.js','teacher-payroll.js','teacher-payroll.css','session-recovery.js'):return Response(status_code=404)
+        if name not in ('workspace.js','workspace.css','people.js','people.css','attendance-session.js','reports.js','reports.css','subscriptions.js','gilet-exemption.js','mixed-gilet.js','teacher-payroll.js','teacher-payroll.css','student-followup.js','student-followup.css','session-recovery.js'):return Response(status_code=404)
         return Response((LIVE_ROOT/name).read_bytes(),media_type='text/javascript' if name.endswith('.js') else 'text/css')
     async def catalog_asset(request):
         return Response('window.APP_MESSAGES='+json.dumps(L.CATALOG,ensure_ascii=False)+';',media_type='text/javascript')
