@@ -244,7 +244,7 @@ def render_intake(conn,parents=None,family_choices=None):
                     F.preview(int(initial_amount),reg_chosen,garment_chosen,tariff)
                 except ValueError as exc:
                     st.warning(str(exc))
-            st.caption("يمكن حفظ صفر؛ الرسوم المحددة تبقى دينًا، وتستحق الشهرية عند اكتمال كل شهر من تاريخ بدء الاشتراك.")
+            st.caption("يمكن حفظ صفر؛ الرسوم المحددة تبقى دينًا، وتستحق شهرية كل شهر يوم 10 من الشهر التالي، مهما كان يوم التسجيل.")
         else:
             st.caption("يمكنك تسجيل الدفعة لاحقًا. رسوم التسجيل تبقى مستحقة.")
 

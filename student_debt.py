@@ -13,7 +13,7 @@ def _actor(actor):
     return str(actor).strip()[:100]
 
 
-def _debt(c, student, when):
+def _debt(c, student, when, *, policy_as_of=None):
     """Caller holds account row lock; a past obligation is not a future bill."""
     c.execute("""SELECT f.fee_id AS ident,NULL::bigint AS period_id,
               f.kind AS kind,f.price,
@@ -32,8 +32,8 @@ def _debt(c, student, when):
            COALESCE((SELECT SUM(w.amount) FROM monthly_waivers w
              WHERE w.period_id=p.period_id),0) AS waived
            FROM monthly_periods p JOIN monthly_accounts m USING(student_id)
-           WHERE p.student_id=%s AND (CASE WHEN m.due_at_period_end THEN p.ends ELSE p.starts END)<=%s
-           ORDER BY p.period_no""",(student,when))
+           WHERE p.student_id=%(student)s AND """+F.due_sql('m','p','%(policy_as_of)s')+"""<=%(cutoff)s
+           ORDER BY p.period_no""",dict(student=student,cutoff=when,policy_as_of=policy_as_of or when))
     periods=[dict(x) for x in c.fetchall()]
     return [dict(x,remaining=int(x["price"])-int(x["paid"])-int(x["waived"]))
             for x in fees+periods]
@@ -42,11 +42,12 @@ def _debt(c, student, when):
 def current_debt(c, student, account, *, as_of=None):
     """Read issued debt for every status; only regular accounts issue new months."""
     day=as_of or F.today()
+    policy_day=day
     F._due_started(c,student,account,as_of=day)
     for boundary in (account.get('departure_on'),
                      account.get('exempt_from') if account['status']=='exempt' else None):
         if boundary: day=min(day,boundary)
-    return _debt(c,student,day)
+    return _debt(c,student,day,policy_as_of=policy_day)
 
 
 def waiver_preview(conn, student, *, as_of=None):

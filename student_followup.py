@@ -77,78 +77,40 @@ def _previous_policies(conn, day):
         return policy_windows(c.fetchall(), day)
 
 
-def account_item(projection, day, reminder_day, tuition, previous_policies=()):
-    """Derive visibility from unpaid obligations; never change their due dates.
+def account_item(projection, day, reminder_day=10, tuition=0, previous_policies=()):
+    """Actual outstanding debt only; reminder preferences never move a claim.
 
-    Once an unpaid obligation has reached its reminder date it stays visible,
-    including in later months before the batch day. Settled/waived periods do
-    not create reminders, and an upcoming balance is never labelled debt.
+    The optional legacy arguments keep older callers compatible. Settlement,
+    correction and cancellation use the official projection, with no new cash
+    entry, early collection or alternate balance calculation.
     """
-    import monthly_finance as F
+    from billing_schedule import period_due
     account = projection['account']
-    if account.get('archived_at') or account['start_date'] > day:
+    if account.get('archived_at') or account['start_date'] > day or int(projection['due_now']) <= 0:
         return None
-    open_account = account['status'] == 'regular' and not account.get('departure_on')
     cutoff = min(day, account.get('departure_on') or day,
-                 account.get('exempt_from') or day if account['status'] == 'exempt' else day)
+                 (account.get('exempt_from') or day) if account['status'] == 'exempt' else day)
     monthly_due = []
-    future = []
-    periods = projection['periods']
-    for period in periods:
+    for period in projection['periods']:
         remaining = _remaining(period)
-        if not remaining:
-            continue
-        due = period['end'] if account.get('due_at_period_end') else period['start']
-        item = dict(due_date=due, start=period['start'], end=period['end'], remaining=remaining)
-        if due <= cutoff:
-            monthly_due.append(item)
-        elif open_account:
-            future.append(item)
-    # Paid-in-advance accounts may have no stored unpaid period. The next
-    # missing period uses the current tariff, just as the official allocator.
-    if open_account and not future and int(tuition) > 0:
-        existing = {p['no']: p for p in periods}
-        index = 0
-        while index in existing:
-            index += 1
-        start, end = F.anniversary(account['start_date'], index), F.anniversary(account['start_date'], index + 1)
-        due = end if account.get('due_at_period_end') else start
-        if due > day:
-            future.append(dict(due_date=due, start=start, end=end, remaining=int(tuition)))
-    future.sort(key=lambda p: p['due_date'])
-    upcoming = future[0] if future else None
+        if remaining:
+            due = period_due(account, period, day)
+            if due <= cutoff:
+                monthly_due.append(dict(due_date=due, start=period['start'], end=period['end'], remaining=remaining))
     fees_due = sum(_remaining(fee) for fee in projection['fees'].values())
     due_dates = [p['due_date'] for p in monthly_due]
     if fees_due:
         due_dates.append(account['start_date'])
-    reminders = [reminder_date(d, reminder_day) for d in due_dates]
-    visible_dates = [d for d in reminders if d <= day]
-    # Changing the batch day must not hide an existing unpaid debt that had
-    # reached an earlier policy's window. Do not retain upcoming notices this
-    # way, or claim visibility before the account existed or that policy began.
-    if int(projection['due_now']) > 0:
-        existed = max(account['start_date'], _business_date(account.get('created_at')) or date.min)
-        for window in previous_policies:
-            end = min(day, window['ends'])
-            begin = max(existed, window['starts'])
-            for due in due_dates:
-                appeared = max(reminder_date(due, window['day']), begin)
-                # An early notice alone is rescheduled by the new policy. It
-                # retains visibility only after it was actual debt while that
-                # previous policy was still active.
-                if max(appeared, due) <= end:
-                    visible_dates.append(appeared)
-    if upcoming and reminder_date(upcoming['due_date'], reminder_day) <= day:
-        visible_dates.append(reminder_date(upcoming['due_date'], reminder_day))
-    else:
-        upcoming = None
-    if not visible_dates:
-        return None
-    due_total = int(projection['due_now'])
-    return dict(due_total=due_total, due_monthly=sum(p['remaining'] for p in monthly_due),
-                due_fees=fees_due, earliest_due=min(due_dates) if due_dates else None,
-                overdue_count=len(monthly_due), upcoming=upcoming,
-                reminder_on=min(visible_dates), status='due' if due_total else 'upcoming')
+    # A fully waived period is settled, but it is not a cash-paid month. Real
+    # prepayments count; this label does not claim uninterrupted paid coverage.
+    fully_paid = [p['start'] for p in projection['periods']
+                  if int(p['price']) > 0 and int(p['paid']) >= int(p['price'])]
+    earliest = min(due_dates) if due_dates else None
+    return dict(due_total=int(projection['due_now']), due_monthly=sum(p['remaining'] for p in monthly_due),
+                due_periods=monthly_due, due_fees=fees_due, earliest_due=earliest,
+                overdue_count=len(monthly_due), upcoming=None,
+                last_paid_month=max(fully_paid) if fully_paid else None,
+                reminder_on=earliest, status='due')
 
 
 def read(conn):
@@ -168,12 +130,8 @@ def read(conn):
             c.execute('BEGIN ISOLATION LEVEL REPEATABLE READ')
             A.require(c, 'payments.view', lock=False)
         settings = S.read(conn)
-        previous_policies = _previous_policies(conn, day)
         projections = F.projections(conn, day, materialize=False)
         with conn.cursor() as c:
-            c.execute('SELECT tuition FROM monthly_tariffs WHERE id=1')
-            row = c.fetchone()
-            tuition = int(row['tuition']) if row else 0
             c.execute('''SELECT s.student_id,s.full_name,p.father_name,p.mother_name,p.father_mobile,p.mother_mobile,
                 d.department_id,d.name AS department,ph.revision,ph.image_data IS NOT NULL AS photo
                 FROM students s LEFT JOIN parents p USING(father_id)
@@ -189,7 +147,7 @@ def read(conn):
             p = projections.get(child['student_id'])
             if not p:
                 continue
-            item = account_item(p, day, settings['day'], tuition, previous_policies)
+            item = account_item(p, day)
             if not item:
                 continue
             ident = child['student_id']
@@ -202,9 +160,7 @@ def read(conn):
                         mother_phone=(child['mother_mobile'] or '') if can_students else '',
                         photo=dict(data='/api/photo/'+quote(ident,safe='')+'?v='+str(child['revision']),revision=child['revision']) if can_students and child['photo'] else None)
             items.append(item)
-        items.sort(key=lambda row: (row['status']!='due',
-            row['earliest_due'] if row['status']=='due' else row['upcoming']['due_date'],
-            row['name'],row['id']))
-        return dict(today=day, settings=settings, early_days=7, items=items)
+        items.sort(key=lambda row: (row['earliest_due'] or day, row['name'], row['id']))
+        return dict(today=day, settings=settings, early_days=0, items=items)
     finally:
         conn.rollback()

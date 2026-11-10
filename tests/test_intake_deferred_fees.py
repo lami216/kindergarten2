@@ -1,4 +1,4 @@
-"""New intake terms: fee choice, zero cash, monthly anniversary and corrections."""
+"""New intake terms: fee choice, zero cash, calendar month collection and corrections."""
 from datetime import date
 from unittest.mock import patch
 import os
@@ -39,7 +39,7 @@ def test_zero_cash_selected_fees_and_completed_months(intake,registration,gilet,
     with patch.object(F,'today',return_value=date(2026,1,31)), patch.object(H,'today',return_value=date(2026,1,31)):
         before=F._total_due(conn,date(2026,1,31))
     sid=create(registration=registration,gilet=gilet)
-    for day,monthly in [(date(2026,1,31),0),(date(2026,2,27),0),(date(2026,2,28),3000),(date(2026,3,30),3000),(date(2026,3,31),6000)]:
+    for day,monthly in [(date(2026,1,31),0),(date(2026,2,9),0),(date(2026,2,10),3000),(date(2026,2,28),3000),(date(2026,3,9),3000),(date(2026,3,10),6000),(date(2026,3,31),6000)]:
         with patch.object(F,'today',return_value=day):
             p=F.projection(conn,sid)
             assert p['due_now']==fees+monthly
@@ -101,7 +101,7 @@ def test_intake_freezes_first_month_before_any_file_view(intake,cash):
 def test_outstanding_fees_settle_without_archival_or_monthly_reallocation(intake):
     conn,create=intake;sid=create();token=str(uuid.uuid4())
     with patch.object(F,'today',return_value=date(2026,1,31)):
-        assert F.projection(conn,sid)['next_due']==date(2026,2,28)
+        assert F.projection(conn,sid)['next_due']==date(2026,2,10)
         rid,new=D.pay_unpaid_fee(sid,'registration',actor='test',token=token,expected_due=1000)
         assert new and D.pay_unpaid_fee(sid,'registration',actor='test',token=token,expected_due=1000)==(rid,False)
         with pytest.raises(ValueError,match='تغيّر'):

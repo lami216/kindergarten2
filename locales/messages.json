@@ -1540,8 +1540,8 @@
     "fr": "Gestion et archivage"
   },
   "ui.a186f1b7b199": {
-    "ar": "يمكن حفظ صفر؛ الرسوم المحددة تبقى دينًا، وتستحق الشهرية عند اكتمال كل شهر من تاريخ بدء الاشتراك.",
-    "fr": "Vous pouvez enregistrer zéro. Les frais sélectionnés restent dus ; chaque mensualité devient exigible à la fin du mois d’abonnement correspondant."
+    "ar": "يمكن حفظ صفر؛ الرسوم المحددة تبقى دينًا، وتستحق شهرية كل شهر يوم 10 من الشهر التالي، مهما كان يوم التسجيل.",
+    "fr": "Vous pouvez enregistrer zéro. Les frais sélectionnés restent dus ; la mensualité d’un mois est exigible le 10 du mois suivant, quel que soit le jour d’inscription."
   },
   "ui.21af9417dbb0": {
     "ar": "نقل الأطفال بين الأقسام",
@@ -5452,8 +5452,8 @@
     "fr": "Date d’inscription et début de facturation"
   },
   "subscription.startHint": {
-    "ar": "يبدأ به حساب الأشهر، حتى لو كان الدفع في يوم آخر.",
-    "fr": "Les mois partent de cette date, même si le paiement intervient plus tard."
+    "ar": "تحدد شهر البداية؛ تستحق شهرية كل شهر يوم 10 من الشهر التالي.",
+    "fr": "Cette date détermine le premier mois facturé. Chaque mensualité est due le 10 du mois suivant."
   },
   "subscription.registrationDate": {
     "ar": "تاريخ التسجيل",
@@ -5508,8 +5508,8 @@
     "fr": "Détail des frais et des mensualités"
   },
   "subscription.editHint": {
-    "ar": "يُصحّح مواعيد الأشهر، دون تغيير مبالغ الدفعات أو تواريخ قبضها.",
-    "fr": "Corrige les périodes facturées, sans modifier les montants ni les dates des paiements."
+    "ar": "يُصحّح بداية الاشتراك، دون تغيير مبالغ الدفعات أو تواريخ قبضها.",
+    "fr": "Corrige le début de l’inscription sans modifier les montants ni les dates d’encaissement."
   },
   "subscription.partialPaid": {
     "ar": "المدفوع من الشهر غير المكتمل",
@@ -6540,8 +6540,8 @@
     "fr": "Suivi des paiements"
   },
   "followup.subtitle": {
-    "ar": "طلاب يحتاجون متابعة، وتنبيه مبكر قبل استحقاق الشهر.",
-    "fr": "Les familles à relancer et les prochaines mensualités à prévoir."
+    "ar": "المستحقات غير المسددة ومتابعة دفعات الطلاب.",
+    "fr": "Les sommes dues et le suivi des paiements des élèves."
   },
   "followup.currency": {
     "ar": "أوقية قديمة",
@@ -6632,8 +6632,8 @@
     "fr": "Aucun paiement à suivre ici"
   },
   "followup.emptyHint": {
-    "ar": "يظهر الطلاب تلقائيًا عند حلول موعد التذكير، ويختفون بعد التسديد.",
-    "fr": "Les élèves apparaissent à la date de rappel et quittent cette liste une fois le solde réglé."
+    "ar": "يظهر الطالب عند وجود مبلغ مستحق عليه، ويختفي بعد تسديده.",
+    "fr": "Un élève apparaît dès qu’un montant est dû et quitte cette liste une fois le solde réglé."
   },
   "followup.studentsCount": {
     "ar": "{count} طالب",
@@ -6692,8 +6692,8 @@
     "fr": "Toutes les classes"
   },
   "followup.carryHint": {
-    "ar": "يبقى المستحق غير المسدد ظاهرًا حتى تسويته. موعد التذكير لا يغيّر تاريخ الاشتراك أو حساب الدين.",
-    "fr": "Un solde impayé reste affiché jusqu’à sa régularisation. La date de rappel ne modifie ni l’inscription ni le calcul des sommes dues."
+    "ar": "تبقى المستحقات غير المسددة ظاهرة حتى تسويتها.",
+    "fr": "Un solde impayé reste affiché jusqu’à sa régularisation."
   },
   "followup.refresh": {
     "ar": "تحديث",
@@ -6708,8 +6708,8 @@
     "fr": "Jour de rappel mensuel (1–31)"
   },
   "followup.settingsHint": {
-    "ar": "قبل الاستحقاق بأسبوع كحد أقصى. تغيير اليوم يؤثر في التذكير فقط، وفي الأشهر القصيرة يُعتمد آخر يوم متاح.",
-    "fr": "Les rappels anticipés ne dépassent pas une semaine. Ce réglage agit seulement sur les rappels ; pour les mois plus courts, le dernier jour du mois est retenu."
+    "ar": "استحقاق الشهرية ثابت يوم 10 من الشهر التالي. هذا الإعداد يغيّر يوم التذكير فقط.",
+    "fr": "Les mensualités sont dues le 10 du mois suivant. Ce réglage modifie uniquement le jour du rappel."
   },
   "followup.changedStudent": {
     "ar": "تغيّر وضع الطالب. راجع القائمة المحدثة قبل المتابعة.",
@@ -6766,5 +6766,57 @@
   "followup.reminderAppears": {
     "ar": "موعد ظهور التذكير",
     "fr": "Date du rappel"
+  },
+  "followup.lastPaidMonth": {
+    "ar": "آخر شهر مسدد",
+    "fr": "Dernier mois réglé"
+  },
+  "followup.noPaidMonth": {
+    "ar": "لم يُسدَّد شهر كامل بعد",
+    "fr": "Aucun mois entièrement réglé"
+  },
+  "followup.unknownMonth": {
+    "ar": "شهر غير محدد",
+    "fr": "Mois non renseigné"
+  },
+  "followup.monthsSince": {
+    "ar": "من {month}",
+    "fr": "Depuis {month}"
+  },
+  "followup.monthDueOn": {
+    "ar": "{month} · يستحق {date}",
+    "fr": "{month} · le {date}"
+  },
+  "followup.unpaidMonths": {
+    "ar": "الأشهر غير المسددة",
+    "fr": "Mensualités restant à régler"
+  },
+  "followup.month": {
+    "ar": "الشهر",
+    "fr": "Mois"
+  },
+  "followup.remaining": {
+    "ar": "المتبقي",
+    "fr": "Reste"
+  },
+  "billing.history.due_day": {
+    "ar": "يوم استحقاق الشهرية",
+    "fr": "Jour d’échéance des mensualités"
+  },
+  "billing.history.effective_on": {
+    "ar": "بدء سياسة الاستحقاق الجديدة",
+    "fr": "Début de la nouvelle règle d’échéance"
+  },
+  "billing.history.adopted": {
+    "ar": "اعتماد موعد استحقاق الشهرية",
+    "fr": "Application de la date d’échéance des mensualités"
+  },
+  "billing.history.upgrade_21_adopted": {
+    "ar": "ترقية 21: اعتماد موعد استحقاق الشهرية",
+    "fr": "Mise à niveau 21 : application de la date d’échéance des mensualités"
+  },
+  "billing.history.upgrade_21_preserved": {
+    "ar": "ترقية 21: تثبيت الديون السابقة واعتماد استحقاق الشهرية",
+    "fr": "Mise à niveau 21 : conservation des soldes dus antérieurs et application de la nouvelle échéance des mensualités"
   }
 }

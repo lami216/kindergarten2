@@ -19,6 +19,7 @@ ACTION_LABELS = {
     "existing_account_setup":"تهيئة حساب دون قبض",
     "exemption":"إعفاء كامل",
     "tariff_change":"تعديل الأسعار",
+    "calendar_due_policy_adopted":"اعتماد موعد استحقاق الشهرية",
 }
 
 
@@ -132,7 +133,7 @@ def receipt_impact(conn, receipt_id, *, new_amount=None,
     a preview, NOT a reservation or an accounting event.
     """
     from monthly_finance import (anniversary, receipt_revision, projection,
-                                 amount, CURRENCY)
+                                 amount, CURRENCY, period_due)
     data=receipt_detail(conn,receipt_id)
     row=data["receipt"]
     if row["state"]!="active":
@@ -167,7 +168,7 @@ def receipt_impact(conn, receipt_id, *, new_amount=None,
             affected_periods=[receipt_line(i) for i in data['items']],
             new_items=[dict(kind='gilet',label='الجيليه',start=None,price=desired,previously_paid=0,waived=0,amount=desired)])
     with conn.cursor() as c:
-        c.execute("""SELECT status,start_date,departure_on,due_at_period_end FROM monthly_accounts
+        c.execute("""SELECT status,start_date,departure_on,due_at_period_end,calendar_due_day,calendar_due_from FROM monthly_accounts
                      WHERE student_id=%s""",(student,))
         account=c.fetchone()
         if not account or account["status"]!="regular":
@@ -234,10 +235,20 @@ def receipt_impact(conn, receipt_id, *, new_amount=None,
     current=projection(conn,student,materialize=False)
     cutoff=min(today(),account["departure_on"]) if account["departure_on"] else today()
     # The original receipt was valid and recognized before replacement.
-    original_due_coverage=sum(int(x["amount"]) for x in data["items"]
-        if x["fee_kind"] or ((x["ends"] if account.get("due_at_period_end") else x["starts"]) and (x["ends"] if account.get("due_at_period_end") else x["starts"])<=cutoff))
+    original_due_coverage=0
+    for item in data['items']:
+        if item['fee_kind']:
+            original_due_coverage+=int(item['amount'])
+            continue
+        live_period=periods.get(item['period_no'])
+        if live_period is None:
+            raise ValueError('الشهر المرتبط بالوصل غير موجود؛ يلزم تدقيق الحساب.')
+        # Receipt descriptions stay frozen. Its present debt impact follows
+        # the live target period, including an audited anchor correction.
+        if period_due(account,live_period,today())<=cutoff:
+            original_due_coverage+=int(item['amount'])
     corrected_due_coverage=sum(x["amount"] for x in prospective
-        if x["kind"]!="month" or (x["end"] if account.get("due_at_period_end") else x["start"])<=cutoff)
+        if x["kind"]!="month" or period_due(account,x,today())<=cutoff)
     projected_due=(int(current["due_now"])+original_due_coverage-
                    corrected_due_coverage) if current else None
     return {"revision":receipt_revision(conn,student),"receipt":data,

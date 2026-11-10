@@ -28,17 +28,19 @@ def intake_date(value, birth):
 
 def profile_summary(p):
     account=p['account'];open_account=account['status']=='regular' and not account.get('departure_on')
-    cutoff=min(F.today(),account.get('departure_on') or F.today(),account.get('exempt_from') or F.today())
+    day=F.today()
+    cutoff=min(day,account.get('departure_on') or day,account.get('exempt_from') or day)
     outstanding=next((row for row in p['periods'] if row['paid']+row.get('waived',0)<row['price'] and
-        (open_account or (row['end'] if account.get('due_at_period_end') else row['start'])<=cutoff)),None)
+        (open_account or F.period_due(account,row,day)<=cutoff)),None)
     index=0
     for row in p['periods']:
         if row['no']!=index or row['paid']+row.get('waived',0)<row['price']:break
         index+=1
     next_start=outstanding['start'] if outstanding else F.anniversary(account['start_date'],index) if open_account else None
-    next_due=(outstanding['end'] if account.get('due_at_period_end') else outstanding['start']) if outstanding else F.anniversary(account['start_date'],index+int(bool(account.get('due_at_period_end')))) if open_account else None
+    next_due=F.period_due(account,outstanding,day) if outstanding else F.period_due_date(account,
+        F.anniversary(account['start_date'],index),F.anniversary(account['start_date'],index+1),day) if open_account else None
     return dict(paid_through=p['paid_through'],next_unpaid=next_start,next_due=next_due,
-        partial_period=dict(start=outstanding['start'],end=outstanding['end'],paid=outstanding['paid'],
+        partial_period=dict(start=outstanding['start'],end=outstanding['end'],due_date=F.period_due(account,outstanding,day),paid=outstanding['paid'],
             remaining=outstanding['price']-outstanding['paid']-outstanding.get('waived',0)) if outstanding and outstanding['paid'] else None,
         fee_details={key:{**value,'remaining':max(0,value['price']-value['paid']-value.get('waived',0)-value.get('cancelled',0))} for key,value in p['fees'].items()})
 

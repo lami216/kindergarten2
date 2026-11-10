@@ -458,6 +458,10 @@ def _apply_schema(conn):
     import student_photos
     student_photos.migrate(conn)
     records.migrate(conn)
+    # Adoption is deployment-only and audited by the installed history
+    # triggers. No cash, periods or permissions are rewritten.
+    import billing_schedule
+    billing_schedule.migrate(conn)
     import access_control
     with conn.cursor() as c:
         c.execute("""CREATE TABLE IF NOT EXISTS app_tool_requests (

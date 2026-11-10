@@ -20,24 +20,22 @@ def entries(c,session):
     return r.json()['items']
 
 
-@pytest.mark.parametrize('end_day,asof,shown,state',[(8,9,False,None),(8,10,True,'due'),
-    (11,9,False,None),(11,10,True,'upcoming'),(12,10,True,'upcoming'),
-    (17,10,True,'upcoming'),(18,10,False,None),(18,17,False,None),(18,18,True,'due')])
-def test_confirmed_batch_rule_uses_actual_debt_and_early_window(browser,monkeypatch,end_day,asof,shown,state):
+@pytest.mark.parametrize('enrolled', [1,8,10,11,12,17,18,29,31])
+@pytest.mark.parametrize('asof,shown', [(9,False),(10,True),(18,True)])
+def test_calendar_month_claim_is_due_on_tenth_for_every_enrollment_day(browser,monkeypatch,enrolled,asof,shown):
     c,conn=browser;s=login(c)
     monkeypatch.setattr(F,'today',lambda:date(2026,11,asof))
-    sid=child(c,s,f'2026-10-{end_day:02d}')
+    sid=child(c,s,f'2026-10-{enrolled:02d}')
     before=F.projection(conn,sid,materialize=False)
     items=entries(c,s)
     assert bool(items)==shown
     if shown:
-        row=items[0];assert row['id']==sid and row['status']==state
-        assert row['due_total']==(3000 if state=='due' else 0)
-        assert row['due_monthly']==row['due_total']
-        assert row['reminder_on']==f'2026-11-{10 if end_day<=17 else end_day:02d}'
-        if state=='upcoming':
-            assert row['upcoming']['due_date']==f'2026-11-{end_day:02d}'
-            assert row['upcoming']['remaining']==3000
+        row=items[0];assert row['id']==sid and row['status']=='due'
+        assert row['due_total']==row['due_monthly']==3000
+        assert row['earliest_due']=='2026-11-10'
+        assert row['due_periods'][0]['start']==f'2026-10-{enrolled:02d}'
+        assert row['due_periods'][0]['due_date']=='2026-11-10'
+        assert row['upcoming'] is None
     after=F.projection(conn,sid,materialize=False)
     assert before['account']==after['account'] and before['periods']==after['periods']
     assert before['due_now']==after['due_now']
@@ -63,29 +61,30 @@ def test_exempt_and_paused_only_show_old_debt_archived_never_shown(browser,monke
     c,conn=browser;s=login(c);monkeypatch.setattr(F,'today',lambda:date(2026,11,10))
     sid=child(c,s,'2026-10-08')
     with conn.cursor() as q:
-        A.require(q,'accounts.edit');q.execute("UPDATE monthly_accounts SET status='exempt',exempt_from='2026-11-09' WHERE student_id=%s",(sid,))
+        A.require(q,'accounts.edit');q.execute("UPDATE monthly_accounts SET status='exempt',exempt_from='2026-11-10' WHERE student_id=%s",(sid,))
     row=entries(c,s)[0];assert row['due_total']==3000 and not row['upcoming'] and not row['can_pay']
     with conn.cursor() as q:
-        A.require(q,'accounts.edit');q.execute("UPDATE monthly_accounts SET status='regular',departure_on='2026-11-09' WHERE student_id=%s",(sid,))
+        A.require(q,'accounts.edit');q.execute("UPDATE monthly_accounts SET status='regular',departure_on='2026-11-10' WHERE student_id=%s",(sid,))
     row=entries(c,s)[0];assert row['due_total']==3000 and not row['upcoming'] and row['can_pay']
     with conn.cursor() as q:
         A.require(q,'students.delete');q.execute('UPDATE students SET archived_at=now() WHERE student_id=%s',(sid,))
     assert entries(c,s)==[]
 
 
-def test_fully_prepaid_months_do_not_trigger_and_partial_future_is_not_debt(browser,monkeypatch):
+def test_fully_prepaid_months_do_not_trigger_and_partial_current_month_is_exact(browser,monkeypatch):
     c,conn=browser;s=login(c);monkeypatch.setattr(F,'today',lambda:date(2026,11,10))
     full=child(c,s,'2026-10-12',amount='18000',mode='pay')
     partial=child(c,s,'2026-10-11',amount='1000',mode='pay')
     rows=entries(c,s);assert [r['id'] for r in rows]==[partial]
-    assert rows[0]['due_total']==0 and rows[0]['upcoming']['remaining']==2000
+    assert rows[0]['due_total']==2000 and rows[0]['due_monthly']==2000 and rows[0]['upcoming'] is None
     assert F.projection(conn,full,materialize=False)['cash_paid']==18000
 
 
 def test_registration_and_gilet_debt_are_scheduled_without_double_count(browser,monkeypatch):
     c,conn=browser;s=login(c);monkeypatch.setattr(F,'today',lambda:date(2026,11,9))
     sid=child(c,s,'2026-11-08',registration=True,gilet=True)
-    assert entries(c,s)==[]
+    row=entries(c,s)[0];assert row['due_fees']==3000 and row['due_monthly']==0 and row['due_total']==3000
+    assert row['last_paid_month'] is None
     monkeypatch.setattr(F,'today',lambda:date(2026,11,10))
     row=entries(c,s)[0];assert row['due_fees']==3000 and row['due_monthly']==0 and row['due_total']==3000
 

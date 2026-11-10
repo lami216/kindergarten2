@@ -89,7 +89,7 @@ def test_explicit_confirmation_required(access, confirmed):
     assert S.read(conn)['day'] == 10
 
 
-def test_official_upgrade_19_to_20_keeps_existing_data_and_access(access):
+def test_official_upgrade_19_to_current_keeps_existing_data_and_access(access):
     conn, connect, _, _ = access
     sid, _ = child()
     F.take_payment(sid, 6000, actor='owner')
@@ -113,7 +113,7 @@ def test_official_upgrade_19_to_20_keeps_existing_data_and_access(access):
     assert values(conn) == before
     with conn.cursor() as c:
         c.execute('SELECT MAX(version) AS n FROM app_schema_migrations')
-        assert c.fetchone()['n'] == 20
+        assert c.fetchone()['n'] == M.VERSION
         c.execute('SELECT user_id,username,password_hash,permissions,active,auth_version FROM app_users ORDER BY user_id')
         assert c.fetchall() == users
         c.execute('SELECT receipt_id,student_id,amount,state FROM monthly_receipts ORDER BY receipt_id')
