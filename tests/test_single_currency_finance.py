@@ -224,6 +224,9 @@ class SingleCurrencyCashTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             F.initialize_existing_account(sid,self.tomorrow,"exempt",True,actor="tester")
         account=F.projection(self.admin,sid,self.day)
+        self.assertEqual(account["account"]["calendar_due_day"],10)
+        self.assertIsNone(account["account"]["calendar_due_from"])
+        self.assertEqual(account["next_due"],date(2024,8,10))
         self.assertEqual(account["fees"]["registration"]["price"],1000)
         self.assertEqual(account["fees"]["registration"]["paid"],0)
         self.assertEqual(account["receipts"],[])

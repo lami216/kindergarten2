@@ -21,7 +21,7 @@ async def main():
     out.mkdir(parents=True, exist_ok=True)
     results, errors, layouts = [], [], []
     origin = state['origin']
-    expected = {'مريم أحمد': 3000, 'زينب محمد': 6000, 'محمد سالم': 3000, 'خديجة علي': 2000, 'أحمد محمود': 3000}
+    expected = {'مريم أحمد': 3000, 'زينب محمد': 3000, 'محمد سالم': 3000, 'خديجة علي': 2000, 'أحمد محمود': 3000, 'آمنة المختار': 3000}
 
     def passed(name):
         results.append(name)
@@ -43,7 +43,7 @@ async def main():
         await expect(page.locator('[data-finance=followup]')).to_be_visible()
         await page.locator('[data-finance=followup]').click()
         await expect(page.locator('#followup-search')).to_be_visible()
-        await expect(page.locator('#followup-results .followup-card')).to_have_count(5)
+        await expect(page.locator('#followup-results .followup-card')).to_have_count(6)
         await expect(page.locator('#nav-followup,#home-followup')).to_have_count(0)
         can_create = await page.evaluate("demoCan('receipts','create')")
         await expect(page.locator('[data-finance=payment],[data-finance=receipts],[data-finance=followup]')).to_have_count(3 if can_create else 2)
@@ -56,13 +56,15 @@ async def main():
         assert data['settings']['day'] == 10
         by_name = {r['name']: r for r in data['items']}
         assert set(by_name) == set(expected), by_name
-        assert sum(r['due_total'] for r in data['items']) == 9000
+        assert sum(r['due_total'] for r in data['items']) == 17000
         for name, amount in expected.items():
             item = by_name[name]
             assert (item['due_total'] if item['status'] == 'due' else item['upcoming']['remaining']) == amount, item
-        assert by_name['محمد سالم']['upcoming']['due_date'] == '2026-11-11'
-        assert by_name['خديجة علي']['upcoming']['due_date'] == '2026-11-12'
-        assert by_name['أحمد محمود']['upcoming']['due_date'] == '2026-11-17'
+        assert all(r['status']=='due' and r['upcoming'] is None for r in data['items'])
+        assert by_name['زينب محمد']['last_paid_month']=='2026-09-08'
+        assert by_name['آمنة المختار']['last_paid_month'] is None
+        assert by_name['آمنة المختار']['due_periods'][0]['start'] == '2026-10-29'
+        assert by_name['آمنة المختار']['due_periods'][0]['due_date'] == '2026-11-10'
         original = api.get('/api/snapshot').json()
         original_paid = {r['id']: r['account']['paid'] for r in original['students']}
         readers = []
@@ -83,12 +85,13 @@ async def main():
                 await sign_in(page, language=language)
                 await open_followup(page)
                 await expect(page.locator('#followup-summary .followup-metric')).to_have_count(2)
-                await expect(page.locator('#followup-summary .followup-metric').nth(0).locator('strong')).to_have_text('2')
-                await expect(page.locator('#followup-summary .followup-metric').nth(1).locator('strong')).to_contain_text('9\u202f000' if language == 'fr' else '9,000')
+                await expect(page.locator('.followup-tabs,[data-followup-tab],#followup-settings')).to_have_count(0)
+                await expect(page.locator('#followup-summary .followup-metric').nth(0).locator('strong')).to_have_text('6')
+                await expect(page.locator('#followup-summary .followup-metric').nth(1).locator('strong')).to_contain_text('17\u202f000' if language == 'fr' else '17,000')
                 assert not await page.evaluate('document.documentElement.scrollWidth>innerWidth')
                 assert await page.locator('html').get_attribute('dir') == ('ltr' if language == 'fr' else 'rtl')
                 portraits = page.locator('.followup-person img')
-                await expect(portraits).to_have_count(5)
+                await expect(portraits).to_have_count(6)
                 await portraits.first.evaluate('(img)=>img.decode()')
                 assert await portraits.first.evaluate('(img)=>img.naturalWidth>0')
                 names = await page.locator('.followup-person strong').all_text_contents()
@@ -97,8 +100,7 @@ async def main():
                 # financial breakdown are available only on explicit opening.
                 await expect(page.locator('.followup-list')).not_to_contain_text('33000000')
                 await expect(page.locator('.followup-list')).not_to_contain_text('قسم البراعم')
-                await expect(page.locator('[data-followup-details]')).to_have_count(5)
-                await expect(page.locator('.followup-list')).not_to_contain_text('آمنة المختار')
+                await expect(page.locator('[data-followup-details]')).to_have_count(6)
                 await expect(page.locator('.followup-list')).not_to_contain_text('عمر عبد الله')
                 heights = await page.locator('.followup-card').evaluate_all('(rows)=>rows.map(row=>Math.round(row.getBoundingClientRect().height))')
                 assert max(heights) <= (85 if width > 768 else 140), heights
@@ -119,13 +121,13 @@ async def main():
                 await expect(detail).not_to_be_visible()
                 await expect(page.locator('.discard-box')).to_have_count(0)
                 passed(f'{language}-{width}:compact_rows_with_explicit_read_only_amount_details')
-                await page.locator('[data-followup-tab=due]').click()
-                await expect(page.locator('.followup-card')).to_have_count(2)
-                assert set(await page.locator('.followup-person strong').all_text_contents()) == {'مريم أحمد', 'زينب محمد'}
-                await page.locator('[data-followup-tab=upcoming]').click()
-                await expect(page.locator('.followup-card')).to_have_count(3)
-                assert set(await page.locator('.followup-person strong').all_text_contents()) == {'محمد سالم', 'خديجة علي', 'أحمد محمود'}
-                await page.locator('[data-followup-tab=all]').click()
+                zeinab=page.locator('.followup-card').filter(has=page.locator('.followup-person strong',has_text='زينب محمد'))
+                await zeinab.locator('[data-followup-details]').click()
+                await expect(page.locator('#record-dialog')).to_contain_text('Dernier mois réglé' if language=='fr' else 'آخر شهر مسدد')
+                await expect(page.locator('#record-dialog')).to_contain_text('septembre 2026' if language=='fr' else 'سبتمبر 2026')
+                await expect(page.locator('#record-dialog')).not_to_contain_text('موعد ظهور التذكير')
+                await page.locator('#workspace-close').click()
+                passed(f'{language}-{width}:only_due_students_no_redundant_tabs_or_settings_and_last_cash_paid_month')
                 await page.locator('#followup-search').fill('٣٣٠٠٠٠٠٢')
                 await expect(page.locator('.followup-card')).to_have_count(1)
                 await expect(page.locator('.followup-person strong')).to_have_text('خديجة علي')
@@ -133,37 +135,11 @@ async def main():
                 await expect(page.locator('.followup-card')).to_have_count(0)
                 await page.locator('#followup-search').fill('')
                 await page.locator('#followup-department').select_option(label='قسم البراعم')
-                await expect(page.locator('.followup-card')).to_have_count(2)
-                assert set(await page.locator('.followup-person strong').all_text_contents()) == {'مريم أحمد', 'خديجة علي'}
+                await expect(page.locator('.followup-card')).to_have_count(3)
+                assert set(await page.locator('.followup-person strong').all_text_contents()) == {'مريم أحمد', 'خديجة علي', 'آمنة المختار'}
                 await page.locator('#followup-department').select_option('')
-                passed(f'{language}-{width}:exact_balances_dates_avatars_search_literal_parent_phone_department_tabs_and_direction')
+                passed(f'{language}-{width}:exact_balances_dates_avatars_search_literal_parent_phone_department_and_direction')
                 if language == 'ar' and width == 1360:
-                    await page.locator('#followup-settings').click()
-                    form = page.locator('#followup-settings-form')
-                    await form.locator('[name=day]').fill('8')
-                    await page.locator('#workspace-close').click()
-                    await expect(page.locator('.discard-box')).to_be_visible()
-                    await page.locator('[data-keep]').click()
-                    await expect(form.locator('[name=day]')).to_have_value('8')
-                    await page.locator('#workspace-close').click()
-                    await page.locator('[data-discard]').click()
-                    await expect(page.locator('#record-dialog')).not_to_be_visible()
-                    await expect(page.locator('.followup-card')).to_have_count(5)
-                    passed('unsaved_reminder_day_can_be_kept_or_explicitly_discarded')
-                    for day, count in [('8', 4), ('10', 5)]:
-                        await page.locator('#followup-settings').click()
-                        form = page.locator('#followup-settings-form')
-                        await form.locator('[name=day]').fill(day)
-                        await form.locator('[name=reason]').fill('اختبار موعد التذكير دون تغيير الحساب')
-                        await form.locator('[name=confirmed]').check()
-                        await form.locator('button.primary').click()
-                        await expect(page.locator('#record-dialog')).not_to_be_visible()
-                        await expect(page.locator('.followup-card')).to_have_count(count)
-                        if day == '8':
-                            await expect(page.locator('.followup-list')).not_to_contain_text('أحمد محمود')
-                        else:
-                            await expect(page.locator('.followup-list')).to_contain_text('أحمد محمود')
-                    passed('audited_settings_shift_only_visibility_and_restore_default')
                     mary = page.locator('.followup-card').filter(has=page.locator('.followup-person strong', has_text='مريم أحمد'))
                     await mary.locator('[data-followup-profile]').click()
                     await expect(page.locator('.file-hero')).to_contain_text('مريم أحمد')
@@ -233,7 +209,7 @@ async def main():
             page.on('pageerror', lambda error: errors.append(str(error)))
             await sign_in(page, username=readers[0], password='1234')
             await open_followup(page)
-            await expect(page.locator('#followup-settings')).to_have_count(0)
+            await expect(page.locator('#followup-settings,[data-followup-tab]')).to_have_count(0)
             await expect(page.locator('[data-followup-profile],[data-followup-pay]')).to_have_count(0)
             await expect(page.locator('.followup-contacts,.followup-person img')).to_have_count(0)
             await expect(page.locator('.followup-list')).not_to_contain_text('33000002')
@@ -268,7 +244,7 @@ async def main():
         session = api.get('/api/session').json()
         data = api.post('/api/followup.read', json={}, headers={'Origin': origin, 'X-CSRF-Token': session['csrf']}).json()
         assert data['settings']['day'] == 10
-    passed('reminder_settings_and_navigation_never_change_student_paid_amounts')
+    passed('due_only_navigation_and_paid_month_details_never_change_student_paid_amounts')
     assert not errors, errors
     (out / 'results.json').write_text(json.dumps({'passed': results, 'javascript_errors': errors}, ensure_ascii=False, indent=2), encoding='utf-8')
     print(json.dumps({'passed': results, 'javascript_errors': errors}, ensure_ascii=False))

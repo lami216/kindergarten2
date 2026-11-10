@@ -9,7 +9,7 @@ import record_history as H
 import monthly_finance as F
 import db
 
-LABELS={'followup_day':'يوم التذكير','advance':'تسديد السلف','review_required':'يحتاج مراجعة','legacy_repaid':'تسديد سابق مؤكد','active':'ساري','source':'المصدر',
+LABELS={'calendar_due_day':'يوم استحقاق الشهرية','calendar_due_from':'بدء سياسة الاستحقاق الجديدة','followup_day':'يوم التذكير','advance':'تسديد السلف','review_required':'يحتاج مراجعة','legacy_repaid':'تسديد سابق مؤكد','active':'ساري','source':'المصدر',
  'on_date':'يوم الحضور','excuse':'عذر الغياب','department_name':'القسم وقت التسجيل','person_id':'الملف','department_id':'القسم','father_name':'اسم الأب','father_mobile':'هاتف الأب','mother_name':'اسم الأم','mother_mobile':'هاتف الأم',
  'contact_email':'البريد','full_name':'الاسم','national_id':'الهوية','salary':'الراتب','mobile':'الهاتف',
  'address':'العنوان','hire_date':'تاريخ التوظيف','experience_years':'سنوات الخبرة','degree':'المؤهل','specialization':'التخصص',

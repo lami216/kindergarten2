@@ -11,6 +11,7 @@ from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import db
+from billing_schedule import period_due, period_due_date, due_sql
 
 MAX_AMOUNT = 1_000_000_000
 BUSINESS_TZ = ZoneInfo("Africa/Nouakchott")
@@ -628,19 +629,23 @@ def initialize_in_transaction(c, student, options, actor, token):
     anchor = options.get("start_date") or today()
     if isinstance(anchor,str):
         anchor=date.fromisoformat(anchor)
+    calendar_day = 10 if options.get('due_at_period_end') else None
+    # New calendar accounts have no legacy transition to preserve. A real
+    # deployment date is stored only when migrating an existing old account.
+    calendar_from = None
     if mode=="exempt":
         if options.get("cash") or options.get("registration") or options.get("gilet"):
             raise ValueError("المعفى لا تُسجل له دفعة نقدية.")
         c.execute("""INSERT INTO monthly_accounts
-           (student_id,status,start_date,created_by,exempt_by,exempt_at,due_at_period_end)
-           VALUES(%s,'exempt',%s,%s,%s,now(),%s)""",(student,anchor,_actor(actor),_actor(actor),bool(options.get("due_at_period_end",False))))
+           (student_id,status,start_date,created_by,exempt_by,exempt_at,due_at_period_end,calendar_due_day,calendar_due_from)
+           VALUES(%s,'exempt',%s,%s,%s,now(),%s,%s,%s)""",(student,anchor,_actor(actor),_actor(actor),bool(options.get("due_at_period_end",False)),calendar_day,calendar_from))
         _audit(c,student,None,"exemption",actor,{},{"all_fees":"exempt","start_date":anchor})
         if options.get('start_source')=='registration_date':
             _audit(c,student,None,'subscription_start_selected',actor,{},dict(start_date=anchor,source='intake'))
         return None
     settings=_tariffs(c)
-    c.execute("""INSERT INTO monthly_accounts(student_id,status,start_date,created_by,due_at_period_end)
-                  VALUES(%s,'regular',%s,%s,%s)""",(student,anchor,_actor(actor),bool(options.get("due_at_period_end",False))))
+    c.execute("""INSERT INTO monthly_accounts(student_id,status,start_date,created_by,due_at_period_end,calendar_due_day,calendar_due_from)
+                  VALUES(%s,'regular',%s,%s,%s,%s,%s)""",(student,anchor,_actor(actor),bool(options.get("due_at_period_end",False)),calendar_day,calendar_from))
     if options.get('start_source')=='registration_date':
         _audit(c,student,None,'subscription_start_selected',actor,{},dict(start_date=anchor,source='intake'))
     if options.get("charge_registration",True):
@@ -988,6 +993,7 @@ def projection(conn, student, as_of=None, *, materialize=True):
 
 def _project_account(account, fees, periods, receipts, day):
     """Shared pure calculation for individual and bulk account reads."""
+    periods=[dict(p,due_date=period_due(account,p,day)) for p in periods]
     paid_count=sum(1 for x in periods if x["price"]>0 and x["paid"]==x["price"])
     contiguous=0
     for p in periods:
@@ -999,17 +1005,18 @@ def _project_account(account, fees, periods, receipts, day):
     if account['status']=='exempt' and account.get('exempt_from'):
         cutoff=min(cutoff,account['exempt_from'])
     currently_due=sum(max(0,p["price"]-p["paid"]-p.get("waived",0)) for p in periods
-                      if (p["end"] if account.get("due_at_period_end") else p["start"])<=cutoff and charge_active)
+                      if p['due_date']<=cutoff and charge_active)
     if charge_active:
         currently_due+=sum(max(0,r["price"]-r["paid"]-r.get("waived",0)-r.get("cancelled",0)) for r in fees.values())
-    not_yet_due=sum(max(0,p["price"]-p["paid"]-p.get("waived",0)) for p in periods if (p["end"] if account.get("due_at_period_end") else p["start"])>cutoff)
+    not_yet_due=sum(max(0,p["price"]-p["paid"]-p.get("waived",0)) for p in periods if p['due_date']>cutoff)
     unpaid=next((p for p in periods if p["paid"]+p.get("waived",0)<p["price"]),None)
     next_start=(unpaid["start"] if unpaid else anniversary(account["start_date"],contiguous))
     return {"account":dict(account),"fees":fees,"periods":periods,"receipts":receipts,
             "paid_periods":paid_count,"paid_through":(anniversary(account["start_date"],contiguous)-timedelta(days=1)
                  if contiguous else None),"due_now":currently_due,
             "future_partial":not_yet_due,"next_unpaid":next_start,
-            "next_due":(unpaid["end"] if unpaid else anniversary(account["start_date"],contiguous+1)) if account.get("due_at_period_end") else next_start,
+            "next_due":unpaid['due_date'] if unpaid else period_due_date(account,
+                anniversary(account['start_date'],contiguous),anniversary(account['start_date'],contiguous+1),day),
             "exempt":account["status"]=="exempt",
              "cash_paid":sum(int(r["amount"]) for r in receipts
                              if r["state"]=="active" and r["received_on"]<=day),
@@ -1133,7 +1140,7 @@ def initialize_existing_account(student, start_date, mode, confirmed, *, actor="
             if c.fetchone()["n"]:
                 raise ValueError("لهذا الطفل وصولات تاريخية؛ أوقف التهيئة واطلب مراجعة مالية.")
             options={"mode":mode,"start_date":start_date,"cash":0,
-                     "registration":False,"gilet":False}
+                     "registration":False,"gilet":False,"due_at_period_end":True}
             initialize_in_transaction(c,student,options,actor,str(uuid.uuid4()))
             _audit(c,student,None,"existing_account_setup",actor,{},
                    {"mode":mode,"start_date":start_date,"cash":0},
@@ -1200,7 +1207,7 @@ def _total_due(conn, day):
             UNION ALL
             SELECT 'period',p.period_id,p.price
             FROM monthly_periods p JOIN monthly_accounts a USING(student_id)
-            WHERE a.start_date<=%(day)s AND (CASE WHEN a.due_at_period_end THEN p.ends ELSE p.starts END)<=LEAST(%(day)s,
+            WHERE a.start_date<=%(day)s AND """+due_sql()+"""<=LEAST(%(day)s,
                 COALESCE(a.departure_on,%(day)s),
                 CASE WHEN a.status='exempt' THEN COALESCE(a.exempt_from,%(day)s) ELSE %(day)s END)
         ), paid AS (

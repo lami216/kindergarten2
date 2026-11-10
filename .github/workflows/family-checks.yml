@@ -68,7 +68,7 @@ jobs:
       - name: Validate Arabic and French translation catalog
         run: python scripts/check_translations.py
       - name: Python syntax
-        run: python -m compileall -q app.py db.py ui.py style.py sections tests monthly_finance.py receipt_history.py receipt_pdf.py
+        run: python -m compileall -q app.py db.py ui.py style.py sections tests billing_schedule.py monthly_finance.py student_followup.py receipt_history.py receipt_pdf.py
       - name: Explicit atomic schema upgrade outside user sessions
         run: python -m schema_migrations --dsn-env TEST_POSTGRES_DSN
       - name: Full PostgreSQL integration and UI tests across conflicting timezones

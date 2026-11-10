@@ -81,6 +81,14 @@ def change_account(student, *, actor, reason, start_date=None, status=None, canc
                     exempt_at=CASE WHEN %s='exempt' THEN now() ELSE NULL END WHERE student_id=%s''',
                     (anchor,status,freeze,status,actor,status,student))
                 if old['status']=='exempt' and status=='regular':
+                    # Adopt only on explicit reactivation. An archived review
+                    # never restarts billing or invents months of absence.
+                    if old.get('calendar_due_day') is None and not old.get('departure_on'):
+                        c.execute('''UPDATE monthly_accounts SET calendar_due_day=10,
+                            calendar_due_from=%s WHERE student_id=%s''',(F.today(),student))
+                        F._audit(c,student,None,'calendar_due_policy_adopted',actor,
+                            {'calendar_due_day':None,'calendar_due_from':None},
+                            {'calendar_due_day':10,'calendar_due_from':str(F.today()),'cash_unchanged':True},reason)
                     # Initially exempt accounts have no issued fees or periods.
                     settings=F._tariffs(c)
                     c.execute("INSERT INTO monthly_fees(student_id,kind,price) VALUES(%s,'registration',%s) ON CONFLICT(student_id,kind) DO NOTHING",(student,settings['registration']))

@@ -188,7 +188,7 @@ def financial_panel(conn, student, *, payment=True, scope=None, profile=False, s
                            f" · المدفوع مقدماً: {fmt(result['prepaid_paid'])}")
             today=F.today()
             def period_state(p):
-                not_due=(p["end"] if result["account"].get("due_at_period_end") else p["start"])>today
+                not_due=F.period_due(result["account"],p,today)>today
                 remaining=max(0,p["price"]-p["paid"]-p.get("waived",0))
                 if p.get("waived",0) and remaining==0:
                     return "ألغي الدين — ليس قبضاً" if not p["paid"] else "مدفوع جزئياً ودينه ملغى"
