@@ -1,5 +1,5 @@
 """Separate, audited daily registers. Unmarked days are never absences."""
-from datetime import date
+from datetime import date, datetime, timedelta
 from urllib.parse import quote
 from psycopg2 import sql
 import access_control as A
@@ -29,7 +29,7 @@ def migrate(conn):
 
 
 def kind_config(kind):
-    if kind not in KINDS: raise ValueError('اختر سجل الطلاب أو المعلمين.')
+    if not isinstance(kind,str) or kind not in KINDS: raise ValueError('اختر سجل الطلاب أو المعلمين.')
     return KINDS[kind]
 
 
@@ -45,6 +45,98 @@ def percentages(counts):
     total=sum(counts.values())
     return {**counts,'total':total,'attendance_rate':round(counts['present']*100/total,1) if total else None,
             'absence_rate':round((counts['absent']+counts['excused'])*100/total,1) if total else None}
+
+
+def daily(conn, data=None):
+    """Today's aggregate only, with the same eligible roster as daily read.
+
+    Client dates/filters never change this home summary. Unmarked people are
+    reported separately, not counted as absent or included in percentages.
+    No names, portraits, excuses or historical attendance are returned.
+    """
+    # Capture the clock before the business date: crossing midnight between
+    # these reads only causes one harmless early refresh, not a stale 24h view.
+    now = datetime.now(F.BUSINESS_TZ)
+    on = F.today()
+    midnight = datetime.combine(now.date()+timedelta(days=1), datetime.min.time(), tzinfo=F.BUSINESS_TZ)
+    refresh_after_ms = max(1000, min(86401000, int((midnight-now).total_seconds()*1000)+1000))
+    result = dict(date=on, refresh_after_ms=refresh_after_ms, students=None, teachers=None)
+    with conn.cursor() as c:
+        # Read the actual session grants once; reports/student-file access is
+        # not a substitute for either attendance register's view permission.
+        profile = A.current(c, lock=False)
+        allowed = [kind for kind, (_, _, _, resource) in KINDS.items()
+                   if A.allowed(profile, resource+'.view')]
+        if not allowed:
+            raise A.AccessDenied('ليس لديك صلاحية لتنفيذ هذا الإجراء.')
+        for kind in allowed:
+            table, entity, pk, _ = KINDS[kind]
+            begins = 'birth_date' if kind == 'students' else 'hire_date'
+            # The unique person/day key keeps each eligible person in exactly
+            # one row. All sections share this denominator; no averaged rates.
+            c.execute(sql.SQL('''SELECT COUNT(*) AS roster_total,
+                    COUNT(*) FILTER(WHERE a.status='present') AS present,
+                    COUNT(*) FILTER(WHERE a.status='absent') AS absent,
+                    COUNT(*) FILTER(WHERE a.status='excused') AS excused
+                FROM {} p LEFT JOIN {} a ON a.person_id=p.{}
+                    AND a.on_date=%s AND a.cancelled_at IS NULL
+                WHERE p.archived_at IS NULL AND (p.{} IS NULL OR p.{}<=%s)''').format(
+                    sql.Identifier(entity), sql.Identifier(table), sql.Identifier(pk),
+                    sql.Identifier(begins), sql.Identifier(begins)), (on, on))
+            counts = c.fetchone()
+            summary = percentages(counts)
+            roster_total = int(counts['roster_total'])
+            unmarked = roster_total-summary['total']
+            result[kind] = dict(summary, roster_total=roster_total,
+                                unmarked=unmarked, complete=unmarked == 0)
+    return result
+
+
+def overview(conn, data):
+    """Saved person-day attendance for the selected day, week and month.
+
+    Unlike today's active-roster home card, historical aggregates retain
+    subsequently archived people and their section at the time of recording.
+    Unmarked dates and presumed school days never enter the denominator.
+    """
+    kind = data.get('kind')
+    table, _, _, resource = kind_config(kind)
+    on = day(data.get('date'))
+    selected = data.get('department_id')
+    department = None
+    if selected not in (None, ''):
+        if isinstance(selected, bool) or not isinstance(selected, (int, str)):
+            raise ValueError('اختر قسمًا صحيحًا.')
+        value = str(selected).strip()
+        if not value or len(value) > 10 or not value.isdecimal():
+            raise ValueError('اختر قسمًا صحيحًا.')
+        department = int(value)
+        if not 1 <= department <= 2147483647:
+            raise ValueError('اختر قسمًا صحيحًا.')
+    starts = dict(day=on, week=on-timedelta(days=on.weekday()), month=on.replace(day=1))
+    with conn.cursor() as c:
+        A.require(c, resource+'.view', lock=False)
+        if department is not None:
+            # An archived section may still have legitimate attendance in a
+            # past period; current placement never relabels those records.
+            c.execute('SELECT department_id FROM school_departments WHERE department_id=%s', (department,))
+            if not c.fetchone():
+                raise ValueError('اختر قسمًا صحيحًا.')
+        c.execute(sql.SQL('''WITH ranges(period,starts,ends) AS (VALUES
+                ('day',%s::date,%s::date),('week',%s::date,%s::date),('month',%s::date,%s::date))
+            SELECT r.period,r.starts,r.ends,
+                COUNT(*) FILTER(WHERE a.status='present') AS present,
+                COUNT(*) FILTER(WHERE a.status='absent') AS absent,
+                COUNT(*) FILTER(WHERE a.status='excused') AS excused,
+                COUNT(DISTINCT a.on_date) AS recorded_days
+            FROM ranges r LEFT JOIN {} a ON a.on_date BETWEEN r.starts AND r.ends
+                AND a.cancelled_at IS NULL AND (%s::integer IS NULL OR a.department_id=%s)
+            GROUP BY r.period,r.starts,r.ends''').format(sql.Identifier(table)),
+            (on,on,starts['week'],on,starts['month'],on,department,department))
+        rows = {row['period']:row for row in c.fetchall()}
+    periods = {key:dict(start=starts[key],end=on,summary=percentages(rows[key]),
+                        recorded_days=int(rows[key]['recorded_days'])) for key in starts}
+    return dict(kind=kind, date=on, department=department, periods=periods)
 
 
 def summaries(conn,kind,start=None,end=None):

@@ -6818,5 +6818,185 @@
   "billing.history.upgrade_21_preserved": {
     "ar": "ترقية 21: تثبيت الديون السابقة واعتماد استحقاق الشهرية",
     "fr": "Mise à niveau 21 : conservation des soldes dus antérieurs et application de la nouvelle échéance des mensualités"
+  },
+  "homeAttendance.title": {
+    "ar": "حضور اليوم",
+    "fr": "Présences du jour"
+  },
+  "homeAttendance.students": {
+    "ar": "الطلاب",
+    "fr": "Élèves"
+  },
+  "homeAttendance.teachers": {
+    "ar": "المعلمون",
+    "fr": "Enseignants"
+  },
+  "homeAttendance.viewRecord": {
+    "ar": "عرض السجل",
+    "fr": "Voir le registre"
+  },
+  "homeAttendance.present": {
+    "ar": "الحضور",
+    "fr": "Présence"
+  },
+  "homeAttendance.absent": {
+    "ar": "الغياب",
+    "fr": "Absence"
+  },
+  "homeAttendance.count.present": {
+    "ar": "حاضر: {count}",
+    "fr": "Présents : {count}"
+  },
+  "homeAttendance.count.absent": {
+    "ar": "غائب: {count}",
+    "fr": "Absents : {count}"
+  },
+  "homeAttendance.excused": {
+    "ar": "من الغياب: {count} بعذر",
+    "fr": "Absences justifiées : {count}"
+  },
+  "homeAttendance.recorded": {
+    "ar": "سُجّل {marked} من {total}",
+    "fr": "{marked} sur {total} renseignés"
+  },
+  "homeAttendance.unmarked": {
+    "ar": "{count} دون تسجيل",
+    "fr": "{count} non renseignés"
+  },
+  "homeAttendance.empty": {
+    "ar": "لا يوجد مسجلون اليوم",
+    "fr": "Aucun inscrit aujourd’hui"
+  },
+  "homeAttendance.noStudents": {
+    "ar": "لا يوجد طلاب نشطون في هذا اليوم.",
+    "fr": "Aucun élève actif à cette date."
+  },
+  "homeAttendance.noTeachers": {
+    "ar": "لا يوجد معلمون نشطون في هذا اليوم.",
+    "fr": "Aucun enseignant actif à cette date."
+  },
+  "homeAttendance.notRecorded": {
+    "ar": "لم يبدأ التسجيل بعد",
+    "fr": "Appel non renseigné"
+  },
+  "homeAttendance.incomplete": {
+    "ar": "التسجيل غير مكتمل",
+    "fr": "Appel incomplet"
+  },
+  "homeAttendance.complete": {
+    "ar": "اكتمل التسجيل",
+    "fr": "Appel complet"
+  },
+  "homeAttendance.rateHint": {
+    "ar": "النسب من السجلات المحفوظة اليوم فقط؛ الغياب يشمل الغياب بعذر.",
+    "fr": "Taux calculés sur les appels enregistrés aujourd’hui ; les absences justifiées sont incluses."
+  },
+  "homeAttendance.loading": {
+    "ar": "جارٍ تحميل حضور اليوم…",
+    "fr": "Chargement des présences du jour…"
+  },
+  "homeAttendance.failed": {
+    "ar": "تعذّر تحميل حضور اليوم. أعد المحاولة.",
+    "fr": "Impossible de charger les présences du jour. Réessayez."
+  },
+  "homeAttendance.retry": {
+    "ar": "إعادة المحاولة",
+    "fr": "Réessayer"
+  },
+  "homeAttendance.studentsAttendance": {
+    "ar": "حضور الطلاب",
+    "fr": "Présence des élèves"
+  },
+  "homeAttendance.teachersAttendance": {
+    "ar": "حضور المعلمين",
+    "fr": "Présence des enseignants"
+  },
+  "attendanceOverview.summary": {
+    "ar": "ملخص الحضور",
+    "fr": "Bilan des présences"
+  },
+  "attendanceOverview.period": {
+    "ar": "فترة الملخص",
+    "fr": "Période du bilan"
+  },
+  "attendanceOverview.day": {
+    "ar": "اليوم",
+    "fr": "Jour"
+  },
+  "attendanceOverview.week": {
+    "ar": "الأسبوع",
+    "fr": "Semaine"
+  },
+  "attendanceOverview.month": {
+    "ar": "الشهر",
+    "fr": "Mois"
+  },
+  "attendanceOverview.attendanceRate": {
+    "ar": "نسبة الحضور",
+    "fr": "Taux de présence"
+  },
+  "attendanceOverview.absenceRate": {
+    "ar": "نسبة الغياب",
+    "fr": "Taux d’absence"
+  },
+  "attendanceOverview.present": {
+    "ar": "حاضر",
+    "fr": "Présents"
+  },
+  "attendanceOverview.absent": {
+    "ar": "غائب",
+    "fr": "Absents"
+  },
+  "attendanceOverview.excused": {
+    "ar": "بعذر",
+    "fr": "Absences justifiées"
+  },
+  "attendanceOverview.savedRecords": {
+    "ar": "تسجيلات محفوظة: {count}",
+    "fr": "Appels enregistrés : {count}"
+  },
+  "attendanceOverview.recordedDays": {
+    "ar": "أيام مسجلة: {count}",
+    "fr": "Jours renseignés : {count}"
+  },
+  "attendanceOverview.method": {
+    "ar": "النسب من تسجيلات الحضور المحفوظة، والغياب يشمل الغياب بعذر.",
+    "fr": "Taux calculés sur les appels enregistrés ; les absences justifiées sont incluses."
+  },
+  "attendanceOverview.dayRegister": {
+    "ar": "سجل اليوم المحدد",
+    "fr": "Appel du jour sélectionné"
+  },
+  "attendanceOverview.studentRoster": {
+    "ar": "{count} طالب في القائمة",
+    "fr": "{count} élèves dans la liste"
+  },
+  "attendanceOverview.teacherRoster": {
+    "ar": "{count} معلم في القائمة",
+    "fr": "{count} enseignants dans la liste"
+  },
+  "attendanceOverview.unmarked": {
+    "ar": "{count} دون تسجيل",
+    "fr": "{count} non renseignés"
+  },
+  "attendanceOverview.empty": {
+    "ar": "لا توجد تسجيلات حضور محفوظة في هذه الفترة.",
+    "fr": "Aucun appel enregistré sur cette période."
+  },
+  "attendanceOverview.loading": {
+    "ar": "جارٍ تحميل ملخص الحضور…",
+    "fr": "Chargement du bilan des présences…"
+  },
+  "attendanceOverview.failed": {
+    "ar": "تعذّر تحميل ملخص الحضور. أعد المحاولة.",
+    "fr": "Impossible de charger le bilan des présences. Réessayez."
+  },
+  "attendanceOverview.retry": {
+    "ar": "إعادة المحاولة",
+    "fr": "Réessayer"
+  },
+  "attendanceOverview.invalidDepartment": {
+    "ar": "اختر قسمًا صحيحًا.",
+    "fr": "Choisissez une classe valide."
   }
 }

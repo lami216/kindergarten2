@@ -52,8 +52,8 @@ CONTENT_TYPES = {'.css':'text/css','.js':'text/javascript','.jpg':'image/jpeg','
 def index_html():
     html = (DESIGN_ROOT/'index.html').read_text(encoding='utf-8')
     html = html.replace('<script src="preview.js">','<script src="/live/runtime.js"></script>\n<script src="preview.js">')
-    html=html.replace('</head>','<link rel="stylesheet" href="/live/workspace.css"><link rel="stylesheet" href="/live/people.css"><link rel="stylesheet" href="/live/reports.css"><link rel="stylesheet" href="/live/teacher-payroll.css"><link rel="stylesheet" href="/live/student-followup.css"></head>')
-    return html.replace('</body>','<script src="/live/bridge.js"></script>\n<script src="/live/workspace.js"></script>\n<script src="/live/people.js"></script>\n<script src="/live/attendance-session.js"></script>\n<script src="/live/reports.js"></script>\n<script src="/live/subscriptions.js"></script>\n<script src="/live/gilet-exemption.js"></script>\n<script src="/live/mixed-gilet.js"></script>\n<script src="/live/teacher-payroll.js"></script>\n<script src="/live/student-followup.js"></script>\n<script src="/live/session-recovery.js"></script>\n</body>')
+    html=html.replace('</head>','<link rel="stylesheet" href="/live/workspace.css"><link rel="stylesheet" href="/live/people.css"><link rel="stylesheet" href="/live/reports.css"><link rel="stylesheet" href="/live/teacher-payroll.css"><link rel="stylesheet" href="/live/student-followup.css"><link rel="stylesheet" href="/live/home-attendance.css"><link rel="stylesheet" href="/live/attendance-overview.css"></head>')
+    return html.replace('</body>','<script src="/live/bridge.js"></script>\n<script src="/live/workspace.js"></script>\n<script src="/live/people.js"></script>\n<script src="/live/attendance-session.js"></script>\n<script src="/live/reports.js"></script>\n<script src="/live/subscriptions.js"></script>\n<script src="/live/gilet-exemption.js"></script>\n<script src="/live/mixed-gilet.js"></script>\n<script src="/live/teacher-payroll.js"></script>\n<script src="/live/student-followup.js"></script>\n<script src="/live/home-attendance.js"></script>\n<script src="/live/attendance-overview.js"></script>\n<script src="/live/session-recovery.js"></script>\n</body>')
 
 
 def json_ready(value):
@@ -338,8 +338,10 @@ def mutate(conn, operation, data, profile):
     if operation in ('reports.finance','reports.finance.export'):
         import finance_reports
         return finance_reports.read(data) if operation=='reports.finance' else finance_reports.export(data)
-    if operation in ('attendance.read','attendance.save'):
+    if operation in ('attendance.read','attendance.save','attendance.daily','attendance.overview'):
         import attendance
+        if operation=='attendance.daily': return attendance.daily(conn)
+        if operation=='attendance.overview': return attendance.overview(conn,data)
         return attendance.read(conn,data) if operation=='attendance.read' else attendance.save(conn,data,profile)
     if operation=='teachers.finance':
         import school_people
@@ -729,7 +731,7 @@ def make_app(dsn, public_origin, *, management=False, trusted_proxies=()):
     async def bridge(request): return Response((LIVE_ROOT/'bridge.js').read_bytes(),media_type='text/javascript')
     async def workspace_asset(request):
         name=request.path_params['name']
-        if name not in ('workspace.js','workspace.css','people.js','people.css','attendance-session.js','reports.js','reports.css','subscriptions.js','gilet-exemption.js','mixed-gilet.js','teacher-payroll.js','teacher-payroll.css','student-followup.js','student-followup.css','session-recovery.js'):return Response(status_code=404)
+        if name not in ('workspace.js','workspace.css','people.js','people.css','attendance-session.js','reports.js','reports.css','subscriptions.js','gilet-exemption.js','mixed-gilet.js','teacher-payroll.js','teacher-payroll.css','student-followup.js','student-followup.css','home-attendance.js','home-attendance.css','attendance-overview.js','attendance-overview.css','session-recovery.js'):return Response(status_code=404)
         return Response((LIVE_ROOT/name).read_bytes(),media_type='text/javascript' if name.endswith('.js') else 'text/css')
     async def catalog_asset(request):
         return Response('window.APP_MESSAGES='+json.dumps(L.CATALOG,ensure_ascii=False)+';',media_type='text/javascript')
