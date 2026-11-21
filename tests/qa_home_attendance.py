@@ -12,6 +12,7 @@ import io
 import json
 import os
 from pathlib import Path
+import re
 import uuid
 
 from tests import qa_live_pages as QA
@@ -37,9 +38,11 @@ def private_directory(root):
 
 def owned_state(root):
     state = json.loads((root / 'state.json').read_text(encoding='utf-8'))
-    QA.guard(state['dsn'])
+    values = QA.guard(state['dsn'])
     if (state.get('fixture') != FIXTURE or state.get('origin') != ORIGIN
-            or state.get('business_day') != BUSINESS_DAY.isoformat()):
+            or state.get('business_day') != BUSINESS_DAY.isoformat()
+            or not re.fullmatch(r'original_pages_qa_[0-9a-f]{32}', state.get('schema', ''))
+            or values.get('options') != '-c search_path=' + state['schema']):
         raise RuntimeError('Use only this private attendance QA fixture')
     return state
 
@@ -56,7 +59,7 @@ def setup(root):
         import web_runtime as W
         import db
         import access_control as A
-        import record_history as R
+        import records as R
         import school_departments as D
         from live_pages import mutate
         from PIL import Image
