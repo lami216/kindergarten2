@@ -1,0 +1,51 @@
+/* A compact register workspace built with the existing action/stat language. */
+.attendance-workspace.roll-setup{max-width:none;padding:22px 24px}
+.attendance-workspace>.attendance-overview-filters{grid-template-columns:minmax(0,1fr) minmax(0,1.3fr) auto;gap:15px;margin-bottom:0}
+.attendance-overview-filters label{font-size:11px}
+.attendance-overview-filters>button{margin-bottom:0;min-height:39px}
+.attendance-day-actions{display:flex;align-items:center;justify-content:space-between;gap:15px;padding:17px 0 19px;border-bottom:1px solid var(--border)}
+.attendance-day-actions>div{display:grid;gap:5px;min-width:0}
+.attendance-day-actions strong{font-size:14px;font-weight:400}
+.attendance-day-actions span{font-size:11px;color:var(--muted)}
+.attendance-day-actions .primary{padding:10px 20px;font-size:13px;white-space:nowrap}
+#attendance-overview{min-width:0;padding-top:19px}
+.attendance-period-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.attendance-period-head h2{font-size:16px;font-weight:400;margin:0}
+.attendance-periods.choices{margin:0;gap:5px}
+.attendance-periods .choice{padding:7px 16px;font-size:12px;min-width:66px}
+.attendance-overview-context{display:flex;align-items:center;justify-content:space-between;gap:7px 14px;flex-wrap:wrap;color:var(--muted);font-size:11px;margin:12px 0 14px}
+.attendance-overview-range{color:var(--text)}
+.attendance-overview-stats.stats{grid-template-columns:repeat(2,minmax(0,1fr));gap:15px}
+.attendance-overview-stats .stat{min-height:100px;padding:15px 18px}
+.attendance-overview-stats .stat-icon{font-size:18px;padding:8px}
+.attendance-overview-stats .stat-value{direction:ltr;unicode-bidi:isolate;margin:0}
+.attendance-overview-counts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;color:var(--muted);font-size:13px;margin-top:16px;padding-top:14px;border-top:1px solid var(--border)}
+.attendance-overview-counts>span{display:flex;align-items:baseline;flex-wrap:wrap;gap:5px 9px;min-width:0;padding-inline:16px}
+.attendance-overview-counts>span:first-child{padding-inline-start:0}
+.attendance-overview-counts>span+span{border-inline-start:1px solid var(--border)}
+.attendance-overview-counts strong{font-size:28px;line-height:1.25;font-weight:500;font-variant-numeric:tabular-nums;color:var(--text);margin:0;overflow-wrap:anywhere}
+.attendance-overview-method,.attendance-overview-empty{font-size:10px;line-height:1.8;color:var(--muted);margin:10px 0 0}
+.attendance-overview-empty{color:var(--text);font-size:12px}
+.attendance-overview-message{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:12px;color:var(--muted);padding:22px 0;margin:0}
+.attendance-overview-message p{margin:0}
+@media(max-width:599px){
+ .attendance-workspace.roll-setup{padding:16px}
+ .attendance-workspace>.attendance-overview-filters{grid-template-columns:minmax(0,1fr) auto;gap:10px}
+ .attendance-workspace>.attendance-overview-filters>label:first-child{grid-column:1/-1}
+ .attendance-workspace>.attendance-overview-filters>button{grid-column:auto;justify-self:start;padding:6px 12px;min-height:31px}
+ .attendance-day-actions{padding:13px 0 15px;gap:10px}.attendance-day-actions .primary{font-size:12px;padding:9px 13px}
+ .attendance-day-actions strong{font-size:13px}.attendance-day-actions span{font-size:10px}
+ #attendance-overview{padding-top:16px}.attendance-period-head h2{font-size:15px}
+ .attendance-periods .choice{padding:7px 11px;min-width:56px;font-size:11px}
+ .attendance-overview-context{font-size:10px;line-height:1.8;margin:10px 0 12px}
+ .attendance-overview-stats.stats{gap:10px}.attendance-overview-stats .stat{padding:13px 12px;min-height:94px;gap:8px}
+ .attendance-overview-stats .stat-label{font-size:10px}.attendance-overview-stats .stat-icon{font-size:16px;padding:7px}
+ .attendance-overview-stats .stat-value{font-size:24px}
+ .attendance-overview-counts{font-size:11px;margin-top:14px;padding-top:12px}
+ .attendance-overview-counts>span{padding-inline:10px;gap:3px 6px}
+ .attendance-overview-counts>span:first-child{padding-inline-start:0}
+ .attendance-overview-counts strong{font-size:24px}
+}
+@media(max-width:359px){
+ .attendance-workspace .date-entry:not(.date-entry-month){grid-template-columns:minmax(42px,.65fr) minmax(90px,1.4fr) minmax(74px,.95fr);gap:6px}
+}
